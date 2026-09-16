@@ -1,218 +1,118 @@
 # AGENTS.md
 
-This file provides guidance to AI coding assistants working with code in this repository.
+## 这个项目是什么
 
-## Development Commands
+**TalkWTF** —— 个人自用的桌面语音听写 app。以 Handy 为底座，移植 OpenTypeless 的「AI 润色 + 词典」UX，并重做 UI。
 
-**Prerequisites:**
+不分发、不上架，不需要签名/公证/自动更新基建。
 
-- [Rust](https://rustup.rs/) (latest stable)
-- [Bun](https://bun.sh/) package manager
+## 技术栈
 
-**Core Development:**
+- 前端：Tauri 2 + React + TypeScript + Tailwind 4 + Zustand
+- 后端：Rust（本地 ASR、LLM 调用、系统集成）
+- 包管理：bun（沿用 Handy 的 bun.lock）
 
-```bash
-# Install dependencies
-bun install
+## 两个仓库
 
-# Run in development mode
-bun run tauri dev
-# If cmake error on macOS:
-CMAKE_POLICY_VERSION_MINIMUM=3.5 bun run tauri dev
+- 底座（保留）：https://github.com/cjpais/Handy （MIT）
+- 功能来源（只搬逻辑/UX，不搬云）：https://github.com/tover0314-w/opentypeless （MIT）
 
-# Build for production
-bun run tauri build
+## 硬约束（不可违反）
 
-# Frontend only development
-bun run dev        # Start Vite dev server
-bun run build      # Build frontend (TypeScript + Vite)
-bun run preview    # Preview built frontend
-```
+- **禁止的是"我们自己的云"**：不实现任何自建云后端、账号/登录、订阅/配额、遥测/analytics、
+  数据中转代理（即 OpenTypeless 的 `/api/proxy/*`、`/api/backup`、账号体系那一套）。
+- **允许 BYOK（Bring Your Own Key）**：用户在设置里填自己的 API key，直连 provider。
+  例如 AI 润色接 **DeepSeek API 是允许的**——用户自己的 key、直连 DeepSeek，不经过我们。
+  同理允许 OpenAI / Anthropic / OpenRouter / Groq 等，也允许本地 Ollama。
+- **本地优先**：默认走本地（Ollama 做润色、本地 ASR），云端 provider 由用户自行选择。
+- 除用户显式配置的 provider 外，App 自身不联网。
+- 个人使用：不做签名、公证、自动更新。
+- 保留 MIT 许可声明；改名为自己的名字、换 logo（商标不在 MIT 内）。
+- 隐私优先：不记录、不上报用户数据。
 
-**Linting and Formatting (run before committing):**
+## 策略（重要，别搞错方向）
 
-```bash
-bun run lint              # ESLint for frontend
-bun run lint:fix          # ESLint with auto-fix
-bun run format            # Prettier + cargo fmt
-bun run format:check      # Check formatting without changes
-bun run format:frontend   # Prettier only
-bun run format:backend    # cargo fmt only
-```
+- 不要"合并两个代码库"。以 Handy 为唯一底座，从 OpenTypeless 移植逻辑/UX。
+- 理由：Handy 的本地 ASR 运行时是难复制、必须保留的部分；OpenTypeless 的润色+词典是相对简单、可移植的部分。
+- 绝对不要反过来把 Handy 的本地模型塞进 OpenTypeless。
+- 两边技术栈几乎相同，UI 代码可大量直接搬运。
 
-**Model Setup (Required for Development):**
+## 已知代码线索
 
-```bash
-mkdir -p src-tauri/resources/models
-curl -o src-tauri/resources/models/silero_vad_v4.onnx https://blob.handy.computer/silero_vad_v4.onnx
-```
+### Handy（底座，保留）
 
-For detailed platform-specific build setup, see [BUILD.md](BUILD.md).
+- 本地 ASR 运行时：src-tauri/src/audio_toolkit/
+- 模型目录/校验：src-tauri/src/catalog/
+- 润色后端（已存在）：src-tauri/src/llm_client.rs；settings 的 post_process_* 字段
+- 词典后端（已存在）：settings 的 custom_words；src-tauri/src/audio_toolkit/text.rs 的 apply_custom_words
+- 润色 UI：src/components/settings/post-processing/、src/components/settings/PostProcessingToggle.tsx
+- 词典 UI：src/components/settings/CustomWords.tsx
+- 隐藏开关（要拆掉）：src/components/settings/advanced/AdvancedSettings.tsx:65 的
+  `{experimentalEnabled && (...)}` 把润色藏在了 experimental 开关后面
+- 粉色主题色：src/styles/theme.css:9 (#faa2ca)、:14 (#f28cbb)
+- 主题：src/lib/utils/theme.ts、src/components/settings/ThemeSelector.tsx
+- 设置存储：src-tauri/src/settings.rs（settings_store.json）
 
-## Architecture Overview
+### OpenTypeless（只搬这些，别搬云）
 
-Handy is a cross-platform desktop speech-to-text application built with Tauri 2.x (Rust backend + React/TypeScript frontend).
+- app-aware 润色：src-tauri/src/llm/context_policy.rs、src-tauri/src/llm/prompt.rs、src-tauri/src/app_detector/
+- 场景/提示词管理：src/components/Settings 里的 Scenes 相关
+- 词典：src-tauri/src/storage/mod.rs（SQLite 的 dictionary + correction_rules 表）、
+  src-tauri/src/dictionary_io.rs、src/components/Settings 里的 DictionaryPane
+- 禁止搬（全是云/账号）：src-tauri/src/llm/cloud.rs、src-tauri/src/stt/cloud.rs、
+  src/lib/api.ts、authStore、AccountPage、UpgradePage
 
-### Backend Structure (src-tauri/src/)
+## 工作流
 
-- `lib.rs` - Main entry point, Tauri setup, manager initialization
-- `managers/` - Core business logic:
-  - `audio.rs` - Audio recording and device management
-  - `model.rs` - Model downloading and management
-  - `transcription.rs` - Speech-to-text processing pipeline
-  - `history.rs` - Transcription history storage
-- `audio_toolkit/` - Low-level audio processing:
-  - `audio/` - Device enumeration, recording, resampling
-  - `vad/` - Voice Activity Detection (Silero VAD)
-- `commands/` - Tauri command handlers for frontend communication
-- `cli.rs` - CLI argument definitions (clap derive)
-- `shortcut.rs` - Global keyboard shortcut handling
-- `settings.rs` - Application settings management
-- `overlay.rs` - Recording overlay window (platform-specific)
-- `signal_handle.rs` - `send_transcription_input()` reusable function
-- `utils.rs` - Platform detection helpers
+- 先 spec 再代码：每个阶段先产出 目标 / 范围 / 非目标 / 验收标准 / 任务拆分，确认后再实现。
+- 小步改动，可验证；每个阶段结束要能跑起来。
+- 完成前必须验证（跑构建/测试），未通过不许说"完成"。
 
-### Frontend Structure (src/)
+## UI 风格（Apple 原生风格）
 
-- `App.tsx` - Main component with onboarding flow
-- `components/` - React UI components:
-  - `settings/` - Settings UI
-  - `model-selector/` - Model management interface
-  - `onboarding/` - First-run experience
-  - `overlay/` - Recording overlay UI
-  - `update-checker/` - App update notifications
-  - `shared/`, `ui/`, `icons/`, `footer/` - Shared components
-- `hooks/useSettings.ts` - Settings state management hook
-- `stores/settingsStore.ts` - Zustand store for settings
-- `bindings.ts` - Auto-generated Tauri type bindings (via tauri-specta)
-- `overlay/` - Recording overlay window entry point
-- `lib/types.ts` - Shared TypeScript type definitions
+目标：看起来像 macOS 原生 app，遵循 Apple Human Interface Guidelines (HIG)。
 
-### Key Architecture Patterns
+- **字体**：系统字体栈（`-apple-system` / SF Pro）；中文用苹方（PingFang SC）。不引入第三方字体。
+- **颜色**：用系统语义色（label / secondaryLabel / tertiaryLabel / separator / systemBlue 等），
+  强调色用系统 accent。**不要硬编码品牌色**（尤其去掉粉色 #faa2ca / #f28cbb）。
+- **主题**：跟随系统 light/dark，并允许手动覆盖（system / light / dark）。
+- **材质与层次**：窗口用 vibrancy / 毛玻璃（Handy 已开 `macOSPrivateApi`，可用 `window-vibrancy` 这个 Rust crate）；
+  圆角、阴影、分隔线保持系统级克制。
+- **控件**：优先原生观感——sidebar、toolbar、segmented control、switch、list、inspector。
+  不要自造花哨控件。
+- **排版/间距**：统一 4/8pt 栅格，层级清晰，留白充足。
+- **布局**：macOS 上用 sidebar + 内容区（NavigationSplitView 式），设置页分组式。
+- **交互**：键盘快捷键、右键菜单、拖放等原生行为。
+- **动效**：细腻、克制、短时长；尊重「减少动态效果」偏好。
 
-**Manager Pattern:** Core functionality organized into managers (Audio, Model, Transcription) initialized at startup and managed via Tauri state.
+实现：Tailwind + 系统字体 + CSS 变量即可，不引入新 UI 框架。
+现有主题变量在 `src/styles/theme.css`，组件在 `src/components/`。
 
-**Command-Event Architecture:** Frontend → Backend via Tauri commands; Backend → Frontend via events.
+## 阶段计划
 
-**Pipeline Processing:** Audio → VAD → Whisper/Parakeet → Text output → Clipboard/Paste
+1. 解锁 + 重做润色 UI：拆掉 experimental gating，做好用的 provider/prompt 界面，接本地 Ollama
+2. 词典增强：增删改、导入导出、纠正规则、per-app 映射
+3. app-aware 润色：按前台 app 调语气/格式
+4. 视觉重做：改成 Apple 原生风格（见「UI 风格」一节），去掉粉色，统一 UI，light/dark
 
-**State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
+## 验收标准（Definition of Done）
 
-### Technology Stack
+- 无自建云后端、无账号、无遥测
+- AI 润色支持 BYOK（DeepSeek 等云端 provider）与本地 Ollama
+- 本地 ASR 可用（Qwen3-ASR 0.6B，中文）
+- 润色：UI 显眼、可接 Ollama、有提示词/场景管理
+- 词典：可增删改、导入导出、纠正规则
+- UI：Apple 原生风格、无粉色、跟随系统 light/dark、可读
+- 构建通过、测试通过
 
-**Core Libraries:**
+## 环境
 
-- `transcribe-cpp` - Local Whisper-family inference (GGML/GGUF) with GPU acceleration
-- `transcribe-rs` - ONNX speech recognition (Parakeet, Moonshine, SenseVoice, etc.)
-- `cpal` - Cross-platform audio I/O
-- `vad-rs` - Voice Activity Detection
-- `rdev` - Global keyboard shortcuts
-- `rubato` - Audio resampling
-- `rodio` - Audio playback for feedback sounds
+- Mac，16GB 内存
+- 主要语言：中文（含中英混说）
 
-### Application Flow
+## 不要做
 
-1. **Initialization:** App starts minimized to tray, loads settings, initializes managers
-2. **Model Setup:** First-run downloads preferred Whisper model (Small/Medium/Turbo/Large)
-3. **Recording:** Global shortcut triggers audio recording with VAD filtering
-4. **Processing:** Audio sent to Whisper model for transcription
-5. **Output:** Text pasted to active application via system clipboard
-
-### Settings System
-
-Settings are stored using Tauri's store plugin with reactive updates:
-
-- Keyboard shortcuts (configurable, supports push-to-talk)
-- Audio devices (microphone/output selection)
-- Model preferences (Small/Medium/Turbo/Large Whisper variants)
-- Audio feedback and translation options
-
-### Single Instance Architecture
-
-The app enforces single instance behavior — launching when already running brings the settings window to front rather than creating a new process. Remote control flags (`--toggle-transcription`, etc.) work by launching a second instance that sends args to the running instance via `tauri_plugin_single_instance`, then exits.
-
-## Internationalization (i18n)
-
-All user-facing strings must use i18next translations. ESLint enforces this (no hardcoded strings in JSX).
-
-**Adding new text:**
-
-1. Add key to `src/i18n/locales/en/translation.json`
-2. Use in component: `const { t } = useTranslation(); t('key.path')`
-
-**File structure:**
-
-```
-src/i18n/
-├── index.ts           # i18n setup
-├── languages.ts       # Language metadata
-└── locales/
-    ├── en/translation.json  # English (source)
-    ├── de/, es/, fr/, ja/, ru/, zh/, ...
-    └── ...
-```
-
-For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md).
-
-## Code Style
-
-**Rust:**
-
-- Run `cargo fmt` and `cargo clippy` before committing
-- Handle errors explicitly (avoid unwrap in production)
-- Use descriptive names, add doc comments for public APIs
-
-**TypeScript/React:**
-
-- Strict TypeScript, avoid `any` types
-- Functional components with hooks
-- Tailwind CSS for styling
-- Path aliases: `@/` → `./src/`
-
-## CLI Parameters
-
-Handy supports command-line parameters on all platforms for integration with scripts, window managers, and autostart configurations.
-
-**Implementation:** `cli.rs` (definitions), `main.rs` (parsing), `lib.rs` (applying), `signal_handle.rs` (shared logic)
-
-| Flag                     | Description                                                |
-| ------------------------ | ---------------------------------------------------------- |
-| `--toggle-transcription` | Toggle recording on/off on a running instance              |
-| `--toggle-post-process`  | Toggle recording with post-processing on/off               |
-| `--cancel`               | Cancel the current operation on a running instance         |
-| `--start-hidden`         | Launch without showing the main window (tray icon visible) |
-| `--no-tray`              | Launch without system tray (closing window quits the app)  |
-| `--debug`                | Enable debug mode with verbose (Trace) logging             |
-
-**Key design decisions:**
-
-- CLI flags are runtime-only overrides — they do NOT modify persisted settings
-- Remote control flags work via `tauri_plugin_single_instance`: second instance sends args, then exits
-- `send_transcription_input()` in `signal_handle.rs` is shared between signal handlers and CLI
-
-## Debug Mode
-
-Access debug features: `Cmd+Shift+D` (macOS) or `Ctrl+Shift+D` (Windows/Linux)
-
-## Platform Notes
-
-- **macOS**: Metal acceleration, accessibility permissions required for keyboard shortcuts
-- **Windows**: Vulkan acceleration, code signing. Implicit Vulkan layers (overlays, capture hooks) are disabled for the Handy process via `VK_LOADER_LAYERS_DISABLE=~implicit~` set in `main.rs`; opt out with `HANDY_KEEP_VULKAN_IMPLICIT_LAYERS=1` or by setting `VK_LOADER_LAYERS_DISABLE` yourself
-- **Linux**: OpenBLAS + Vulkan, limited Wayland support, overlay uses GTK layer shell (disable with `HANDY_NO_GTK_LAYER_SHELL=1`)
-- **Nix/NixOS**: the Nix package sets `HANDY_DISABLE_UPDATER=1` to force-disable the self-updater at runtime without touching the persisted setting (self-update can't work against an immutable `/nix/store`)
-
-## Troubleshooting
-
-See the [Troubleshooting](README.md#troubleshooting) section in README.md.
-
-## GitHub workflow for AI coding assistants
-
-**MANDATORY. Before opening any PR, issue, or discussion in this repo: you MUST read the relevant template file and follow it strictly.** That includes sections that look "ceremonial" — checklists, AI Assistance disclosures, "Human Written Description". A generic Summary/Test-plan layout is not acceptable.
-
-- **Opening a PR:** Read [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). Every section listed there is mandatory. If a section requires a human-written paragraph (e.g. "Human Written Description"), leave a clear TODO placeholder and ask the human contributor to fill it in — do not invent their voice.
-- **Opening an issue:** Read [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). Blank issues are disabled; pick the right template (`bug_report.md` for bugs). Feature requests do not belong in issues — they go to [Discussions](https://github.com/cjpais/Handy/discussions) (see `.github/ISSUE_TEMPLATE/config.yml`).
-- **Proposing a feature:** Handy is under a feature freeze. New features require community support gathered in [Discussions](https://github.com/cjpais/Handy/discussions) before any PR is opened — see the PR template's "Community Feedback" section.
-- **Translations:** Follow [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md).
-- **Full contributor workflow:** [CONTRIBUTING.md](CONTRIBUTING.md).
-
-**Commits:** Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). Focus the message on _why_, not _what_.
+- 不要加任何云端/账号/订阅/遥测
+- 不要改动 Handy 的本地 ASR 运行时（除非必要且已说明理由）
+- 不要引入新的重型依赖或新 UI 框架
+- 不要为了"能跑"而跳过验证
