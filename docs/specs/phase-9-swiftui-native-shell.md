@@ -165,11 +165,56 @@
 ## 任务拆分（粗）
 
 - [x] **P0** 最小 FFI + SwiftUI app 跑通（版本/ping + 事件回调）
-- [ ] **P1** 抽出 `talkwtf-core`，Tauri app 仍可运行
-- [ ] **P2** `invoke` 全命令 + 事件回调 + cbindgen 头文件
-- [ ] **P3** SwiftUI 主窗口 / 设置 / 资料库 / Dashboard
-- [ ] **P4** 原生悬浮窗（Spokenly 面板 + glassEffect）
-- [ ] **P5** 热键 / 托盘 / 权限 / i18n / 数据迁移 / 移除 Tauri
+- [x] **P1** 抽出 `talkwtf-core`（引擎层全部入 core；src-tauri 变薄适配层）
+- [x] **P2** `invoke` 全命令 + 事件回调（手写 `talkwtf.h`）
+- [x] **P3** SwiftUI 主窗口 / 设置 / 资料库 / Dashboard
+- [x] **P4** 原生悬浮窗（NSPanel + glassEffect）
+- [x] **P5** 热键 / 托盘 / 权限 / i18n / 数据迁移 / 移除 Tauri
+
+### P5 完成记录（2026-09-17）
+
+**原生能力补齐**
+- 提示音：`SoundPlayer.swift`（`NSSound`，读 `resources/*.wav`，自定义主题读 AppData）
+- 开机启动：`Autostart.swift`（`SMAppService.mainApp`）+ 清理旧 launch agent
+- 托盘：`TrayController.swift`（`NSStatusItem`）
+- 权限：`Permissions.swift` + `OnboardingView.swift`（麦克风 / 辅助功能，轮询授权状态）
+- i18n：`Localization.swift` + `Languages.swift`，复用 `resources/locales/` 26 个语言包，
+  复刻 Tauri 的语言码解析（`zh-Hans-CN`→`zh`、Hant→`zh-TW`）
+- 按键模式：`DictationController.swift` 支持 toggle / push-to-talk / hold-or-toggle
+- 设置：通用 / 个性化（provider·风格·场景·翻译）/ 模型 / 声音 / 高级 / 调试 / 关于
+- 资料库：历史（搜索·复制·删除）+ 词典（词·规则·学词拒绝名单·导入导出）
+
+**导入导出搬进 core**（Tauri 与 SwiftUI 共用）
+- `core/core/src/dictionary_io.rs`、`core/core/src/polish_profile.rs`；
+  src-tauri 改为薄委托，测试一并迁移
+
+**新增 FFI 命令**
+`is_accessibility_trusted` / `get_available_accelerators` / `list_input_devices` /
+`list_output_devices` / `unload_model` / `export_dictionary` / `import_dictionary` /
+`export_polish_profile` / `import_polish_profile`
+
+**移除 Tauri 与 React**
+- 删除 `src/`、`src-tauri/`、JS 工具链（package.json / vite / tsconfig / eslint /
+  prettier / playwright / node_modules / dist / public / tests）、`.github/`、Nix
+  （`flake.nix` / `flake.lock` / `nix/` / `.nix/`）、`.cargo/`、上游 Handy 文档与
+  `sponsor-images/`
+- 共享资产迁到仓库根：`resources/`（原 `src-tauri/resources`）、
+  `resources/locales/`（原 `src/i18n/locales`）；Xcode 复制阶段合并为一条
+- `scripts/check-translations.ts` → `scripts/check_translations.py`（不再依赖 bun）
+- 删除 `ContentView.swift`（P0 spike）与 `MigrationProgress.swift`（迁移已完成）
+- 重写 `README.md` / `BUILD.md`，更新 `AGENTS.md` 的技术栈与代码地图
+
+**验证**
+- core 275 / ffi 6 测试通过；两边 `cargo fmt --check` 绿
+- `python3 scripts/check_translations.py` 25 个语言全部通过
+- Xcode BUILD SUCCEEDED；真机运行：七个设置面板 + 资料库渲染正常、中文本地化生效
+- 无头冒烟：`cargo run --example smoke` → 转录 + DeepSeek 润色成功
+
+**未做**
+- App 图标（原 Handy 图标含商标，已随 `src-tauri/icons` 删除；需要自备）
+- 悬浮窗状态机（learned / translation_failed + retry / notice / translating）
+- 历史 re-transcribe；麦克风选择真正下发到 audio manager
+- 键盘诊断 / hold-threshold 调试面板
 
 ## 待确认
 
@@ -304,6 +349,44 @@
   `theme=system`、`polish_style=structured`、`dictionary_words=6`、`history_entries=34`、
   `total_recordings=34`、`total_chars=1816`。**零 Tauri**。
 - 静态库链接验证：Xcode 成功链接含 transcribe-cpp / cpal / ort 的完整 `libtalkwtf_ffi.a`。
+
+## P3 进行中记录（2026-09-17）
+
+`macos/TalkWTF/` 新增 SwiftUI 外壳（全部经 FFI 读 core）：
+- `CoreClient.swift`——`Core.invoke` 封装 + `Dashboard`/`HistoryEntry`/`Dictionary` 解码
+- `AppShell.swift`——`NavigationSplitView`：侧栏（概览 / 资料库 / 设置）+ 设置二级列表
+  （通用 / 个性化 / 模型 / 关于）；启动时后台 `Core.initialize()`（引擎加载不阻塞 UI）
+- `DashboardView.swift`——指标卡（总录音/口述时长/字数/节省时间/翻译次数/个性化程度）+ 服务状态
+- `LibraryView.swift`——历史列表（搜索 + 相对时间 + 字数）与词典（词汇 / 纠正规则）
+- `SettingsView.swift`——原生 `Form`：主题 / 润色风格 / 自动学词 / 输出开关、
+  翻译目标语言（增删 + 设为当前）、模型列表（使用）、关于
+
+**真机验证**：Dashboard 显示真实数据 34 录音 / 6m51s / 1816 字 / 节省 8m16s / 9 翻译 / 个性化 80%；
+服务状态 Qwen3-ASR ✅ + DeepSeek ✅。**零 Tauri**。
+
+## P5 进行中记录（2026-09-17）
+
+- **管线入 core**：`pipeline.rs`——把 `actions.rs` 的 `build_system_prompt` / `BASE_PROMPT` /
+  `build_user_content` / `strip_*` / `is_blank_transcription` / `post_process_transcription` /
+  `maybe_convert_chinese_variant` / `resolve_effective_language` / `record_llm_usage` /
+  `ProcessedTranscription` / `ProcessingMode` 搬进 core；src-tauri 改为 `pub use` + 薄包装，
+  **提示词单一来源**（避免两个 shell 漂移）。Apple Intelligence 分支在 core 里改为「交给外壳」。
+- **`dictation.rs`**：`start(mode)` / `stop(mode) -> String` / `cancel()`——录音→转写→（OpenCC）→
+  润色或翻译，返回最终文本；外壳负责触发与粘贴。
+- **FFI**：`start_dictation` / `stop_dictation` / `cancel_dictation`。
+- **Swift**：`DictationController.swift`——Carbon `RegisterEventHotKey`（Option+Space，切换式）→
+  调 core 听写；`Paster`（剪贴板 + CGEvent Cmd+V，粘贴后恢复剪贴板）；
+  悬浮窗接**真实 mic-level**（core `emit_mic_levels` → FFI 事件 → `NotificationCenter`）。
+- 验证：core 266 / ffi 6 / src-tauri 100；三边 fmt 绿；前端 lint/build 绿；Xcode BUILD SUCCEEDED；
+  Swift app 启动无错误。
+
+### 待办（P5 剩余）
+
+- 托盘（`NSStatusItem`）、权限引导（麦克风/辅助功能）、开机启动
+- i18n（复用现有 26 个 JSON 语言包）
+- 数据迁移校验（沿用 `com.pais.handy` 目录，已验证可读）
+- 移除 Tauri 依赖与 `src/`（React）代码
+- 真机听写冒烟（需用户按 Option+Space 实测）
 
 ### 待办（P2 剩余）
 

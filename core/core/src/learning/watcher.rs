@@ -5,7 +5,7 @@
 //! input, or an edit we cannot interpret all end in silence, never in an error.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use log::{debug, info};

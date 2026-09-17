@@ -25,16 +25,18 @@ pub fn dictionary_store() -> Option<Arc<DictionaryStore>> {
     DICTIONARY_STORE.get().cloned()
 }
 
-static AUDIO_MANAGER: OnceLock<std::sync::Weak<AudioRecordingManager>> = OnceLock::new();
+static AUDIO_MANAGER: OnceLock<Arc<AudioRecordingManager>> = OnceLock::new();
 
-/// Register a weak handle to the audio manager (the shell owns the strong one).
-pub fn set_audio_manager(manager: &Arc<AudioRecordingManager>) {
-    let _ = AUDIO_MANAGER.set(Arc::downgrade(manager));
+/// Register the audio manager. Holds a strong reference: in the FFI host the
+/// core owns the managers, and a weak handle would dangle as soon as the
+/// constructor's `Arc` went out of scope.
+pub fn set_audio_manager(manager: Arc<AudioRecordingManager>) {
+    let _ = AUDIO_MANAGER.set(manager);
 }
 
-/// The audio manager, if it is still alive.
+/// The audio manager, if the shell registered one.
 pub fn audio_manager() -> Option<Arc<AudioRecordingManager>> {
-    AUDIO_MANAGER.get().and_then(|weak| weak.upgrade())
+    AUDIO_MANAGER.get().cloned()
 }
 
 static MODEL_MANAGER: OnceLock<Arc<ModelManager>> = OnceLock::new();

@@ -8,9 +8,13 @@
 
 ## 技术栈
 
-- 前端：Tauri 2 + React + TypeScript + Tailwind 4 + Zustand
-- 后端：Rust（本地 ASR、LLM 调用、系统集成）
-- 包管理：bun（沿用 Handy 的 bun.lock）
+- 外壳：原生 SwiftUI（macOS，arm64），Xcode 工程 `macos/TalkWTF.xcodeproj`
+- 引擎：Rust，`core/core`（`talkwtf-core`，零 Tauri 依赖）
+- 桥：C FFI，`core/ffi`（`talkwtf-ffi` staticlib + `talkwtf.h`，JSON invoke + 事件回调）
+- 资源：`resources/`（模型元数据、VAD 模型、提示音、`locales/` 26 个语言包）
+- 脚本：Python（`scripts/`），不依赖 Node/bun
+
+Tauri 与 React 前端已移除（阶段 9 P5）。
 
 ## 两个仓库
 
@@ -37,37 +41,56 @@
 - 不要"合并两个代码库"。以 Handy 为唯一底座，从 OpenTypeless 移植逻辑/UX。
 - 理由：Handy 的本地 ASR 运行时是难复制、必须保留的部分；OpenTypeless 的润色+词典是相对简单、可移植的部分。
 - 绝对不要反过来把 Handy 的本地模型塞进 OpenTypeless。
-- 两边技术栈几乎相同，UI 代码可大量直接搬运。
-- **目标是功能对齐 OpenTypeless（除云/账号），结构保持 Handy**。凡是 OpenTypeless 有的能力，
+- **目标是功能对齐 OpenTypeless（除云/账号），引擎结构保持 Handy**。凡是 OpenTypeless 有的能力，
   默认都要有；差异只在实现底座（本地 ASR 用 Handy 的 transcribe.cpp + Qwen3-ASR）和「无自建云」这条硬约束。
+- UI 现在是 SwiftUI，不再从 React 搬组件，只搬逻辑/UX。
 - **交互模型对齐 OpenTypeless**：听写是「转录 + 润色」一个动作，没有"纯转写模式"；
   不同用途用不同工作流热键（听写 / Ask / 翻译），每个工作流可绑多个快捷键。
 - 润色不是让用户手写 prompt，而是「润色风格 + 场景」；prompt 文本属于高级用法。
 
-## 已知代码线索
+## 代码地图
 
-### Handy（底座，保留）
+### core/core（`talkwtf-core`，引擎，零 Tauri）
 
-- 本地 ASR 运行时：src-tauri/src/audio_toolkit/
-- 模型目录/校验：src-tauri/src/catalog/
-- 润色后端（已存在）：src-tauri/src/llm_client.rs；settings 的 post_process_* 字段
-- 词典后端（已存在）：settings 的 custom_words；src-tauri/src/audio_toolkit/text.rs 的 apply_custom_words
-- 润色 UI：src/components/settings/post-processing/、src/components/settings/PostProcessingToggle.tsx
-- 词典 UI：src/components/settings/CustomWords.tsx
-- 隐藏开关（要拆掉）：src/components/settings/advanced/AdvancedSettings.tsx:65 的
-  `{experimentalEnabled && (...)}` 把润色藏在了 experimental 开关后面
-- 粉色主题色：src/styles/theme.css:9 (#faa2ca)、:14 (#f28cbb)
-- 主题：src/lib/utils/theme.ts、src/components/settings/ThemeSelector.tsx
-- 设置存储：src-tauri/src/settings.rs（settings_store.json）
+- 设置 / 场景 / 绑定：`settings.rs`（`settings_store.json` 单一来源）
+- 词典：`dictionary.rs`（SQLite：words + correction_rules + learning_rejections）
+- 词典导入导出：`dictionary_io.rs`
+- 润色配置导入导出：`polish_profile.rs`
+- 历史：`history.rs`（`history.db`，含 duration_ms / char_count / workflow）
+- 模型目录 / 下载：`catalog/`、`model/`、`model_capabilities.rs`、`gguf_meta.rs`
+- 本地 ASR 运行时：`audio_toolkit/`（含 `audio/device.rs`、`text.rs` 的 `apply_custom_words`）
+- 转录管理：`transcription.rs`（含 `get_available_accelerators`）
+- 音频捕获：`audio.rs`
+- LLM / 润色 / 翻译：`llm_client.rs`、`pipeline.rs`
+- 听写编排：`dictation.rs`；热键：`hotkeys.rs`
+- 自动学词：`learning/`（macOS AX；`is_accessibility_trusted()`）
+- 事件出口：`events.rs`（`EventSink`）
+- Dashboard 统计：`dashboard.rs`
+- 状态：`state.rs`；引擎装配：`engine.rs`
 
-### OpenTypeless（只搬这些，别搬云）
+### core/ffi（`talkwtf-ffi`）
 
-- app-aware 润色：src-tauri/src/llm/context_policy.rs、src-tauri/src/llm/prompt.rs、src-tauri/src/app_detector/
-- 场景/提示词管理：src/components/Settings 里的 Scenes 相关
-- 词典：src-tauri/src/storage/mod.rs（SQLite 的 dictionary + correction_rules 表）、
-  src-tauri/src/dictionary_io.rs、src/components/Settings 里的 DictionaryPane
-- 禁止搬（全是云/账号）：src-tauri/src/llm/cloud.rs、src-tauri/src/stt/cloud.rs、
-  src/lib/api.ts、authStore、AccountPage、UpgradePage
+- `src/lib.rs`：JSON `invoke` 分发 + 事件回调 + stderr logger
+- `include/talkwtf.h`：手写 C 头，改动需同步
+
+### macos/TalkWTF（SwiftUI 外壳）
+
+- `TalkWTFApp.swift`：注册事件回调、路由 envelope
+- `CoreClient.swift`：FFI 封装（`Core.invoke` / `Core.version` / 解码结构）
+- `AppShell.swift`：NavigationSplitView（概览 / 资料库 / 设置）+ 启动引导
+- `DashboardView.swift` / `LibraryView.swift`（历史 + 词典 CRUD + 学词名单 + 导入导出）
+- `SettingsView.swift`（通用 / 声音 / 高级 / 调试 / 关于）
+- `PersonalizationView.swift`（BYOK provider、风格、场景、翻译目标）
+- `ModelsView.swift`（模型下载 / 删除 / 加速器 / 卸载时机）
+- `Theme.swift`（设计系统 token，见 `docs/specs/phase-8-native-ui-system.md`）
+- `SettingsStore.swift` / `Localization.swift` / `Languages.swift`
+- `DictationController.swift`（按键模式 + 粘贴）、`SoundPlayer.swift`、`Autostart.swift`
+- `OverlayPanel.swift`（NSPanel + glassEffect）、`TrayController.swift`、`Permissions.swift`
+- `OnboardingView.swift`、`KeyboardDiagnostic.swift`
+
+### resources/
+
+`default_settings.json`、`models/silero_vad_v4.onnx`、提示音 wav、托盘 png、`locales/`（26 个语言包）
 
 ## 工作流
 
@@ -83,7 +106,7 @@
 - **颜色**：用系统语义色（label / secondaryLabel / tertiaryLabel / separator / systemBlue 等），
   强调色用系统 accent。**不要硬编码品牌色**（尤其去掉粉色 #faa2ca / #f28cbb）。
 - **主题**：跟随系统 light/dark，并允许手动覆盖（system / light / dark）。
-- **材质与层次**：窗口用 vibrancy / 毛玻璃（Handy 已开 `macOSPrivateApi`，可用 `window-vibrancy` 这个 Rust crate）；
+- **材质与层次**：窗口走系统 vibrancy；悬浮窗用 macOS 26 的 `.glassEffect()`（旧系统回退 `.ultraThinMaterial`）。
   圆角、阴影、分隔线保持系统级克制。
 - **控件**：优先原生观感——sidebar、toolbar、segmented control、switch、list、inspector。
   不要自造花哨控件。
@@ -92,8 +115,8 @@
 - **交互**：键盘快捷键、右键菜单、拖放等原生行为。
 - **动效**：细腻、克制、短时长；尊重「减少动态效果」偏好。
 
-实现：Tailwind + 系统字体 + CSS 变量即可，不引入新 UI 框架。
-现有主题变量在 `src/styles/theme.css`，组件在 `src/components/`。
+实现：原生 SwiftUI 控件（`Form` / `List` / `Picker` / `Toggle` / `NavigationSplitView`），
+不引入新 UI 框架，不自造控件。外观覆盖在 `ThemeController`（`NSApp.appearance`）。
 
 ## 阶段计划
 
@@ -122,6 +145,39 @@
 6b. Dashboard：活动/时长/字数/速度/节省时间/个性化程度/服务状态/LLM token（今日 + 近 7 天）
    — **已完成**（2026-09-17，同 spec 的 6b 部分；history 加 duration_ms/char_count/workflow 列 +
    llm_usage 表；旧数据启动时幂等回填）。
+9. 原生 SwiftUI 外壳：Rust 核心 + C FFI + SwiftUI app，移除 Tauri/React —
+   **已完成**（2026-09-17）：引擎全部入 `core/core`，`core/ffi` 出静态库，
+   `macos/TalkWTF.xcodeproj` 直连；设置/资料库/悬浮窗/托盘/权限/i18n/按键模式齐全；
+   `src/` 与 `src-tauri/` 已删除。spec：`docs/specs/phase-9-swiftui-native-shell.md`。
+
+11. 修功能缺口 + 液态玻璃 — **已完成**（2026-09-17）。spec：`docs/specs/phase-11-fixes-and-glass.md`。
+    - 修 4 个功能缺口：**历史从不保存**（概览不涨 / 资料库不更新）、
+      **自动学词双重失效**（Swift 不调 `watch_for_edit` + `init_learning_state` 从没被调用）、
+      录音中可并发重新转录、快捷键不能自定义
+    - 悬浮窗：中心震荡波形、去常驻取消键、悬停双按键（丢弃 / 完成）
+    - 设置：历史上限 Stepper、阈值滑块（修好被写坏的 `word_correction_threshold`）、
+      顶部胶囊分段导航
+    - 资料库录音播放
+
+10. 收尾：补缺 + UI 打磨 — **已完成**（2026-09-17）。spec：`docs/specs/phase-10-polish-and-gaps.md`。
+    - 修 7 处 FFI 字段名/键名不匹配导致的失效控件
+    - 悬浮窗 8 状态机（core 发 `overlay-state`，含翻译失败重试与学词撤销）
+    - 历史 re-transcribe；Dashboard 今日/近 7 天/token/速度/个性化/最近活动
+    - App 图标（`scripts/gen_icon.swift` 可重生成）
+    - 识别语言表搬进 core；补齐 12 项未暴露设置；键盘诊断（Secure Input）
+    - 个性化/模型页统一为 `Form(.grouped)` + `Section`
+
+### 已知遗留
+
+- **Secure Input 下 `fn` 组合的热键无法恢复**：core 会检测安全输入、识别持有进程，
+  并在持续 3 秒后把**不含 fn** 的绑定改用 Carbon 影子注册（Carbon 由窗口服务器处理，
+  不受安全输入影响）。但 Carbon 表达不了 `fn`，所以含 fn 的绑定在安全输入期间必然失效——
+  这是 OS 层限制，任何 app 都一样。调试面板会列出「无法工作」的绑定。
+  当前用户的三个绑定都含 fn，因此兜底注册 0 个影子（代码正确，配置所致）。
+- **安全输入持有进程识别是 best-effort**：`kCGSSessionSecureInputPID` 经常缺失或指向
+  责任父进程（Apple 无可靠 API）。
+- `get_current_model` 在模型未加载时返回 `null`（UI 已回退到 `selected_model`）。
+- Apple Intelligence provider 是 shell 侧原生实现，core 返回 `None`（本机机型不适配，不做）。
 
 ## 验收标准（Definition of Done）
 

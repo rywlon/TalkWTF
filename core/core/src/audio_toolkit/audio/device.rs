@@ -1,9 +1,11 @@
 use cpal::traits::{DeviceTrait, HostTrait};
 
+#[derive(serde::Serialize)]
 pub struct CpalDeviceInfo {
     pub index: String,
     pub name: String,
     pub is_default: bool,
+    #[serde(skip)]
     pub device: cpal::Device,
 }
 

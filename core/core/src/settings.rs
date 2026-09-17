@@ -1744,6 +1744,61 @@ pub fn bindings() -> HashMap<String, ShortcutBinding> {
     current().bindings
 }
 
+/// Validate a binding string and store it. Returns the updated binding.
+///
+/// The string must parse as a `handy-keys` hotkey, which is also what the
+/// listener registers, so a value that round-trips here is guaranteed to be
+/// registrable.
+pub fn set_binding(id: &str, hotkey: &str) -> Result<ShortcutBinding, String> {
+    let hotkey = hotkey.trim();
+    if hotkey.is_empty() {
+        return Err("a shortcut cannot be empty".to_string());
+    }
+    hotkey
+        .parse::<handy_keys::Hotkey>()
+        .map_err(|e| format!("'{hotkey}' is not a valid shortcut: {e}"))?;
+
+    let mut current = current();
+    let binding = current
+        .bindings
+        .get_mut(id)
+        .ok_or_else(|| format!("binding '{id}' not found"))?;
+    binding.current_binding = hotkey.to_string();
+    let updated = binding.clone();
+    store(current);
+    Ok(updated)
+}
+
+/// Restore a binding to the value this build ships. An empty default (the
+/// translate workflow) means "no shortcut", which is a valid state.
+pub fn reset_binding(id: &str) -> Result<ShortcutBinding, String> {
+    let mut current = current();
+    let binding = current
+        .bindings
+        .get_mut(id)
+        .ok_or_else(|| format!("binding '{id}' not found"))?;
+    binding.current_binding = binding.default_binding.clone();
+    let updated = binding.clone();
+    store(current);
+    Ok(updated)
+}
+
+/// Build a binding string from a captured key press, so the shell does not have
+/// to know the `handy-keys` spelling. Returns `None` for keys we cannot name.
+pub fn binding_from_capture(key_code: u16, modifiers: &[String]) -> Option<String> {
+    let key = crate::keycodes::name_for(key_code)?;
+    let mut parts: Vec<String> = modifiers
+        .iter()
+        .map(|m| m.trim().to_lowercase())
+        .filter(|m| !m.is_empty())
+        .collect();
+    parts.push(key.to_string());
+    let candidate = parts.join("+");
+    // Round-trip so we never hand back something the listener cannot register.
+    candidate.parse::<handy_keys::Hotkey>().ok()?;
+    Some(candidate)
+}
+
 pub fn stored_binding(id: &str) -> ShortcutBinding {
     bindings()
         .get(id)

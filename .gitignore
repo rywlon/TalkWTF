@@ -1,54 +1,27 @@
+# macOS
+.DS_Store
+*.sw?
+
 # Logs
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-package-lock.json
-
-node_modules
-dist
-dist-ssr
-*.local
-*.local.*
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-.claude/
-
-/target/
-recording_*
-.crush/
-
-# Playwright
-playwright-report/
-test-results/
-blob-report/
-
-.direnv
-.envrc
-
-# Nix build output
-result
-
-# Python bytecode (scripts/)
-__pycache__/
-
-# Rust core build output
+# Rust build output
 core/*/target
+target/
 
 # Xcode build output / user data
 macos/build
 macos/**/xcuserdata
+
+# Recording scratch files
+recording_*
+
+# Python bytecode (scripts/)
+__pycache__/
+
+# Editors
+.idea
+.vscode/*
+.claude/
+.crush/

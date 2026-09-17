@@ -1,9 +1,8 @@
-use crate::audio::AudioRecordingManager;
 use crate::audio_toolkit::{
     apply_custom_words, detect_output_language, normalize_transcription_output,
     remove_filler_words, OutputLanguageEvidence,
 };
-use crate::dictionary::{apply_correction_rules, DictionarySnapshot, DictionaryStore};
+use crate::dictionary::{apply_correction_rules, DictionarySnapshot};
 use crate::model::{EngineType, ModelManager};
 use crate::settings::{
     AppSettings, ModelUnloadTimeout, OrtAcceleratorSetting, TranscribeAcceleratorSetting,

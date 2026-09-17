@@ -1,20 +1,20 @@
-# Contributing Translations to Handy
+# 翻译
 
-Thank you for helping translate Handy! This guide explains how to add or improve translations.
+TalkWTF 有 26 个语言包，加语言只需要动两处：JSON 语言包 + Swift 语言表。
 
-## Quick Start
+## 步骤概览
 
-1. Fork the repository
-2. Copy the English translation file to your language folder
-3. Translate the values (not the keys!)
-4. Submit a pull request
+1. 复制英文语言包到新语言目录
+2. 翻译**值**（不是键）
+3. 在 `macos/TalkWTF/Languages.swift` 登记
+4. 跑 `python3 scripts/check_translations.py`
 
 ## File Structure
 
 Translation files are located in:
 
 ```
-src/i18n/locales/
+resources/locales/
 ├── en/
 │   └── translation.json    # English (source)
 ├── vi/
@@ -32,7 +32,7 @@ src/i18n/locales/
 Create a new folder using the [ISO 639-1 language code](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes):
 
 ```bash
-mkdir src/i18n/locales/[language-code]
+mkdir resources/locales/[language-code]
 ```
 
 Examples:
@@ -47,7 +47,7 @@ Examples:
 ### Step 2: Copy the English File
 
 ```bash
-cp src/i18n/locales/en/translation.json src/i18n/locales/[language-code]/translation.json
+cp resources/locales/en/translation.json resources/locales/[language-code]/translation.json
 ```
 
 ### Step 3: Translate the Values
@@ -72,32 +72,25 @@ Open the file and translate only the **values** (right side), not the keys (left
 
 ### Step 4: Register Your Language
 
-Edit `src/i18n/languages.ts` and add your language metadata:
+在 `macos/TalkWTF/Languages.swift` 的 `Languages.all` 里加一行（`priority` 越小越靠前）：
 
-```typescript
-export const LANGUAGE_METADATA: Record<
-  string,
-  { name: string; nativeName: string }
-> = {
-  en: { name: "English", nativeName: "English" },
-  es: { name: "Spanish", nativeName: "Español" },
-  fr: { name: "French", nativeName: "Français" },
-  vi: { name: "Vietnamese", nativeName: "Tiếng Việt" },
-  de: { name: "German", nativeName: "Deutsch" }, // ← Add your language
-};
+```swift
+Language(code: "de", name: "German", nativeName: "Deutsch", rtl: false),
 ```
+
+`name` 是英文名，`nativeName` 是语言自己的写法（设置里的下拉就显示这个）。RTL 语言（阿拉伯语、希伯来语）把 `rtl` 设为 `true`。
 
 ### Step 5: Test Your Translation
 
-1. Run the app: `bun run tauri dev`
-2. Go to Settings → General → App Language
-3. Select your language
-4. Verify all text displays correctly
+1. 构建并运行：见 [BUILD.md](BUILD.md)
+2. 设置 → 通用 → 应用语言
+3. 选你的语言，检查显示是否正常
 
-### Step 6: Submit a Pull Request
+### Step 6: 提交
 
-1. Commit your changes
-2. Push to your fork
+```bash
+python3 scripts/check_translations.py   # 必须先通过
+```
 3. Open a pull request with:
    - Language name in the title (e.g., "Add German translation")
    - Any notes about the translation

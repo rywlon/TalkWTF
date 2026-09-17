@@ -1,0 +1,916 @@
+{
+  "tray": {
+    "settings": "Settings...",
+    "checkUpdates": "Check for Updates...",
+    "copyLastTranscript": "Copy Last Transcript",
+    "unloadModel": "Unload Model",
+    "model": "Model",
+    "quit": "Quit",
+    "cancel": "Cancel",
+    "secureInputWarning": "⚠ Shortcuts blocked by Secure Input"
+  },
+  "sidebar": {
+    "general": "General",
+    "models": "Models",
+    "advanced": "Advanced",
+    "postProcessing": "AI Polish",
+    "history": "History",
+    "debug": "Debug",
+    "about": "About",
+    "dictionary": "Dictionary",
+    "translation": "Translate",
+    "dashboard": "Dashboard",
+    "library": "Library",
+    "settings": "Settings"
+  },
+  "onboarding": {
+    "subtitle": "To get started, choose a transcription model",
+    "existingModelsTitle": "Compatible Models",
+    "downloadModelsTitle": "Available to Download",
+    "showAllModels": "Show all {{total}} models",
+    "showFewerModels": "Show fewer models",
+    "recommended": "Recommended",
+    "customModelDescription": "Not officially supported",
+    "modelCard": {
+      "accuracy": "accuracy",
+      "speed": "speed"
+    },
+    "models": {
+      "small": {
+        "name": "Whisper Small",
+        "description": "Fast and fairly accurate."
+      },
+      "medium": {
+        "name": "Whisper Medium",
+        "description": "Good accuracy, medium speed"
+      },
+      "turbo": {
+        "name": "Whisper Turbo",
+        "description": "Balanced accuracy and speed."
+      },
+      "large": {
+        "name": "Whisper Large",
+        "description": "Good accuracy, but slow."
+      },
+      "parakeet-tdt-0.6b-v2": {
+        "name": "Parakeet V2",
+        "description": "English only. The best model for English speakers."
+      },
+      "parakeet-tdt-0.6b-v3": {
+        "name": "Parakeet V3",
+        "description": "Fast and accurate"
+      },
+      "moonshine-base": {
+        "name": "Moonshine Base",
+        "description": "Very fast, English only. Handles accents well."
+      },
+      "moonshine-tiny-streaming-en": {
+        "name": "Moonshine V2 Tiny",
+        "description": "Ultra-fast, English only"
+      },
+      "moonshine-small-streaming-en": {
+        "name": "Moonshine V2 Small",
+        "description": "Fast, English only. Good balance of speed and accuracy."
+      },
+      "moonshine-medium-streaming-en": {
+        "name": "Moonshine V2 Medium",
+        "description": "English only. High quality."
+      },
+      "breeze-asr": {
+        "name": "Breeze ASR",
+        "description": "Optimized for Taiwanese Mandarin. Code-switching support."
+      },
+      "sense-voice-int8": {
+        "name": "SenseVoice",
+        "description": "Very fast. Chinese, English, Japanese, Korean, Cantonese."
+      },
+      "gigaam-v3-e2e-ctc": {
+        "name": "GigaAM v3",
+        "description": "Russian speech recognition. Fast and accurate."
+      },
+      "canary-180m-flash": {
+        "name": "Canary 180M Flash",
+        "description": "Very fast. English, German, Spanish, French. Supports translation."
+      },
+      "canary-1b-v2": {
+        "name": "Canary 1B v2",
+        "description": "Accurate multilingual. 25 European languages. Supports translation."
+      },
+      "cohere-int8": {
+        "name": "Cohere",
+        "description": "A large, slower, but very accurate multilingual model."
+      }
+    },
+    "errors": {
+      "selectModel": "Failed to select model"
+    },
+    "permissions": {
+      "title": "Permissions Required",
+      "description": "TalkWTF needs a couple of permissions to work properly.",
+      "microphone": {
+        "title": "Microphone Access",
+        "description": "Required to hear your voice for transcription."
+      },
+      "accessibility": {
+        "title": "Accessibility Access",
+        "description": "Required to type transcribed text into your applications."
+      },
+      "grant": "Grant Permission",
+      "granted": "Granted",
+      "waiting": "Waiting...",
+      "allGranted": "All set!",
+      "errors": {
+        "checkFailed": "Failed to check permissions. Please try again.",
+        "requestFailed": "Failed to request permission. Please try again."
+      }
+    }
+  },
+  "modelSelector": {
+    "custom": "Custom",
+    "legacy": "Legacy",
+    "streaming": "Streaming",
+    "active": "Active",
+    "switching": "Switching...",
+    "noModelsAvailable": "No models available",
+    "verifying": "Verifying {{modelName}}...",
+    "verifyingGeneric": "Verifying...",
+    "extracting": "Extracting {{modelName}}...",
+    "extractingMultiple": "Extracting {{count}} models...",
+    "extractingGeneric": "Extracting...",
+    "downloading": "Downloading {{percentage}}%",
+    "downloadingMultiple": "Downloading {{count}} models...",
+    "modelReady": "Model Ready",
+    "loading": "Loading {{modelName}}...",
+    "loadingGeneric": "Loading...",
+    "modelError": "Model Error",
+    "modelUnloaded": "Model Unloaded",
+    "noModelDownloadRequired": "No Model - Download Required",
+    "deleteModel": "Delete {{modelName}}",
+    "downloadSpeed": "{{speed}} MB/s",
+    "cancel": "Cancel",
+    "cancelDownload": "Cancel download",
+    "capabilities": {
+      "languageSelection": "Supports multiple input languages",
+      "singleLanguage": "Supports this language only",
+      "languageCount": "{{total}} languages",
+      "languageOnly": "{{language}} only",
+      "translation": "Can translate to English",
+      "translate": "Translate",
+      "streaming": "Shows live transcription as you speak"
+    }
+  },
+  "settings": {
+    "modelSettings": {
+      "title": "{{model}} Settings"
+    },
+    "general": {
+      "title": "General",
+      "shortcut": {
+        "title": "TalkWTF Shortcuts",
+        "description": "Configure keyboard shortcuts to trigger speech-to-text recording",
+        "loading": "Loading shortcuts...",
+        "none": "No shortcuts configured",
+        "notFound": "Shortcut not found",
+        "pressKeys": "Press keys...",
+        "bindings": {
+          "transcribe": {
+            "name": "Dictation Shortcut",
+            "description": "Records your voice, then transcribes and polishes it before typing the result."
+          },
+          "cancel": {
+            "name": "Cancel Shortcut",
+            "description": "The keyboard shortcut to cancel the current recording."
+          },
+          "transcribe_with_post_process": {
+            "name": "Second Dictation Shortcut",
+            "description": "Optional: bind an additional key combination to the same dictation workflow."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
+          }
+        },
+        "errors": {
+          "restore": "Failed to restore original shortcut",
+          "set": "Failed to set shortcut: {{error}}",
+          "reset": "Failed to reset shortcut to original value"
+        }
+      },
+      "language": {
+        "title": "Language",
+        "description": "Select the language for speech recognition. Auto will automatically determine the language, while selecting a specific language can improve accuracy for that language.",
+        "searchPlaceholder": "Search languages...",
+        "noResults": "No languages found",
+        "auto": "Auto"
+      },
+      "shortcutActivation": {
+        "title": "Shortcut Behavior",
+        "description": "Choose how the transcribe shortcut starts and stops recording.",
+        "options": {
+          "holdOrToggle": "Auto",
+          "pushToTalk": "Hold",
+          "toggle": "Toggle"
+        },
+        "descriptions": {
+          "hold_or_toggle": "Hold to record or tap to toggle",
+          "push_to_talk": "Records while you hold the shortcut",
+          "toggle": "Tap the shortcut to start recording, tap again to stop"
+        }
+      },
+      "shortcutsGroup": "Shortcuts",
+      "behaviorGroup": "Behavior"
+    },
+    "models": {
+      "title": "Transcription Models",
+      "description": "Select a transcription model or download additional models. Different models offer varying levels of accuracy and speed.",
+      "searchPlaceholder": "Search models by name…",
+      "yourModels": "Downloaded Models",
+      "availableModels": "Available to Download",
+      "deleteConfirm": "Are you sure you want to delete {{modelName}}? You will need to download it again to use it.",
+      "deleteActiveConfirm": "{{modelName}} is your active model. Deleting it will stop transcriptions until you select a new model. Are you sure?",
+      "deleteTitle": "Delete Model",
+      "filters": {
+        "allLanguages": "All Languages",
+        "streaming": "Filter models that support live streaming transcription",
+        "translation": "Filter models that support translation to English"
+      },
+      "rescan": {
+        "label": "Rescan",
+        "tooltip": "Rescan for models added to the models folder or Hugging Face cache outside TalkWTF"
+      },
+      "noModelsMatch": "No models match this filter."
+    },
+    "sound": {
+      "title": "Sound",
+      "microphone": {
+        "title": "Microphone",
+        "description": "Select your preferred microphone device",
+        "placeholder": "Select microphone...",
+        "loading": "Loading..."
+      },
+      "channel": {
+        "title": "Input Channel",
+        "description": "Select which input channel to record from. Use this if your audio interface has multiple inputs.",
+        "average": "Average all channels",
+        "channel": "Channel {{n}}"
+      },
+      "audioFeedback": {
+        "label": "Audio Feedback",
+        "description": "Play sound when recording starts and stops"
+      },
+      "outputDevice": {
+        "title": "Output Device",
+        "description": "Select your preferred audio output device for feedback sounds",
+        "placeholder": "Select output device...",
+        "loading": "Loading..."
+      },
+      "volume": {
+        "title": "Volume",
+        "description": "Adjust the volume of audio feedback sounds"
+      }
+    },
+    "advanced": {
+      "groups": {
+        "app": "App",
+        "output": "Output",
+        "transcription": "Transcription",
+        "history": "History",
+        "experimental": "Experimental"
+      },
+      "experimentalToggle": {
+        "label": "Experimental Features",
+        "description": "Enable experimental features that are still in development."
+      },
+      "lazyStreamClose": {
+        "label": "Keep Mic Open Between Transcriptions",
+        "description": "Keeps the microphone stream open for 30 seconds after recording stops, reducing latency for back-to-back transcriptions. May degrade Bluetooth audio quality while active."
+      },
+      "acceleration": {
+        "transcribe": {
+          "title": "transcribe.cpp Acceleration",
+          "description": "Hardware acceleration for transcribe.cpp (Whisper-family) models. Auto uses GPU if available (Metal on macOS, Vulkan on Windows/Linux)."
+        },
+        "ort": {
+          "title": "ONNX Acceleration",
+          "description": "Hardware acceleration for ONNX models (Parakeet, Canary, Moonshine, etc.). DirectML on Windows is experimental. Models may fail to transcribe."
+        },
+        "gpuDevice": {
+          "auto": "Auto"
+        }
+      },
+      "startHidden": {
+        "label": "Start Hidden",
+        "description": "Launch to system tray without opening the window."
+      },
+      "autostart": {
+        "label": "Launch on Startup",
+        "description": "Automatically start TalkWTF when you log in to your computer."
+      },
+      "showTrayIcon": {
+        "label": "Show Tray Icon",
+        "description": "Display the TalkWTF icon in the system tray."
+      },
+      "overlay": {
+        "style": {
+          "title": "Overlay",
+          "description": "Choose the recording overlay: None hides it, Minimal shows a compact pill, Live shows transcription in real time as you speak (streaming-capable models only — look for the Streaming badge in the model picker). On Linux 'None' is recommended.",
+          "options": {
+            "none": "None",
+            "minimal": "Minimal",
+            "live": "Live"
+          }
+        },
+        "position": {
+          "title": "Overlay Position",
+          "description": "Where the overlay appears on screen during recording and transcription.",
+          "options": {
+            "bottom": "Bottom",
+            "top": "Top"
+          }
+        }
+      },
+      "pasteMethod": {
+        "title": "Paste Method",
+        "description": "Choose how text is inserted. Direct: simulates typing via system input. None: skips paste, only updates history/clipboard.",
+        "options": {
+          "clipboard": "Clipboard ({{modifier}}+V)",
+          "clipboardCtrlShiftV": "Clipboard (Ctrl+Shift+V)",
+          "clipboardShiftInsert": "Clipboard (Shift+Insert)",
+          "direct": "Direct",
+          "none": "None",
+          "externalScript": "External Script"
+        },
+        "externalScriptPlaceholder": "/path/to/your/script.sh"
+      },
+      "typingTool": {
+        "title": "Typing Tool",
+        "description": "Choose which Linux typing tool to use for Direct paste method. Auto will automatically detect and use the best available tool for your system.",
+        "options": {
+          "auto": "Auto (Recommended)"
+        }
+      },
+      "clipboardHandling": {
+        "title": "Clipboard Handling",
+        "description": "Don't Modify Clipboard preserves your current clipboard contents after transcription. Copy to Clipboard leaves the transcription result in your clipboard after pasting.",
+        "options": {
+          "dontModify": "Don't Modify Clipboard",
+          "copyToClipboard": "Copy to Clipboard"
+        }
+      },
+      "autoSubmit": {
+        "title": "Auto Submit",
+        "description": "Automatically send the selected key combination after text insertion. Cmd+Enter applies on macOS, while Windows/Linux use Super+Enter.",
+        "options": {
+          "off": "Off",
+          "enter": "Enter",
+          "cmdEnter": "Cmd+Enter",
+          "superEnter": "Super+Enter",
+          "ctrlEnter": "Ctrl+Enter"
+        }
+      },
+      "translateToEnglish": {
+        "label": "Translate to English",
+        "description": "Automatically translate speech from other languages to English during transcription."
+      },
+      "modelUnload": {
+        "title": "Unload Model",
+        "description": "Automatically free GPU/CPU memory when the model hasn't been used for the specified time",
+        "options": {
+          "never": "Never",
+          "immediately": "Immediately",
+          "min2": "After 2 minutes",
+          "min5": "After 5 minutes",
+          "min10": "After 10 minutes",
+          "min15": "After 15 minutes",
+          "hour1": "After 1 hour",
+          "sec15": "After 15 seconds (Debug)"
+        }
+      },
+      "customWords": {
+        "title": "Custom Words",
+        "description": "Help supported models recognize names and specialized terms. Fuzzy correction is currently limited to words using A–Z and numbers.",
+        "placeholder": "Add a word",
+        "add": "Add",
+        "remove": "Remove {{word}}",
+        "duplicate": "\"{{word}}\" already exists"
+      },
+      "voiceActivityDetection": {
+        "title": "Voice Activity Detection",
+        "description": "Filter silence from recordings. Streaming-capable models use a longer VAD tail; disabling VAD records raw audio."
+      },
+      "vadBackend": {
+        "title": "Voice Activity Backend",
+        "description": "Choose the detector used to filter silence. Earshot is experimental; switch back to Silero if speech is clipped or noise is retained.",
+        "options": {
+          "silero": "Silero",
+          "earshot": "Earshot"
+        }
+      },
+      "fillerWordRemoval": {
+        "title": "Remove Filler Words",
+        "description": "Removes common hesitation words from transcriptions. Turn off to keep them."
+      }
+    },
+    "postProcessing": {
+      "status": {
+        "incomplete": "Setup incomplete — set {{fields}}"
+      },
+      "hotkey": {
+        "title": "Shortcut"
+      },
+      "api": {
+        "title": "Provider",
+        "provider": {
+          "title": "Provider",
+          "description": "Bring your own API key for a cloud provider, or point Custom at any OpenAI-compatible endpoint."
+        },
+        "appleIntelligence": {
+          "unavailable": "Apple Intelligence is not available on this device. Requires an Apple Silicon Mac running macOS Tahoe (26.0) or later with Apple Intelligence enabled in System Settings."
+        },
+        "baseUrl": {
+          "title": "Base URL",
+          "description": "Address of the OpenAI-compatible server you want to use. Only the Custom provider can be repointed.",
+          "placeholder": "https://api.openai.com/v1"
+        },
+        "apiKey": {
+          "title": "API Key",
+          "description": "API key for the selected provider.",
+          "placeholder": "sk-..."
+        },
+        "model": {
+          "title": "Model",
+          "descriptionCustom": "Provide the model identifier expected by your custom endpoint.",
+          "descriptionDefault": "Choose a model exposed by the selected provider.",
+          "placeholderWithOptions": "Search or select a model",
+          "placeholderNoOptions": "Type a model name",
+          "refreshModels": "Refresh models"
+        }
+      },
+      "prompts": {
+        "title": "Style & Scenes",
+        "selectedPrompt": {
+          "title": "My scenes",
+          "description": "Scenes you created. Edit, duplicate, or delete them."
+        },
+        "noPrompts": "No prompts available",
+        "selectPrompt": "Activate",
+        "createNew": "Create New Prompt",
+        "promptLabel": "Prompt Label",
+        "promptLabelPlaceholder": "Enter prompt name",
+        "promptInstructions": "Prompt Instructions",
+        "promptInstructionsPlaceholder": "Instructions applied to every dictation, e.g. rewrite as concise meeting notes with bullets.",
+        "promptTip": "The transcript is appended automatically — no placeholder needed.",
+        "updatePrompt": "Update Prompt",
+        "deletePrompt": "Delete",
+        "createPrompt": "Create Prompt",
+        "cancel": "Cancel",
+        "selectToEdit": "Select a prompt above to view and edit its details.",
+        "createFirst": "No scenes of your own yet.",
+        "duplicate": "Duplicate",
+        "restoreDefault": "Restore Default"
+      },
+      "style": {
+        "title": "Polish style",
+        "description": "How transcripts are polished when no scene is active."
+      },
+      "scene": {
+        "title": "Active scene",
+        "description": "A scene overrides the polish style for every dictation.",
+        "none": "No scene",
+        "builtInTitle": "Built-in scenes",
+        "builtInDescription": "Ready-made scenes. Edit or delete them like your own; restoring brings them back.",
+        "edit": "Edit",
+        "confirmDelete": "Confirm delete",
+        "restoreBuiltIn": "Restore built-in scenes",
+        "styleSkipped": "“{{name}}” is active, so the polish style is not applied.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Deep thinking",
+        "description": "Let the model reason before polishing. Better at resolving self-corrections and restructuring, but adds several seconds to every dictation."
+      }
+    },
+    "history": {
+      "title": "History",
+      "openFolder": "Open Recordings Folder",
+      "loading": "Loading history...",
+      "empty": "No transcriptions yet. Start recording to build your history!",
+      "copyToClipboard": "Copy transcription to clipboard",
+      "save": "Save transcription",
+      "unsave": "Remove from saved",
+      "delete": "Delete entry",
+      "deleteError": "Failed to delete entry. Please try again.",
+      "retranscribe": "Re-transcribe",
+      "retranscribeError": "Failed to re-transcribe. Please try again.",
+      "transcribing": "Transcribing...",
+      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon.",
+      "searchPlaceholder": "Search",
+      "noMatches": "No matches",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      },
+      "busyTitle": "A dictation is in progress",
+      "busyMessage": "Finish the current dictation before doing anything else.",
+      "play": "Play recording",
+      "stop": "Stop playback",
+      "playError": "The recording for this entry is no longer on disk."
+    },
+    "debug": {
+      "title": "Debug",
+      "logDirectory": {
+        "title": "Log Directory",
+        "description": "Location where log files are stored"
+      },
+      "logLevel": {
+        "title": "Log Level",
+        "description": "Set the verbosity of logging"
+      },
+      "liveLogs": {
+        "title": "Live Logs",
+        "description": "Stream application logs in real time to diagnose issues without opening the log file. Only logs emitted while this panel is open are shown; respects the Log Level setting above.",
+        "live": "Live",
+        "paused": "Paused",
+        "pause": "Pause",
+        "resume": "Resume",
+        "copied": "Copied",
+        "lineCount": "{{count}} lines",
+        "empty": "Waiting for logs… Entries appear here as the app emits them."
+      },
+      "updateChecks": {
+        "label": "Check for Updates",
+        "description": "Automatically check for new versions of TalkWTF",
+        "lockedDescription": "Disabled by system configuration (HANDY_DISABLE_UPDATER)"
+      },
+      "whatsNewPreview": {
+        "title": "Preview What's New",
+        "description": "Open the latest bundled release note without marking it as seen",
+        "button": "Preview",
+        "noNotes": "No bundled release notes found",
+        "error": "Failed to preview release notes"
+      },
+      "onboardingPreview": {
+        "title": "Preview Onboarding",
+        "description": "Preview onboarding screens without changing permissions, models, or completion state",
+        "permissionsButton": "Permissions",
+        "modelsButton": "Model Selection",
+        "exitButton": "Exit Preview"
+      },
+      "soundTheme": {
+        "label": "Sound Theme",
+        "description": "Choose a sound theme for recording start and stop feedback"
+      },
+      "wordCorrectionThreshold": {
+        "title": "Word Correction Threshold",
+        "description": "Sensitivity for custom word corrections"
+      },
+      "historyLimit": {
+        "title": "History Limit",
+        "description": "Maximum number of history entries to keep",
+        "entries": "entries"
+      },
+      "recordingRetention": {
+        "title": "Auto-Delete Recordings",
+        "description": "Automatically delete old recordings to save space",
+        "never": "Never",
+        "preserveLimit": "Keep latest {{count}}",
+        "days3": "After 3 days",
+        "weeks2": "After 2 weeks",
+        "months3": "After 3 months",
+        "placeholder": "Select retention period..."
+      },
+      "alwaysOnMicrophone": {
+        "label": "Always-On Microphone",
+        "description": "Keep microphone active for faster response"
+      },
+      "clamshellMicrophone": {
+        "title": "Clamshell Microphone",
+        "description": "Microphone to use when laptop lid is closed"
+      },
+      "muteWhileRecording": {
+        "label": "Mute While Recording",
+        "description": "Mute system audio during recording"
+      },
+      "appendTrailingSpace": {
+        "label": "Append Trailing Space",
+        "description": "Add a space after pasted transcription"
+      },
+      "keyboardImplementation": {
+        "title": "Keyboard Implementation",
+        "description": "Choose the keyboard shortcut backend.",
+        "bindingsReset": "Keyboard shortcuts were incompatible and reset to defaults"
+      },
+      "paths": {
+        "appData": "App Data:",
+        "models": "Models:",
+        "settings": "Settings:"
+      },
+      "pasteDelay": {
+        "title": "Paste Delay (Before)",
+        "description": "Delay (in milliseconds) after copying text, before sending the paste keystroke. Increase if nothing gets pasted."
+      },
+      "pasteDelayAfter": {
+        "title": "Paste Delay (After)",
+        "description": "Delay (in milliseconds) after the paste keystroke, before restoring your previous clipboard. Increase if your old clipboard content is being pasted instead of the transcription."
+      },
+      "holdThreshold": {
+        "title": "Hold Threshold",
+        "description": "Auto mode only: how long (in milliseconds) the shortcut must be held before it counts as a hold instead of a tap. Lower if short holds keep leaving recording on; raise if deliberate taps get treated as holds."
+      },
+      "reliablePaste": {
+        "title": "Reliable Paste (Beta)",
+        "description": "Restore the clipboard only after the target app actually reads the transcription, instead of after a fixed delay. Intended to fix old clipboard content being pasted under system load. Requires a clipboard paste method; macOS and Windows only."
+      },
+      "recordingBuffer": {
+        "title": "Extra Recording Buffer",
+        "description": "Extra time (in milliseconds) to keep recording after you release the key, to capture trailing audio. 0 = no extra buffer."
+      },
+      "keyboardDiagnostic": {
+        "title": "Keyboard Diagnostic",
+        "description": "Checks whether keyboard events reach TalkWTF. Only event counts are recorded — never which keys you press.",
+        "run": "Run 10s diagnostic",
+        "running": "Listening… press your shortcut a few times (e.g. Option+Space)",
+        "secureInputLabel": "Secure Input",
+        "enabled": "enabled",
+        "disabled": "disabled",
+        "holder": "held by {{name}} (pid {{pid}})",
+        "holderUnknown": "no visible holder",
+        "keyDown": "Key down",
+        "keyUp": "Key up",
+        "flagsChanged": "Modifiers",
+        "mouse": "Mouse",
+        "verdictBlocked": "Secure Input is blocking key events — keyed shortcuts cannot work until it is resolved.",
+        "verdictSuspicious": "Modifier events arrived but no key events — something is suppressing keys even though Secure Input reports disabled. Please report this on GitHub.",
+        "verdictOk": "Key events are reaching TalkWTF normally.",
+        "verdictNoEvents": "No events captured — did you press any keys during the test?",
+        "failed": "Diagnostic failed: {{error}}"
+      },
+      "overlayPreview": {
+        "title": "Preview Overlay",
+        "description": "Show each overlay state without recording anything",
+        "recording": "Recording",
+        "streaming": "Streaming",
+        "transcribing": "Transcribing",
+        "processing": "Processing",
+        "translating": "Translating",
+        "learned": "Learned word",
+        "translationFailed": "Translation failed",
+        "notice": "Notice"
+      },
+      "secureInput": {
+        "title": "Secure Input",
+        "covered": "Auto-fallback active for: {{bindings}}",
+        "uncovered": "Cannot work while Secure Input is on: {{bindings}}",
+        "hint": "Secure Input (a password field, Terminal's Secure Keyboard Entry) blocks key events. Shortcuts that do not use the fn key are re-registered through Carbon automatically; fn combinations cannot be recovered by any app."
+      }
+    },
+    "about": {
+      "title": "About",
+      "version": {
+        "title": "Version",
+        "description": "Current version of TalkWTF"
+      },
+      "whatsNewUpdates": {
+        "label": "Show What's New",
+        "description": "Show release notes after TalkWTF updates"
+      },
+      "appDataDirectory": {
+        "title": "App Data Directory",
+        "description": "Location where TalkWTF stores its data"
+      }
+    },
+    "dictionary": {
+      "wordsTitle": "Words",
+      "wordsDescription": "Terms the recognizer should get right. ASCII terms are also fuzzy-corrected after transcription.",
+      "wordsEmpty": "No words yet.",
+      "rulesTitle": "Correction rules",
+      "rulesDescription": "Literal, case-insensitive replacements applied to every transcript before polishing. Use them for phrases the fuzzy matcher cannot reach.",
+      "rulesEmpty": "No correction rules yet.",
+      "patternPlaceholder": "Wrong phrase",
+      "replacementPlaceholder": "Corrected phrase",
+      "enabled": "Enabled",
+      "search": "Search words and rules",
+      "import": "Import",
+      "export": "Export",
+      "exportDone": "Dictionary exported",
+      "importReport": "Imported {{accepted}}, skipped {{duplicates}} duplicate(s) and {{invalid}} invalid row(s)",
+      "hint": "Words also go to the AI polisher, so it knows the exact spelling. Correction rules are applied literally before polishing.",
+      "learn": {
+        "title": "Learn from my corrections",
+        "description": "After each dictation, read the field we just typed into and learn the words you fix. Reads only that one field, for up to 45 seconds after a paste, and never in password fields or while secure input is active. Everything stays on this Mac. Turn off to stop all reading.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
+    },
+    "panes": {
+      "general": "General",
+      "personalization": "Personalization",
+      "models": "Models",
+      "audio": "Audio",
+      "advanced": "Advanced",
+      "about": "About",
+      "debug": "Debug"
+    },
+    "personalization": {
+      "polish": "AI Polish",
+      "translation": "Translate"
+    }
+  },
+  "footer": {
+    "checkingUpdates": "Checking for updates...",
+    "updateAvailableShort": "Update available",
+    "upToDate": "Up to date",
+    "updateCheckingDisabled": "Update Checking Disabled",
+    "downloading": "Downloading... {{progress}}%",
+    "installing": "Installing...",
+    "preparing": "Preparing...",
+    "checkForUpdates": "Check for updates",
+    "portableUpdateTitle": "Manual update required",
+    "portableUpdateMessage": "Portable installs cannot be updated automatically. Download the installer for your system below, run it, and install to the same folder — your Data/ folder (settings, models, recordings) is kept in place.",
+    "portableUpdateButton": "Download installer",
+    "portableUpdateBrowseMessage": "Portable installs cannot be updated automatically. Download the latest version for your system from GitHub Releases and install it to the same folder — your Data/ folder (settings, models, recordings) is kept in place.",
+    "portableUpdateBrowseButton": "Open GitHub Releases"
+  },
+  "whatsNew": {
+    "title": "New in TalkWTF v{{version}}"
+  },
+  "common": {
+    "loading": "Loading...",
+    "delete": "Delete",
+    "close": "Close",
+    "open": "Open",
+    "copy": "Copy",
+    "clear": "Clear",
+    "noOptionsFound": "No options found"
+  },
+  "accessibility": {
+    "permissionsDescription": "TalkWTF needs accessibility permissions to type transcribed text.",
+    "openSettings": "Open System Settings"
+  },
+  "errors": {
+    "loadDirectory": "Error loading directory: {{error}}",
+    "micPermissionDeniedTitle": "Microphone Access Denied",
+    "micPermissionDenied": {
+      "generic": "Microphone access was denied by the operating system. Please grant microphone permission in your system settings.",
+      "windows": "Enable microphone access in Settings → Privacy & security → Microphone (including desktop app access).",
+      "macos": "Grant microphone access in System Settings → Privacy & Security → Microphone.",
+      "linux": "Grant microphone access in your system's sound or privacy settings."
+    },
+    "noInputDeviceTitle": "No Microphone Found",
+    "noInputDevice": "No audio input device was detected. Please connect a microphone or headset and try again.",
+    "recordingFailed": "Failed to start recording: {{error}}",
+    "modelLoadFailed": "Failed to load model: {{model}}",
+    "modelLoadFailedUnknown": "unknown model",
+    "pasteFailedTitle": "Failed to Paste Text",
+    "pasteFailed": "Text could not be pasted into the active application.",
+    "transcriptionFailedTitle": "Transcription Failed"
+  },
+  "appLanguage": {
+    "title": "Application Language",
+    "description": "Change the language of the TalkWTF interface"
+  },
+  "theme": {
+    "title": "Application Theme",
+    "description": "Choose whether TalkWTF follows your system theme or stays light or dark",
+    "options": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    }
+  },
+  "overlay": {
+    "transcribing": "Transcribing...",
+    "processing": "Processing...",
+    "learned": {
+      "title": "Added to dictionary: {{pattern}} → {{replacement}}",
+      "undo": "Undo",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    },
+    "discard": "Discard",
+    "finish": "Finish and insert"
+  },
+  "secureInput": {
+    "blockedWithCulprit_one": "{{name}} may be blocking 1 shortcut",
+    "blockedWithCulprit_other": "{{name}} may be blocking {{count}} shortcuts",
+    "blockedNoCulprit_one": "macOS is temporarily blocking 1 shortcut",
+    "blockedNoCulprit_other": "macOS is temporarily blocking {{count}} shortcuts",
+    "recorderBlockedWithCulprit": "{{name}} may be blocking shortcut changes",
+    "recorderBlockedNoCulprit": "macOS is temporarily blocking shortcut changes",
+    "learnMore": "How to fix",
+    "recorderBlocked": "Can't record shortcuts right now — macOS Secure Input is blocking key events. Resolve the Secure Input warning first.",
+    "dismiss": "Dismiss"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "error": "Couldn't load your stats.",
+    "today": {
+      "title": "Today",
+      "recordings": "Recordings",
+      "chars": "Characters",
+      "translations": "Translations",
+      "dictationTime": "Dictation time"
+    },
+    "metrics": {
+      "title": "All time",
+      "totalRecordings": "Total recordings",
+      "dictationTime": "Total dictation time",
+      "chars": "Characters dictated",
+      "speed": "Average speed",
+      "charsPerMin": "{{value}} chars/min",
+      "timeSaved": "Time saved",
+      "translations": "Translations"
+    },
+    "weekly": {
+      "title": "Last 7 days",
+      "recordings": "{{count}} recordings"
+    },
+    "tokens": {
+      "title": "AI tokens",
+      "today": "Today",
+      "week": "Last 7 days",
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "Total",
+      "requests": "Requests",
+      "none": "No usage yet"
+    },
+    "services": {
+      "title": "Services",
+      "asr": "Speech recognition",
+      "llm": "AI polish (LLM)",
+      "polish": "AI polish",
+      "input": "Voice input",
+      "paste": "Text output",
+      "ready": "Ready",
+      "notReady": "Not ready",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "enabled": "On",
+      "disabled": "Off",
+      "none": "Not selected"
+    },
+    "personalization": {
+      "title": "Personalization",
+      "label": "Setup completeness",
+      "items": {
+        "dictionary": "Dictionary words added",
+        "scenes": "Custom scenes",
+        "translation": "Translation languages",
+        "learning": "Learn from edits",
+        "polish": "AI provider configured",
+        "style": "Custom polish style or scene",
+        "filler": "Filler-word removal",
+        "custom_filler": "Custom filler words"
+      }
+    },
+    "recent": {
+      "title": "Recent activity",
+      "empty": "No activity yet.",
+      "chars": "{{count}} chars"
+    },
+    "workflow": {
+      "dictation": "Dictation",
+      "translate": "Translate"
+    }
+  }
+}

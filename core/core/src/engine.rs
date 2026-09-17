@@ -37,7 +37,7 @@ pub fn init() -> anyhow::Result<()> {
             let manager = Arc::new(AudioRecordingManager::new(
                 transcription_manager.stream_router(),
             )?);
-            crate::state::set_audio_manager(&manager);
+            crate::state::set_audio_manager(manager.clone());
             manager
         }
     };
@@ -57,6 +57,10 @@ pub fn init() -> anyhow::Result<()> {
         let store = Arc::new(DictionaryStore::new()?);
         crate::state::set_dictionary_store(store);
     }
+
+    // The edit watcher and the dictionary undo both hang off this state; without
+    // it a learned correction can neither be remembered nor undone.
+    crate::learning::init_learning_state();
 
     crate::transcription::apply_accelerator_settings();
     crate::transcription::init_transcribe_backend();

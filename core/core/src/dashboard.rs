@@ -4,9 +4,7 @@
 use serde::Serialize;
 use specta::Type;
 
-use crate::dictionary::DictionaryStore;
-use crate::history::{HistoryManager, TokenUsage};
-use crate::model::ModelManager;
+use crate::history::TokenUsage;
 use crate::settings::{self, PasteMethod};
 
 /// Characters a person types per second. Used only for the "time saved"

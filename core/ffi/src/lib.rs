@@ -116,6 +116,35 @@ pub fn emit_event(event_json: &str) {
     }
 }
 
+/// Minimal stderr logger so the core's `log::*` output is visible when the
+/// Swift app runs from a terminal (and in Console). Without it every core log
+/// call is dropped, since the FFI host installs no logger.
+struct StderrLogger;
+
+impl log::Log for StderrLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        eprintln!(
+            "[{:<5} {}] {}",
+            record.level(),
+            record.target(),
+            record.args()
+        );
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: StderrLogger = StderrLogger;
+
+fn install_logger() {
+    let _ = log::set_logger(&LOGGER);
+    log::set_max_level(log::LevelFilter::Debug);
+}
+
 /// Event sink that forwards core events to the C callback as
 /// `{"event": "<name>", "payload": <json>}`.
 struct FfiEventSink;
@@ -230,6 +259,7 @@ fn run(command: &str, payload: &Value) -> CmdResult {
                 settings::set_locale(locale);
             }
 
+            install_logger();
             talkwtf_core::events::set_sink(Box::new(FfiEventSink));
             engine::init().map_err(|e| e.to_string())?;
             Ok(json!({ "initialized": true }))
@@ -251,6 +281,29 @@ fn run(command: &str, payload: &Value) -> CmdResult {
         "get_polish_styles" => json_of(settings::polish_style_options()),
         "get_translation_languages" => json_of(settings::translation_languages()),
         "get_bindings" => json_of(settings::bindings()),
+        /// Validate and store a shortcut, then re-register the listener so it
+        /// takes effect immediately.
+        "set_binding" => {
+            let id: String = arg(payload, "id")?;
+            let hotkey: String = arg(payload, "hotkey")?;
+            let updated = settings::set_binding(&id, &hotkey)?;
+            restart_hotkeys();
+            json_of(updated)
+        }
+        /// Restore a binding to the value this build ships.
+        "reset_binding" => {
+            let id: String = arg(payload, "id")?;
+            let updated = settings::reset_binding(&id)?;
+            restart_hotkeys();
+            json_of(updated)
+        }
+        /// Turn a captured key press into a binding string, so the shell does not
+        /// need to know the `handy-keys` spelling.
+        "build_binding" => {
+            let key_code: u16 = arg(payload, "keyCode")?;
+            let modifiers: Vec<String> = opt_arg(payload, "modifiers")?.unwrap_or_default();
+            json_of(settings::binding_from_capture(key_code, &modifiers))
+        }
 
         // ---- scenes -------------------------------------------------------
         "add_scene" => {
@@ -521,6 +574,33 @@ fn run(command: &str, payload: &Value) -> CmdResult {
             Ok(Value::Null)
         }
 
+        "export_dictionary" => {
+            let path: String = arg(payload, "path")?;
+            let store = dictionary_store()?;
+            talkwtf_core::dictionary_io::export_dictionary(store.as_ref(), &path)?;
+            Ok(Value::Null)
+        }
+        "import_dictionary" => {
+            let path: String = arg(payload, "path")?;
+            let store = dictionary_store()?;
+            json_of(talkwtf_core::dictionary_io::import_dictionary(
+                store.as_ref(),
+                &path,
+            )?)
+        }
+        "export_polish_profile" => {
+            let path: String = arg(payload, "path")?;
+            talkwtf_core::polish_profile::export_polish_profile(&settings::current(), &path)?;
+            Ok(Value::Null)
+        }
+        "import_polish_profile" => {
+            let path: String = arg(payload, "path")?;
+            let mut current = settings::current();
+            let report = talkwtf_core::polish_profile::import_polish_profile(&mut current, &path)?;
+            settings::store(current);
+            json_of(report)
+        }
+
         // ---- history ------------------------------------------------------
         "get_history_entries" => {
             let cursor: Option<i64> = opt_arg(payload, "cursor")?;
@@ -563,6 +643,7 @@ fn run(command: &str, payload: &Value) -> CmdResult {
             json_of(model_manager()?.get_available_models())
         }
         "delete_model" => {
+            talkwtf_core::dictation::ensure_idle()?;
             let id: String = arg(payload, "modelId")?;
             model_manager()?
                 .delete_model(&id)
@@ -570,10 +651,176 @@ fn run(command: &str, payload: &Value) -> CmdResult {
             Ok(Value::Null)
         }
 
+        "get_current_model" => {
+            let manager = transcription_manager()?;
+            json_of(manager.get_current_model())
+        }
+        "is_model_loaded" => {
+            let manager = transcription_manager()?;
+            json_of(manager.is_model_loaded())
+        }
+        /// Validate the model, persist it as the selection, and load it.
+        "set_active_model" => {
+            talkwtf_core::dictation::ensure_idle()?;
+            let id: String = arg(payload, "modelId")?;
+            let manager = model_manager()?;
+            if manager.get_model_info(&id).is_none() {
+                return Err(format!("Unknown model '{id}'"));
+            }
+            let mut current = settings::current();
+            current.selected_model = id.clone();
+            settings::store(current);
+            let transcription = transcription_manager()?;
+            transcription.reload_model_on_next_use();
+            transcription.initiate_model_load();
+            json_of(id)
+        }
+        /// Blocking download; progress arrives as `model-download-progress`
+        /// events. Call from a background thread in the shell.
+        "download_model" => {
+            let id: String = arg(payload, "modelId")?;
+            let manager = model_manager()?;
+            block_on(manager.download_model(&id)).map_err(|e| e.to_string())?;
+            Ok(Value::Null)
+        }
+        "cancel_download" => {
+            let id: String = arg(payload, "modelId")?;
+            model_manager()?
+                .cancel_download(&id)
+                .map_err(|e| e.to_string())?;
+            Ok(Value::Null)
+        }
+
+        // ---- learning -----------------------------------------------------
+        "diagnose_edit_learning" => json_of(talkwtf_core::learning::diagnose()),
+        "undo_last_dictionary_learning" => {
+            talkwtf_core::learning::undo_last_learning()?;
+            Ok(Value::Null)
+        }
+
+        /// Transcription-language picker entries plus what the loaded model
+        /// actually supports, so the shell can gate the options.
+        "get_recognition_languages" => {
+            let settings = settings::current();
+            let info = model_manager()
+                .ok()
+                .and_then(|manager| manager.get_model_info(&settings.selected_model));
+            json_of(json!({
+                "languages": talkwtf_core::languages::selectable_languages(),
+                "supported": info.as_ref().map(|i| i.supported_languages.clone()).unwrap_or_default(),
+                "supports_detection": info.as_ref().map(|i| i.supports_language_detection).unwrap_or(true),
+                "supports_selection": info.as_ref().map(|i| i.supports_language_selection).unwrap_or(true),
+            }))
+        }
+
+        // ---- platform / permissions ---------------------------------------
+        "is_accessibility_trusted" => json_of(talkwtf_core::learning::is_accessibility_trusted()),
+        /// macOS Secure Event Input: when on, CGEventTaps stop seeing key
+        /// events, so keyed shortcuts go silent. The debug pane explains it.
+        "is_secure_input_enabled" => json_of(talkwtf_core::secure_input::is_enabled_now()),
+        /// Secure-input state plus the Carbon shadow plan the shell should apply.
+        "get_secure_input_status" => json_of(talkwtf_core::secure_input::status()),
+        /// Start watching for secure input; emits `secure-input-changed` on
+        /// transitions. Idempotent.
+        "start_secure_input_monitor" => {
+            talkwtf_core::secure_input::start_monitor();
+            Ok(Value::Null)
+        }
+        /// Shadow the cancel binding while a recording is in flight.
+        "set_cancel_shadow_active" => {
+            let active: bool = arg(payload, "active")?;
+            talkwtf_core::secure_input::set_cancel_active(active);
+            Ok(Value::Null)
+        }
+        "get_available_accelerators" => {
+            json_of(talkwtf_core::transcription::get_available_accelerators())
+        }
+        "list_input_devices" => {
+            json_of(talkwtf_core::audio_toolkit::list_input_devices().map_err(|e| e.to_string())?)
+        }
+        "list_output_devices" => {
+            json_of(talkwtf_core::audio_toolkit::list_output_devices().map_err(|e| e.to_string())?)
+        }
+        "unload_model" => {
+            talkwtf_core::dictation::ensure_idle()?;
+            transcription_manager()?
+                .unload_model()
+                .map_err(|e| e.to_string())?;
+            Ok(Value::Null)
+        }
+
+        // ---- hotkeys ------------------------------------------------------
+        /// Register the settings' bindings and start dispatching `hotkey`
+        /// events `{ bindingId, pressed }`.
+        "start_hotkeys" => {
+            talkwtf_core::hotkeys::start_configured();
+            json_of(talkwtf_core::hotkeys::is_running())
+        }
+        "stop_hotkeys" => {
+            talkwtf_core::hotkeys::stop();
+            Ok(Value::Null)
+        }
+
+        // ---- dictation ----------------------------------------------------
+        /// `{ "mode": "dictation" | "translate" }` — loads the model and starts
+        /// recording. Returns immediately; call `stop_dictation` to finish.
+        "start_dictation" => {
+            talkwtf_core::dictation::start(parse_mode(payload)?).map_err(|e| e)?;
+            Ok(Value::Null)
+        }
+        /// `{ "mode": ... }` — stops, transcribes and returns the final text
+        /// (blocking: run it off the main thread in the shell).
+        "stop_dictation" => {
+            let text = talkwtf_core::dictation::stop(parse_mode(payload)?)?;
+            json_of(text)
+        }
+        /// Re-transcribe a saved history entry from its audio. Blocking.
+        "retry_history_entry_transcription" => {
+            let id: i64 = arg(payload, "id")?;
+            talkwtf_core::dictation::retry_history_transcription(id)?;
+            Ok(Value::Null)
+        }
+        /// Watch the field we just pasted into, so a correction the user makes
+        /// can be learned into the dictionary.
+        "watch_for_edit" => {
+            let text: String = arg(payload, "text")?;
+            talkwtf_core::learning::watch_for_edit(&text);
+            Ok(Value::Null)
+        }
+        /// Whether a dictation is recording or being transcribed.
+        "is_dictating" => json_of(talkwtf_core::dictation::is_busy()),
+        /// Re-run the most recent failed translation; returns the translated
+        /// text for the shell to paste. Blocking.
+        "retry_last_translation" => json_of(talkwtf_core::dictation::retry_last_translation()?),
+        "cancel_dictation" => {
+            talkwtf_core::dictation::cancel();
+            Ok(Value::Null)
+        }
+
         // ---- dashboard ----------------------------------------------------
         "get_dashboard_stats" => json_of(dashboard::get_dashboard_stats()?),
 
         other => Err(format!("unknown command '{other}'")),
+    }
+}
+
+/// Re-register the hotkey listener after a binding change. Failures are logged:
+/// the settings are already saved, and the next launch retries.
+fn restart_hotkeys() {
+    if let Err(error) = talkwtf_core::hotkeys::start(talkwtf_core::hotkeys::configured_bindings()) {
+        log::error!("failed to re-register hotkeys: {error}");
+    }
+}
+
+fn parse_mode(payload: &Value) -> Result<talkwtf_core::pipeline::ProcessingMode, String> {
+    match payload
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("dictation")
+    {
+        "translate" => Ok(talkwtf_core::pipeline::ProcessingMode::Translate),
+        "dictation" => Ok(talkwtf_core::pipeline::ProcessingMode::Polish),
+        other => Err(format!("unknown mode '{other}'")),
     }
 }
 
@@ -587,6 +834,12 @@ fn history_manager() -> Result<std::sync::Arc<history::HistoryManager>, String> 
 
 fn model_manager() -> Result<std::sync::Arc<model::ModelManager>, String> {
     state::model_manager().ok_or_else(|| "model manager is not initialized".to_string())
+}
+
+fn transcription_manager(
+) -> Result<std::sync::Arc<talkwtf_core::transcription::TranscriptionManager>, String> {
+    state::transcription_manager()
+        .ok_or_else(|| "transcription manager is not initialized".to_string())
 }
 
 #[cfg(test)]

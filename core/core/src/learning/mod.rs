@@ -75,3 +75,49 @@ pub struct LearningState;
 
 #[cfg(not(target_os = "macos"))]
 pub fn watch_for_edit(_pasted_text: &str) {}
+
+/// Consume the last applied learning so undo knows exactly what to take back.
+#[cfg(target_os = "macos")]
+pub fn take_applied_learning() -> Vec<(String, String)> {
+    learning_state()
+        .map(|state| state.take())
+        .unwrap_or_default()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn take_applied_learning() -> Vec<(String, String)> {
+    Vec::new()
+}
+
+/// Undo the last auto-learned correction: delete the word it added and remember
+/// the misheard pattern so it is not learned again. Emits `dictionary-changed`.
+pub fn undo_last_learning() -> Result<(), String> {
+    let applied = take_applied_learning();
+    if applied.is_empty() {
+        return Err("Nothing to undo".to_string());
+    }
+
+    let store = crate::state::dictionary_store()
+        .ok_or_else(|| "dictionary store is not initialized".to_string())?;
+    for (word, pattern) in applied {
+        store.undo_learned_word(&word).map_err(|e| e.to_string())?;
+        store
+            .remember_learning_rejection(&pattern)
+            .map_err(|e| e.to_string())?;
+    }
+
+    crate::events::emit("dictionary-changed", serde_json::json!({}));
+    Ok(())
+}
+
+/// Whether the process may use the Accessibility API (macOS). The shell uses
+/// this to gate the permission prompt and the auto-learn toggle.
+#[cfg(target_os = "macos")]
+pub fn is_accessibility_trusted() -> bool {
+    ax::is_trusted()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn is_accessibility_trusted() -> bool {
+    false
+}
