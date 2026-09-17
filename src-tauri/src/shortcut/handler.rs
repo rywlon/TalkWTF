@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager};
 use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
 use crate::settings::get_settings;
-use crate::transcription_coordinator::is_transcribe_binding;
+use crate::transcription_coordinator::is_workflow_binding;
 use crate::TranscriptionCoordinator;
 
 /// Handle a shortcut event from either implementation.
@@ -34,8 +34,8 @@ pub fn handle_shortcut_event(
 ) {
     let settings = get_settings(app);
 
-    // Transcribe bindings are handled by the coordinator.
-    if is_transcribe_binding(binding_id) {
+    // Workflow bindings (dictation, translate) are handled by the coordinator.
+    if is_workflow_binding(binding_id) {
         if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
             coordinator.send_input(
                 binding_id,

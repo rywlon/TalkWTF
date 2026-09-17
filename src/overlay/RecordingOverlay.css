@@ -56,6 +56,7 @@
   --ov-work-w: 216px; /* working pill (transcribing / polishing) -- wide enough to
                          center longer labels; shared by Live (collapsed) + minimal */
   --ov-open-w: 392px; /* Live panel, expanded */
+  --ov-learned-w: 404px; /* "added to dictionary" notice (matches overlay.rs) */
   --ov-base-h: 40px; /* control-row height (.sbase) */
   --ov-cap-max-h: 64px; /* max height of the scrolling live-text region */
 }
@@ -349,6 +350,15 @@
   opacity: 0;
   transition: opacity 240ms ease 80ms;
 }
+/* Translate workflow: the target language shown in the recording pill. */
+.strans-label {
+  font-size: 12px;
+  color: var(--s-muted);
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .scard.open .stimer {
   opacity: 1;
 }
@@ -465,4 +475,49 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---- learned notice: what we just added to the dictionary, plus undo ---- */
+.scard.learned {
+  width: var(--ov-learned-w);
+  padding: 10px 14px;
+  border-radius: 14px;
+}
+
+.learned-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.learned-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--color-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.learned-undo {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--s-border);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.learned-undo:hover {
+  background: var(--s-accent-soft);
 }

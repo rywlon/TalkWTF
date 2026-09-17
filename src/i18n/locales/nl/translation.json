@@ -16,7 +16,9 @@
     "postProcessing": "Naverwerking",
     "history": "Geschiedenis",
     "debug": "Probleemoplossing",
-    "about": "Over Handy"
+    "about": "Over Handy",
+    "dictionary": "Woordenboek",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Kies een transcriptiemodel om aan de slag te gaan",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "Sneltoets voor naverwerking",
             "description": "Optioneel: Een specifieke sneltoets die altijd AI-naverwerking toepast op je transcriptie."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Instelling onvolledig — stel {{fields}} in"
+      },
       "hotkey": {
         "title": "Sneltoets"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Prompt maken",
         "cancel": "Annuleren",
         "selectToEdit": "Selecteer hierboven een prompt om de details te bekijken en te bewerken.",
-        "createFirst": "Klik hierboven op 'Nieuwe prompt maken' om je eerste naverwerkingsprompt aan te maken."
+        "createFirst": "Klik hierboven op 'Nieuwe prompt maken' om je eerste naverwerkingsprompt aan te maken.",
+        "duplicate": "Dupliceren",
+        "restoreDefault": "Standaard herstellen"
+      },
+      "style": {
+        "title": "Polijststijl",
+        "description": "Hoe het transcript wordt gepolijst als er geen scène actief is."
+      },
+      "scene": {
+        "title": "Actieve scène",
+        "description": "Een scène vervangt de polijststijl bij elk dictee.",
+        "none": "Geen scène",
+        "builtInTitle": "Ingebouwde scènes",
+        "builtInDescription": "Kant-en-klare scènes. Je kunt ze net als je eigen scènes bewerken of verwijderen; herstellen zet ze terug.",
+        "edit": "Bewerken",
+        "confirmDelete": "Verwijderen bevestigen",
+        "restoreBuiltIn": "Ingebouwde scènes herstellen",
+        "styleSkipped": "‘{{name}}’ is actief, dus de polijststijl wordt niet toegepast.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Diep nadenken",
+        "description": "Laat het model redeneren voordat het polijst. Beter bij zelfcorrecties en herstructureren, maar kost seconden per dictee."
       }
     },
     "history": {
@@ -539,10 +573,6 @@
       "clamshellMicrophone": {
         "title": "Clamshell-microfoon",
         "description": "Microfoon die gebruikt moet worden wanneer het laptopscherm gesloten is"
-      },
-      "postProcessingToggle": {
-        "label": "Naverwerking",
-        "description": "Schakel AI-gestuurde tekstverfijning in na transcriptie"
       },
       "muteWhileRecording": {
         "label": "Dempen tijdens opname",
@@ -635,6 +665,57 @@
           "details": "Handy's lokale spraak-naar-tekst is gebouwd op transcribe.cpp en ggml. Met dank aan het geweldige werk van Georgi Gerganov en alle bijdragers."
         }
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Woorden",
+      "wordsDescription": "Termen die de herkenning goed moet hebben. ASCII-termen worden na de transcriptie ook fuzzy gecorrigeerd.",
+      "wordsEmpty": "Nog geen woorden.",
+      "rulesTitle": "Correctieregels",
+      "rulesDescription": "Letterlijke vervangingen zonder onderscheid in hoofdletters, toegepast op elk transcript vóór het polijsten. Voor zinnen die fuzzy matching niet bereikt.",
+      "rulesEmpty": "Nog geen correctieregels.",
+      "patternPlaceholder": "Foute zin",
+      "replacementPlaceholder": "Juiste zin",
+      "enabled": "Ingeschakeld",
+      "search": "Zoek woorden en regels",
+      "import": "Importeren",
+      "export": "Exporteren",
+      "exportDone": "Woordenboek geëxporteerd",
+      "importReport": "{{accepted}} geïmporteerd, {{duplicates}} duplicaat(en) en {{invalid}} ongeldige regel(s) overgeslagen",
+      "hint": "Woorden gaan ook naar de AI-polijsting zodat die de juiste spelling kent; regels gelden letterlijk vóór het polijsten.",
+      "learn": {
+        "title": "Leren van mijn correcties",
+        "description": "Na elk dictee wordt het veld gelezen waarin net is getypt, om de woorden die je verbetert te leren. Alleen dat veld wordt gelezen, tot 45 seconden na het plakken, en nooit in wachtwoordvelden of tijdens beveiligde invoer. Alles blijft op deze Mac. Uitzetten stopt al het lezen.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -701,7 +782,19 @@
   },
   "overlay": {
     "transcribing": "Transcriberen...",
-    "processing": "Verwerken..."
+    "processing": "Verwerken...",
+    "learned": {
+      "title": "Toegevoegd aan woordenboek: {{pattern}} → {{replacement}}",
+      "undo": "Ongedaan maken",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blokkeert mogelijk 1 sneltoets",

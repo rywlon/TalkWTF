@@ -10,6 +10,7 @@ mod clipboard;
 mod commands;
 mod helpers;
 mod input;
+mod learning;
 mod llm_client;
 mod managers;
 mod memory;
@@ -33,6 +34,7 @@ pub use utils::env_flag_enabled;
 
 use env_filter::Builder as EnvFilterBuilder;
 use managers::audio::AudioRecordingManager;
+use managers::dictionary::DictionaryStore;
 use managers::history::HistoryManager;
 use managers::model::ModelManager;
 use managers::transcription::TranscriptionManager;
@@ -204,6 +206,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     );
     let history_manager =
         Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
+    let dictionary_store =
+        Arc::new(DictionaryStore::new(app_handle).expect("Failed to initialize dictionary store"));
 
     // Initialize the transcribe-cpp native backend (logging + backend module
     // registration) once, before any whisper model is loaded.
@@ -217,6 +221,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    app_handle.manage(dictionary_store.clone());
+    app_handle.manage(learning::LearningState::default());
     app_handle.manage(tray::TrayState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -675,18 +681,26 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_clipboard_handling_setting,
             shortcut::change_auto_submit_setting,
             shortcut::change_auto_submit_key_setting,
-            shortcut::change_post_process_enabled_setting,
             shortcut::change_experimental_enabled_setting,
             shortcut::change_post_process_base_url_setting,
             shortcut::change_post_process_api_key_setting,
             shortcut::change_post_process_model_setting,
             shortcut::set_post_process_provider,
             shortcut::fetch_post_process_models,
-            shortcut::add_post_process_prompt,
-            shortcut::update_post_process_prompt,
-            shortcut::delete_post_process_prompt,
-            shortcut::set_post_process_selected_prompt,
-            shortcut::update_custom_words,
+            shortcut::add_scene,
+            shortcut::update_scene,
+            shortcut::delete_scene,
+            shortcut::reset_scene,
+            shortcut::restore_built_in_scenes,
+            shortcut::set_active_scene,
+            shortcut::change_polish_style,
+            shortcut::change_post_process_thinking_setting,
+            shortcut::get_polish_styles,
+            shortcut::get_translation_languages,
+            shortcut::add_translation_target,
+            shortcut::remove_translation_target,
+            shortcut::set_active_translation_target,
+            shortcut::change_learn_from_edits_setting,
             shortcut::suspend_all_bindings,
             shortcut::resume_all_bindings,
             shortcut::change_mute_while_recording_setting,
@@ -758,6 +772,26 @@ pub fn run(cli_args: CliArgs) {
             commands::transcription::unload_model_manually,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
+            commands::polish_profile::export_polish_profile,
+            commands::polish_profile::import_polish_profile,
+            commands::translation::retry_last_translation,
+            commands::dictionary::get_dictionary,
+            commands::dictionary::get_dictionary_limits,
+            commands::dictionary::undo_last_dictionary_learning,
+            commands::dictionary::list_learning_rejections,
+            commands::dictionary::forget_learning_rejection,
+            commands::dictionary::clear_learning_rejections,
+            commands::dictionary::hide_overlay,
+            commands::dictionary::diagnose_edit_learning,
+            commands::dictionary::add_dictionary_word,
+            commands::dictionary::update_dictionary_word,
+            commands::dictionary::delete_dictionary_word,
+            commands::dictionary::add_correction_rule,
+            commands::dictionary::update_correction_rule,
+            commands::dictionary::set_correction_rule_enabled,
+            commands::dictionary::delete_correction_rule,
+            commands::dictionary::export_dictionary,
+            commands::dictionary::import_dictionary,
             commands::history::get_audio_file_path,
             commands::history::delete_history_entry,
             commands::history::retry_history_entry_transcription,
@@ -769,6 +803,8 @@ pub fn run(cli_args: CliArgs) {
             managers::history::HistoryUpdatePayload,
             managers::transcription::StreamTextEvent,
             managers::transcription::StreamPhaseEvent,
+            learning::LearnedCorrection,
+            commands::dictionary::DictionaryChanged,
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -912,8 +948,15 @@ pub fn run(cli_args: CliArgs) {
                     TranscriptionManager::new(&app_handle, model_manager.clone())
                         .expect("Failed to initialize transcription manager"),
                 );
+                // Headless transcription still applies dictionary correction, so
+                // the store has to exist here even though nothing manages history.
+                let dictionary_store = Arc::new(
+                    DictionaryStore::new(&app_handle)
+                        .expect("Failed to initialize dictionary store"),
+                );
                 app_handle.manage(model_manager);
                 app_handle.manage(transcription_manager);
+                app_handle.manage(dictionary_store);
                 managers::transcription::init_transcribe_backend();
                 managers::transcription::apply_accelerator_settings(&app_handle);
 

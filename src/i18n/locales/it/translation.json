@@ -16,7 +16,9 @@
     "postProcessing": "Post-Elaborazione",
     "history": "Cronologia",
     "debug": "Debug",
-    "about": "Informazioni"
+    "about": "Informazioni",
+    "dictionary": "Dizionario",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Per cominciare, scegli un modello di riconoscimento vocale",
@@ -199,6 +201,10 @@
           "transcribe_with_post_process": {
             "name": "Tasto di post-elaborazione",
             "description": "Facoltativo: Un tasto di scelta rapida dedicato che applica sempre la post-elaborazione IA alla trascrizione."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Configurazione incompleta: imposta {{fields}}"
+      },
       "hotkey": {
         "title": "Tasto di scelta rapida"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Crea Prompt",
         "cancel": "Annulla",
         "selectToEdit": "Scegli un prompt qui sopra per visualizzare o modificare i dettagli.",
-        "createFirst": "Clicca 'Crea un nuovo prompt' qui sopra per creare il tuo primo prompt di post-elaborazione."
+        "createFirst": "Clicca 'Crea un nuovo prompt' qui sopra per creare il tuo primo prompt di post-elaborazione.",
+        "duplicate": "Duplica",
+        "restoreDefault": "Ripristina predefinito"
+      },
+      "style": {
+        "title": "Stile di rifinitura",
+        "description": "Come viene rifinita la trascrizione quando nessuna scena è attiva."
+      },
+      "scene": {
+        "title": "Scena attiva",
+        "description": "La scena sostituisce lo stile di rifinitura a ogni dettatura.",
+        "none": "Nessuna scena",
+        "builtInTitle": "Scene integrate",
+        "builtInDescription": "Scene pronte all'uso. Puoi modificarle o eliminarle come le tue; ripristina le recupera.",
+        "edit": "Modifica",
+        "confirmDelete": "Conferma eliminazione",
+        "restoreBuiltIn": "Ripristina le scene integrate",
+        "styleSkipped": "«{{name}}» è attiva, quindi lo stile di rifinitura non viene applicato.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Pensiero profondo",
+        "description": "Lascia che il modello ragioni prima di rifinire. Migliore con le autocorrezioni e le ristrutturazioni, ma aggiunge secondi a ogni dettatura."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "Microfono con coperchio chiuso",
         "description": "Microfono da usare quando il portatile è chiuso"
-      },
-      "postProcessingToggle": {
-        "label": "Post-Elaborazione",
-        "description": "Abilita il miglioramento della trascrizione con IA"
       },
       "muteWhileRecording": {
         "label": "Silenzia durante la registrazione",
@@ -635,6 +665,57 @@
         "label": "Mostra novità",
         "description": "Mostra le note di rilascio dopo gli aggiornamenti di Handy"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Parole",
+      "wordsDescription": "Termini che il riconoscimento deve azzeccare. I termini ASCII vengono anche corretti in modo fuzzy dopo la trascrizione.",
+      "wordsEmpty": "Nessuna parola ancora.",
+      "rulesTitle": "Regole di correzione",
+      "rulesDescription": "Sostituzioni letterali e insensibili alle maiuscole applicate a ogni trascrizione prima della rifinitura. Per frasi che la corrispondenza fuzzy non raggiunge.",
+      "rulesEmpty": "Nessuna regola di correzione ancora.",
+      "patternPlaceholder": "Frase errata",
+      "replacementPlaceholder": "Frase corretta",
+      "enabled": "Attiva",
+      "search": "Cerca parole e regole",
+      "import": "Importa",
+      "export": "Esporta",
+      "exportDone": "Dizionario esportato",
+      "importReport": "Importate {{accepted}}, saltate {{duplicates}} duplicate e {{invalid}} righe non valide",
+      "hint": "Le parole vanno anche alla rifinitura IA perché conosca l'ortografia esatta; le regole si applicano letteralmente prima della rifinitura.",
+      "learn": {
+        "title": "Impara dalle mie correzioni",
+        "description": "Dopo ogni dettatura viene letto il campo in cui si è appena scritto per imparare le parole che correggi. Viene letto solo quel campo, fino a 45 secondi dopo l'incolla, e mai nei campi password o con input sicuro attivo. Tutto resta su questo Mac. Disattiva per fermare ogni lettura.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "Trascrizione...",
-    "processing": "Elaborazione..."
+    "processing": "Elaborazione...",
+    "learned": {
+      "title": "Aggiunto al dizionario: {{pattern}} → {{replacement}}",
+      "undo": "Annulla",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Novità in Handy v{{version}}"

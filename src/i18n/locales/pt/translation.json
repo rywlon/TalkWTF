@@ -16,7 +16,9 @@
     "postProcessing": "Pós-Processamento",
     "history": "Histórico",
     "debug": "Depuração",
-    "about": "Sobre"
+    "about": "Sobre",
+    "dictionary": "Dicionário",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Para começar, escolha um modelo de transcrição",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "Tecla de Pós-Processamento",
             "description": "Opcional: Uma tecla de atalho dedicada que sempre aplica pós-processamento com IA à sua transcrição."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Configuração incompleta — defina {{fields}}"
+      },
       "hotkey": {
         "title": "Tecla de atalho"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Criar Prompt",
         "cancel": "Cancelar",
         "selectToEdit": "Selecione um prompt acima para visualizar e editar seus detalhes.",
-        "createFirst": "Clique em 'Criar Novo Prompt' acima para criar seu primeiro prompt de pós-processamento."
+        "createFirst": "Clique em 'Criar Novo Prompt' acima para criar seu primeiro prompt de pós-processamento.",
+        "duplicate": "Duplicar",
+        "restoreDefault": "Restaurar padrão"
+      },
+      "style": {
+        "title": "Estilo de polimento",
+        "description": "Como a transcrição é polida quando não há nenhuma cena ativa."
+      },
+      "scene": {
+        "title": "Cena ativa",
+        "description": "A cena substitui o estilo de polimento em cada ditado.",
+        "none": "Sem cena",
+        "builtInTitle": "Cenas integradas",
+        "builtInDescription": "Cenas prontas. Você pode editá-las ou excluí-las como as suas; restaurar traz de volta.",
+        "edit": "Editar",
+        "confirmDelete": "Confirmar exclusão",
+        "restoreBuiltIn": "Restaurar cenas integradas",
+        "styleSkipped": "“{{name}}” está ativa, então o estilo de polimento não é aplicado.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Pensamento profundo",
+        "description": "Deixe o modelo raciocinar antes de polir. Melhor em autocorreções e reestruturação, mas acrescenta segundos a cada ditado."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "Microfone em Modo Fechado",
         "description": "Microfone a usar quando a tampa do laptop está fechada"
-      },
-      "postProcessingToggle": {
-        "label": "Pós-Processamento",
-        "description": "Habilitar refinamento de texto com IA após a transcrição"
       },
       "muteWhileRecording": {
         "label": "Silenciar Durante Gravação",
@@ -635,6 +665,57 @@
         "label": "Mostrar novidades",
         "description": "Mostrar notas de versão após atualizações do Handy"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Palavras",
+      "wordsDescription": "Termos que o reconhecimento deve acertar. Termos ASCII também são corrigidos de forma difusa após a transcrição.",
+      "wordsEmpty": "Ainda sem palavras.",
+      "rulesTitle": "Regras de correção",
+      "rulesDescription": "Substituições literais e insensíveis a maiúsculas aplicadas a cada transcrição antes de polir. Para frases que a correspondência difusa não alcança.",
+      "rulesEmpty": "Ainda sem regras de correção.",
+      "patternPlaceholder": "Frase errada",
+      "replacementPlaceholder": "Frase correta",
+      "enabled": "Ativada",
+      "search": "Pesquisar palavras e regras",
+      "import": "Importar",
+      "export": "Exportar",
+      "exportDone": "Dicionário exportado",
+      "importReport": "Importadas {{accepted}}, ignoradas {{duplicates}} duplicadas e {{invalid}} linhas inválidas",
+      "hint": "As palavras também vão para o polimento de IA para que ele saiba a grafia exata; as regras são aplicadas literalmente antes de polir.",
+      "learn": {
+        "title": "Aprender com as minhas correções",
+        "description": "Após cada ditado, o campo onde se acabou de escrever é lido para aprender as palavras que você corrige. Apenas esse campo é lido, por até 45 segundos após colar, e nunca em campos de senha ou com entrada segura ativa. Tudo fica neste Mac. Desligue para parar toda leitura.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "Transcrevendo...",
-    "processing": "Processando..."
+    "processing": "Processando...",
+    "learned": {
+      "title": "Adicionado ao dicionário: {{pattern}} → {{replacement}}",
+      "undo": "Desfazer",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Novidades no Handy v{{version}}"

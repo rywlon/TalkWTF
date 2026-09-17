@@ -216,14 +216,6 @@ async changeAutoSubmitKeySetting(key: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async changePostProcessEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_post_process_enabled_setting", { enabled }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async changeExperimentalEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_experimental_enabled_setting", { enabled }) };
@@ -272,41 +264,131 @@ async fetchPostProcessModels(providerId: string) : Promise<Result<string[], stri
     else return { status: "error", error: e  as any };
 }
 },
-async addPostProcessPrompt(name: string, prompt: string) : Promise<Result<LLMPrompt, string>> {
+async addScene(name: string, description: string, prompt: string) : Promise<Result<Scene, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("add_post_process_prompt", { name, prompt }) };
+    return { status: "ok", data: await TAURI_INVOKE("add_scene", { name, description, prompt }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async updatePostProcessPrompt(id: string, name: string, prompt: string) : Promise<Result<null, string>> {
+async updateScene(id: string, name: string, description: string, prompt: string) : Promise<Result<Scene, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_post_process_prompt", { id, name, prompt }) };
+    return { status: "ok", data: await TAURI_INVOKE("update_scene", { id, name, description, prompt }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async deletePostProcessPrompt(id: string) : Promise<Result<null, string>> {
+async deleteScene(id: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_post_process_prompt", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("delete_scene", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async setPostProcessSelectedPrompt(id: string) : Promise<Result<null, string>> {
+/**
+ * Restore a built-in scene to the text this build ships. Only built-in ids are
+ * accepted; user scenes have no original to go back to.
+ */
+async resetScene(id: string) : Promise<Result<Scene, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("set_post_process_selected_prompt", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("reset_scene", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async updateCustomWords(words: string[]) : Promise<Result<null, string>> {
+/**
+ * Re-add built-in scenes the user deleted. Existing ones are never touched, so
+ * an edited built-in keeps the user's text.
+ */
+async restoreBuiltInScenes() : Promise<Result<Scene[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_custom_words", { words }) };
+    return { status: "ok", data: await TAURI_INVOKE("restore_built_in_scenes") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setActiveScene(id: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_active_scene", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changePolishStyle(style: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_polish_style", { style }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changePostProcessThinkingSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_post_process_thinking_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getPolishStyles() : Promise<PolishStyleOption[]> {
+    return await TAURI_INVOKE("get_polish_styles");
+},
+/**
+ * The languages the translate workflow can target, served by the backend so the
+ * ids the UI sends back can never drift from the ones we validate.
+ */
+async getTranslationLanguages() : Promise<TranslationLanguage[]> {
+    return await TAURI_INVOKE("get_translation_languages");
+},
+/**
+ * Add a target language (idempotent; at most
+ * [`settings::TRANSLATION_TARGETS_MAX_COUNT`]). The first language added also
+ * becomes the active target.
+ */
+async addTranslationTarget(code: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_translation_target", { code }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Remove a target language. When the active one is removed the first remaining
+ * target takes over (or `None` when the list becomes empty).
+ */
+async removeTranslationTarget(code: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_translation_target", { code }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Choose which configured target the translate workflow uses.
+ */
+async setActiveTranslationTarget(code: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_active_translation_target", { code }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The styles the settings UI lists, with their labels. Served by the backend so
+ * the ids the UI sends back can never drift from the ones we validate.
+ */
+async changeLearnFromEditsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_learn_from_edits_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -867,6 +949,175 @@ async toggleHistoryEntrySaved(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async exportPolishProfile(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_polish_profile", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async importPolishProfile(path: string) : Promise<Result<PolishProfileImportReport, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_polish_profile", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Re-run the most recent failed translation and paste the result. On failure
+ * the slot is restored so the retry button keeps working.
+ */
+async retryLastTranslation() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("retry_last_translation") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getDictionary() : Promise<Result<DictionaryListing, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_dictionary") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getDictionaryLimits() : Promise<DictionaryLimits> {
+    return await TAURI_INVOKE("get_dictionary_limits");
+},
+/**
+ * Limits exposed to the UI so its inline validation matches the backend.
+ * Take back what we just learned: remove the word and remember that the user
+ * rejected it, so the same edit does not teach it again.
+ */
+async undoLastDictionaryLearning() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("undo_last_dictionary_learning") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The misheard texts the user undid. Learning skips these, so the settings page
+ * has to show them — otherwise the feature silently stops learning a word.
+ */
+async listLearningRejections() : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_learning_rejections") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Allow this mishearing to be learned again.
+ */
+async forgetLearningRejection(pattern: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("forget_learning_rejection", { pattern }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async clearLearningRejections() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_learning_rejections") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Hide the overlay window. Used by the overlay's own buttons so the Rust side
+ * does not need a timer.
+ */
+async hideOverlay() : Promise<void> {
+    await TAURI_INVOKE("hide_overlay");
+},
+/**
+ * Report what the accessibility layer can see, so "learn from edits" can be
+ * diagnosed from the settings page instead of a log file.
+ */
+async diagnoseEditLearning() : Promise<string[]> {
+    return await TAURI_INVOKE("diagnose_edit_learning");
+},
+async addDictionaryWord(word: string) : Promise<Result<DictionaryWord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_dictionary_word", { word }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateDictionaryWord(id: number, word: string) : Promise<Result<DictionaryWord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_dictionary_word", { id, word }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteDictionaryWord(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_dictionary_word", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async addCorrectionRule(pattern: string, replacement: string) : Promise<Result<CorrectionRule, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_correction_rule", { pattern, replacement }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateCorrectionRule(id: number, pattern: string, replacement: string) : Promise<Result<CorrectionRule, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_correction_rule", { id, pattern, replacement }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setCorrectionRuleEnabled(id: number, enabled: boolean) : Promise<Result<CorrectionRule, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_correction_rule_enabled", { id, enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteCorrectionRule(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_correction_rule", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async exportDictionary(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_dictionary", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async importDictionary(path: string) : Promise<Result<DictionaryImportReport, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_dictionary", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getAudioFilePath(fileName: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_audio_file_path", { fileName }) };
@@ -927,11 +1178,15 @@ async isLaptop() : Promise<Result<boolean, string>> {
 
 
 export const events = __makeEvents__<{
+dictionaryChanged: DictionaryChanged,
 historyUpdatePayload: HistoryUpdatePayload,
+learnedCorrection: LearnedCorrection,
 streamPhaseEvent: StreamPhaseEvent,
 streamTextEvent: StreamTextEvent
 }>({
+dictionaryChanged: "dictionary-changed",
 historyUpdatePayload: "history-update-payload",
+learnedCorrection: "learned-correction",
 streamPhaseEvent: "stream-phase-event",
 streamTextEvent: "stream-text-event"
 })
@@ -982,7 +1237,33 @@ whats_new_last_seen_version?: string; selected_model?: string; onboarding_comple
  * Which input channel to use on the selected microphone device.
  * None means "average all channels" (original behavior).
  */
-selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; translate_to_english?: boolean; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; keyboard_implementation?: KeyboardImplementation; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
+selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; translate_to_english?: boolean; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; 
+/**
+ * Renamed from `post_process_prompts`; the alias keeps older stores
+ * loading without a data migration.
+ */
+scenes?: Scene[]; 
+/**
+ * The scene applied to every dictation, or `None` to use `polish_style`.
+ * Renamed from `post_process_selected_prompt_id`.
+ */
+active_scene_id?: string | null; 
+/**
+ * Global polish style, used only while no scene is active.
+ */
+polish_style?: string; 
+/**
+ * Watch the field we just pasted into and learn a dictionary entry from the
+ * user's edit. Off by default: it is the only feature that reads text out
+ * of other applications.
+ */
+learn_from_edits?: boolean; 
+/**
+ * Let the model reason before polishing. Off by default: it costs seconds
+ * per dictation and only pays off on harder rewrites (chained
+ * self-corrections, restructuring).
+ */
+post_process_thinking?: boolean; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; keyboard_implementation?: KeyboardImplementation; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
 /**
  * Debug-gated ("beta") receipt-sequenced paste: restore the clipboard only
  * after the target app actually reads the transcript, instead of after a
@@ -1004,13 +1285,42 @@ vad_backend?: VadBackend;
  * not gated on this — that follows model capability. Migrated from the old
  * `overlay_position` (position `none` → style `None`).
  */
-overlay_style?: OverlayStyle }
+overlay_style?: OverlayStyle; 
+/**
+ * Target languages the translate workflow can use (at most
+ * [`TRANSLATION_TARGETS_MAX_COUNT`]). Empty by default: translation stays
+ * inert until the user picks at least one language.
+ */
+translation_targets?: string[]; 
+/**
+ * Which of [`Self::translation_targets`] the translate workflow currently
+ * uses. Resolved through [`Self::effective_translation_target`] so a stale
+ * value can never point outside the list.
+ */
+translation_active_target?: string | null }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AvailableAccelerators = { transcribe: string[]; ort: string[]; gpu_devices: GpuDeviceOption[] }
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
+export type CorrectionRule = { id: number; pattern: string; replacement: string; enabled: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
+/**
+ * Emitted when the dictionary changed behind the settings page's back, so an
+ * open page can refresh. The undo runs from the dictation overlay, which the
+ * page cannot see; without this it keeps showing the row that was just removed.
+ */
+export type DictionaryChanged = Record<string, never>
+/**
+ * What an import did, so the UI can report it instead of silently succeeding.
+ */
+export type DictionaryImportReport = { accepted: number; skipped_duplicates: number; skipped_invalid: number }
+export type DictionaryLimits = { word_max_chars: number; rule_pattern_max_chars: number; rule_replacement_max_chars: number }
+/**
+ * Everything the dictionary settings page renders.
+ */
+export type DictionaryListing = { words: DictionaryWord[]; rules: CorrectionRule[] }
+export type DictionaryWord = { id: number; word: string }
 export type EngineType = 
 /**
  * Any GGML/GGUF model loaded through transcribe-cpp (Whisper, Parakeet,
@@ -1035,7 +1345,15 @@ export type KeyboardDiagnosticReport = { secure_input_enabled: boolean; culprit_
  */
 key_down: number; key_up: number; flags_changed: number; mouse: number; duration_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"
-export type LLMPrompt = { id: string; name: string; prompt: string }
+/**
+ * Emitted when a correction was learned, so the overlay can offer an undo.
+ */
+export type LearnedCorrection = { pattern: string; replacement: string; 
+/**
+ * How many rules this dictation taught. The notice shows the pair when it is
+ * one, and a count when a single message carried several corrections.
+ */
+count: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; is_directory: boolean; engine_type: EngineType; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
@@ -1076,8 +1394,19 @@ export type OverlayStyle = "none" | "minimal" | "live"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none" | "shift_insert" | "ctrl_shift_v" | "external_script"
 export type PermissionAccess = "allowed" | "denied" | "unknown"
-export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean }
+export type PolishProfileImportReport = { accepted: number; skipped_duplicates: number; skipped_invalid: number }
+/**
+ * A polish style as the settings UI needs it.
+ */
+export type PolishStyleOption = { value: string; label: string }
+export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean; requires_api_key?: boolean }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
+/**
+ * A polish scene: a named prompt the user can activate instead of the global
+ * style. `builtin_*` ids are the seeds this build ships; anything else is
+ * user-created. Built-ins are editable and restorable, never deleted by us.
+ */
+export type Scene = { id: string; name: string; description?: string; prompt: string; created_at?: string; updated_at?: string }
 export type SecretMap = Partial<{ [key in string]: string }>
 export type SecureInputStatus = { 
 /**
@@ -1169,6 +1498,10 @@ export type StreamWorkKind = "transcribing" | "polishing"
  */
 export type Theme = "system" | "light" | "dark"
 export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
+/**
+ * A translation target as the settings UI needs it.
+ */
+export type TranslationLanguage = { value: string; label: string }
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
 export type VadBackend = "silero" | "earshot"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }

@@ -16,7 +16,9 @@
     "postProcessing": "Pascaproses",
     "history": "Riwayat",
     "debug": "Debug",
-    "about": "Tentang"
+    "about": "Tentang",
+    "dictionary": "Kamus",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Untuk memulai, pilih model transkripsi",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "Pintasan Pascaproses",
             "description": "Opsional: pintasan khusus yang selalu menerapkan pascaproses AI pada transkripsi Anda."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Konfigurasi belum lengkap — atur {{fields}}"
+      },
       "hotkey": {
         "title": "Pintasan"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Buat Prompt",
         "cancel": "Batal",
         "selectToEdit": "Pilih prompt di atas untuk melihat dan mengedit detailnya.",
-        "createFirst": "Klik 'Buat Prompt Baru' di atas untuk membuat prompt pascaproses pertama Anda."
+        "createFirst": "Klik 'Buat Prompt Baru' di atas untuk membuat prompt pascaproses pertama Anda.",
+        "duplicate": "Duplikat",
+        "restoreDefault": "Pulihkan bawaan"
+      },
+      "style": {
+        "title": "Gaya pemolesan",
+        "description": "Bagaimana transkrip dipoles saat tidak ada skena aktif."
+      },
+      "scene": {
+        "title": "Skena aktif",
+        "description": "Skena menggantikan gaya pemolesan pada setiap dikte.",
+        "none": "Tanpa skena",
+        "builtInTitle": "Skena bawaan",
+        "builtInDescription": "Skena siap pakai. Bisa diedit atau dihapus seperti milikmu; pulihkan akan mengembalikannya.",
+        "edit": "Edit",
+        "confirmDelete": "Konfirmasi hapus",
+        "restoreBuiltIn": "Pulihkan skena bawaan",
+        "styleSkipped": "“{{name}}” aktif, jadi gaya pemolesan tidak diterapkan.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Berpikir mendalam",
+        "description": "Biarkan model bernalar sebelum memoles. Lebih baik menangani koreksi diri dan menata ulang, tetapi menambah beberapa detik per dikte."
       }
     },
     "history": {
@@ -539,10 +573,6 @@
       "clamshellMicrophone": {
         "title": "Mikrofon Saat Laptop Ditutup",
         "description": "Mikrofon yang digunakan saat laptop ditutup"
-      },
-      "postProcessingToggle": {
-        "label": "Pascaproses",
-        "description": "Aktifkan penyempurnaan teks berbasis AI setelah transkripsi"
       },
       "muteWhileRecording": {
         "label": "Bisukan Saat Merekam",
@@ -635,6 +665,57 @@
           "details": "Fitur ucapan-ke-teks lokal Handy dibangun menggunakan transcribe.cpp dan ggml. Terima kasih kepada Georgi Gerganov dan para kontributor atas karya luar biasa mereka."
         }
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Kata",
+      "wordsDescription": "Istilah yang harus dikenali dengan benar. Istilah ASCII juga dikoreksi secara fuzzy setelah transkripsi.",
+      "wordsEmpty": "Belum ada kata.",
+      "rulesTitle": "Aturan koreksi",
+      "rulesDescription": "Penggantian literal tanpa membedakan huruf besar-kecil, diterapkan ke setiap transkrip sebelum dipoles. Untuk frasa yang tidak terjangkau pencocokan fuzzy.",
+      "rulesEmpty": "Belum ada aturan koreksi.",
+      "patternPlaceholder": "Frasa salah",
+      "replacementPlaceholder": "Frasa benar",
+      "enabled": "Aktif",
+      "search": "Cari kata dan aturan",
+      "import": "Impor",
+      "export": "Ekspor",
+      "exportDone": "Kamus diekspor",
+      "importReport": "{{accepted}} diimpor, {{duplicates}} duplikat dan {{invalid}} baris tidak valid dilewati",
+      "hint": "Kata juga dikirim ke pemoles AI agar tahu ejaan tepatnya; aturan diterapkan secara literal sebelum dipoles.",
+      "learn": {
+        "title": "Belajar dari koreksi saya",
+        "description": "Setiap kali selesai mendikte, kolom yang baru ditulisi dibaca untuk mempelajari kata yang Anda perbaiki. Hanya kolom itu yang dibaca, maksimal 45 detik setelah menempel, dan tidak pernah di kolom sandi atau saat input aman aktif. Semua tetap di Mac ini. Matikan untuk menghentikan semua pembacaan.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -701,7 +782,19 @@
   },
   "overlay": {
     "transcribing": "Mentranskripsikan...",
-    "processing": "Memproses..."
+    "processing": "Memproses...",
+    "learned": {
+      "title": "Ditambahkan ke kamus: {{pattern}} → {{replacement}}",
+      "undo": "Urungkan",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} mungkin memblokir 1 pintasan",

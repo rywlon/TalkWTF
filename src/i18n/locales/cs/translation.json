@@ -16,7 +16,9 @@
     "postProcessing": "Následné zpracování",
     "history": "Historie",
     "debug": "Ladění",
-    "about": "O aplikaci"
+    "about": "O aplikaci",
+    "dictionary": "Slovník",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Pro začátek vyberte model pro přepis",
@@ -199,6 +201,10 @@
           "transcribe_with_post_process": {
             "name": "Klávesa pro následné zpracování",
             "description": "Volitelné: Vyhrazená klávesová zkratka, která vždy použije AI následné zpracování na váš přepis."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Nastavení není dokončeno — nastavte {{fields}}"
+      },
       "hotkey": {
         "title": "Klávesová zkratka"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Vytvořit prompt",
         "cancel": "Zrušit",
         "selectToEdit": "Vyberte výše prompt, abyste zobrazili a upravili jeho podrobnosti.",
-        "createFirst": "Klikněte nahoře na 'Vytvořit nový prompt' a vytvořte svůj první prompt pro následné zpracování."
+        "createFirst": "Klikněte nahoře na 'Vytvořit nový prompt' a vytvořte svůj první prompt pro následné zpracování.",
+        "duplicate": "Duplikovat",
+        "restoreDefault": "Obnovit výchozí"
+      },
+      "style": {
+        "title": "Styl úpravy",
+        "description": "Jak se přepis upravuje, když není aktivní žádná scéna."
+      },
+      "scene": {
+        "title": "Aktivní scéna",
+        "description": "Scéna nahrazuje styl úpravy u každého diktátu.",
+        "none": "Bez scény",
+        "builtInTitle": "Vestavěné scény",
+        "builtInDescription": "Hotové scény. Můžete je upravit nebo smazat jako vlastní; obnovení je vrátí.",
+        "edit": "Upravit",
+        "confirmDelete": "Potvrdit smazání",
+        "restoreBuiltIn": "Obnovit vestavěné scény",
+        "styleSkipped": "Je aktivní „{{name}}“, proto se styl úpravy nepoužije.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Hluboké myšlení",
+        "description": "Nechte model uvažovat před úpravou. Lepší u sebeoprav a restrukturalizace, ale ke každému diktátu přidá sekundy."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "Mikrofon při zavřeném víku",
         "description": "Mikrofon, který se použije při zavřeném víku notebooku"
-      },
-      "postProcessingToggle": {
-        "label": "Následné zpracování",
-        "description": "Povolit AI vylepšení textu po přepisu"
       },
       "muteWhileRecording": {
         "label": "Ztlumit při nahrávání",
@@ -635,6 +665,57 @@
         "label": "Zobrazovat novinky",
         "description": "Zobrazovat poznámky k vydání po aktualizacích Handy"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Slova",
+      "wordsDescription": "Termíny, které má přepis rozpoznat správně. ASCII termíny se po přepisu také přibližně opravují.",
+      "wordsEmpty": "Zatím žádná slova.",
+      "rulesTitle": "Pravidla oprav",
+      "rulesDescription": "Doslovné nahrazení bez ohledu na velikost písmen, použité na každý přepis před úpravou. Pro fráze, na které přibližné porovnání nedosáhne.",
+      "rulesEmpty": "Zatím žádná pravidla oprav.",
+      "patternPlaceholder": "Chybná fráze",
+      "replacementPlaceholder": "Správná fráze",
+      "enabled": "Zapnuto",
+      "search": "Hledat ve slovech a pravidlech",
+      "import": "Importovat",
+      "export": "Exportovat",
+      "exportDone": "Slovník exportován",
+      "importReport": "Importováno {{accepted}}, přeskočeno {{duplicates}} duplicit a {{invalid}} neplatných řádků",
+      "hint": "Slova se posílají i do AI úpravy, aby znala přesný pravopis; pravidla se použijí doslovně před úpravou.",
+      "learn": {
+        "title": "Učit se z mých oprav",
+        "description": "Po každém diktátu se přečte pole, do kterého se právě psalo, aby se naučila slova, která opravíte. Čte se jen toto pole, až 45 sekund po vložení, nikdy v polích pro hesla ani při aktivním zabezpečeném vstupu. Vše zůstává na tomto Macu. Vypnutím se čtení zastaví.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "Přepisuji...",
-    "processing": "Zpracovávám..."
+    "processing": "Zpracovávám...",
+    "learned": {
+      "title": "Přidáno do slovníku: {{pattern}} → {{replacement}}",
+      "undo": "Zpět",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Novinky v Handy v{{version}}"

@@ -93,8 +93,12 @@ pub async fn retry_history_entry_transcription(
         return Err("Recording contains no speech".to_string());
     }
 
+    // History retries always re-run the dictation pipeline. `post_process_requested`
+    // is kept for older rows; there is no plain-transcribe mode any more.
+    let _ = entry.post_process_requested;
     let processed =
-        process_transcription_output(&app, &transcription, entry.post_process_requested).await;
+        process_transcription_output(&app, &transcription, crate::actions::ProcessingMode::Polish)
+            .await;
     history_manager
         .update_transcription(
             id,

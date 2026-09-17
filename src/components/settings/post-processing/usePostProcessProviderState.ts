@@ -4,11 +4,15 @@ import { commands, type PostProcessProvider } from "@/bindings";
 import type { ModelOption } from "./types";
 import type { DropdownOption } from "../../ui/Dropdown";
 
+export type MissingConfigField = "baseUrl" | "apiKey" | "model";
+
 type PostProcessProviderState = {
   providerOptions: DropdownOption[];
   selectedProviderId: string;
   selectedProvider: PostProcessProvider | undefined;
-  isCustomProvider: boolean;
+  allowBaseUrlEdit: boolean;
+  requiresApiKey: boolean;
+  missingConfig: MissingConfigField[];
   isAppleProvider: boolean;
   appleIntelligenceUnavailable: boolean;
   baseUrl: string;
@@ -46,7 +50,7 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
   const providers = settings?.post_process_providers || [];
 
   const selectedProviderId = useMemo(() => {
-    return settings?.post_process_provider_id || providers[0]?.id || "openai";
+    return settings?.post_process_provider_id || providers[0]?.id || "deepseek";
   }, [providers, settings?.post_process_provider_id]);
 
   const selectedProvider = useMemo(() => {
@@ -101,8 +105,11 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
         const apiKey = settings?.post_process_api_keys?.[providerId] ?? "";
         const hasBaseUrl = (provider?.base_url ?? "").trim() !== "";
         const hasApiKey = apiKey.trim() !== "";
+        const hasRequiredKey = provider?.requires_api_key ?? true;
 
-        if (provider?.id === "custom" ? hasBaseUrl : hasApiKey) {
+        // Local endpoints have no key to wait for, so only the address has to
+        // be filled in before asking the backend for a model list.
+        if (hasRequiredKey ? hasApiKey : hasBaseUrl) {
           void fetchPostProcessModels(providerId);
         }
       }
@@ -118,7 +125,7 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
 
   const handleBaseUrlChange = useCallback(
     (value: string) => {
-      if (!selectedProvider || selectedProvider.id !== "custom") {
+      if (!selectedProvider?.allow_base_url_edit) {
         return;
       }
       const trimmed = value.trim();
@@ -205,7 +212,25 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     `post_process_models_fetch:${selectedProviderId}`,
   );
 
-  const isCustomProvider = selectedProvider?.id === "custom";
+  const allowBaseUrlEdit = selectedProvider?.allow_base_url_edit ?? false;
+  const requiresApiKey = selectedProvider?.requires_api_key ?? true;
+
+  const missingConfig = useMemo<MissingConfigField[]>(() => {
+    if (!selectedProvider) return [];
+
+    const missing: MissingConfigField[] = [];
+    if (allowBaseUrlEdit && !baseUrl.trim()) missing.push("baseUrl");
+    if (requiresApiKey && !apiKey.trim()) missing.push("apiKey");
+    if (!model.trim()) missing.push("model");
+    return missing;
+  }, [
+    selectedProvider,
+    allowBaseUrlEdit,
+    requiresApiKey,
+    baseUrl,
+    apiKey,
+    model,
+  ]);
 
   // No automatic fetching - user must click refresh button
 
@@ -213,7 +238,9 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     providerOptions,
     selectedProviderId,
     selectedProvider,
-    isCustomProvider,
+    allowBaseUrlEdit,
+    requiresApiKey,
+    missingConfig,
     isAppleProvider,
     appleIntelligenceUnavailable,
     baseUrl,

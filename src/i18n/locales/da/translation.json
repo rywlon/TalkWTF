@@ -16,7 +16,9 @@
     "postProcessing": "Efterbehandling",
     "history": "Historik",
     "debug": "Fejlfinding",
-    "about": "Om"
+    "about": "Om",
+    "dictionary": "Ordbog",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "For at komme i gang skal du vælge en transskriptionsmodel",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "Genvej til efterbehandling",
             "description": "Valgfrit: En dedikeret genvej, der altid anvender AI-efterbehandling på din transskription."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Opsætning er ufuldstændig — angiv {{fields}}"
+      },
       "hotkey": {
         "title": "Genvejstast"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Opret prompt",
         "cancel": "Annuller",
         "selectToEdit": "Vælg en prompt ovenfor for at se og redigere dens detaljer.",
-        "createFirst": "Klik på 'Opret ny prompt' ovenfor for at oprette din første efterbehandlingsprompt."
+        "createFirst": "Klik på 'Opret ny prompt' ovenfor for at oprette din første efterbehandlingsprompt.",
+        "duplicate": "Dupliker",
+        "restoreDefault": "Gendan standard"
+      },
+      "style": {
+        "title": "Poleringsstil",
+        "description": "Hvordan transskriptionen poleres, når ingen scene er aktiv."
+      },
+      "scene": {
+        "title": "Aktiv scene",
+        "description": "Scenen tilsidesætter poleringsstilen ved hver diktering.",
+        "none": "Ingen scene",
+        "builtInTitle": "Indbyggede scener",
+        "builtInDescription": "Klar-til-brug-scener. Du kan redigere eller slette dem som dine egne; gendan bringer dem tilbage.",
+        "edit": "Rediger",
+        "confirmDelete": "Bekræft sletning",
+        "restoreBuiltIn": "Gendan indbyggede scener",
+        "styleSkipped": "«{{name}}» er aktiv, så poleringsstilen bruges ikke.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Dyb tænkning",
+        "description": "Lad modellen ræsonnere, før den polerer. Bedre til selvrettelser og omstrukturering, men tilføjer sekunder til hver diktering."
       }
     },
     "history": {
@@ -539,10 +573,6 @@
       "clamshellMicrophone": {
         "title": "Clamshell-mikrofon",
         "description": "Mikrofon, der skal bruges, når den bærbares låg er lukket"
-      },
-      "postProcessingToggle": {
-        "label": "Efterbehandling",
-        "description": "Aktivér AI-drevet tekstforbedring efter transskription"
       },
       "muteWhileRecording": {
         "label": "Mute under optagelse",
@@ -635,6 +665,57 @@
           "details": "Handys lokale tale-til-tekst funktionalitet er bygget på transcribe.cpp og ggml. Tak for det fantastiske arbejde af Georgi Gerganov og bidragyderne."
         }
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Ord",
+      "wordsDescription": "Udtryk, som genkendelsen skal ramme. ASCII-udtryk fuzzy-rettes også efter transskriptionen.",
+      "wordsEmpty": "Ingen ord endnu.",
+      "rulesTitle": "Rettelsesregler",
+      "rulesDescription": "Bogstavelige erstatninger uden forskel på store og små bogstaver, anvendt på hver transskription før polering. Til fraser som fuzzy-matchningen ikke når.",
+      "rulesEmpty": "Ingen rettelsesregler endnu.",
+      "patternPlaceholder": "Forkert frase",
+      "replacementPlaceholder": "Korrekt frase",
+      "enabled": "Aktiveret",
+      "search": "Søg i ord og regler",
+      "import": "Importér",
+      "export": "Eksportér",
+      "exportDone": "Ordbogen er eksporteret",
+      "importReport": "Importerede {{accepted}}, sprang {{duplicates}} dubletter og {{invalid}} ugyldige rækker over",
+      "hint": "Ord sendes også til AI-poleringen, så den kender den præcise stavemåde; regler anvendes bogstaveligt før polering.",
+      "learn": {
+        "title": "Lær af mine rettelser",
+        "description": "Efter hver diktering læses feltet, der netop blev skrevet i, for at lære de ord, du retter. Kun det felt læses, i op til 45 sekunder efter indsætning, og aldrig i adgangskodefelter eller under sikker input. Alt bliver på denne Mac. Slå fra for at stoppe al læsning.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -701,7 +782,19 @@
   },
   "overlay": {
     "transcribing": "Transskriberer...",
-    "processing": "Behandler..."
+    "processing": "Behandler...",
+    "learned": {
+      "title": "Føjet til ordbogen: {{pattern}} → {{replacement}}",
+      "undo": "Fortryd",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blokerer muligvis 1 genvej",

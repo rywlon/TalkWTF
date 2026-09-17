@@ -16,7 +16,9 @@
     "postProcessing": "後処理",
     "history": "履歴",
     "debug": "デバッグ",
-    "about": "概要"
+    "about": "概要",
+    "dictionary": "辞書",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "開始するには、文字起こしのモデルを選択してください",
@@ -199,6 +201,10 @@
           "transcribe_with_post_process": {
             "name": "後処理のショートカット",
             "description": "文字起こしに常に AI 後処理を適用するキーボードショートカット。 (任意)"
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "設定が未完了です — {{fields}} を設定してください"
+      },
       "hotkey": {
         "title": "ショートカット"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "プロンプトを作成",
         "cancel": "キャンセル",
         "selectToEdit": "上からプロンプトを選択して、詳細を表示・編集します。",
-        "createFirst": "上の「新しいプロンプトを作成」をクリックして、最初の後処理プロンプトを作成してください。"
+        "createFirst": "上の「新しいプロンプトを作成」をクリックして、最初の後処理プロンプトを作成してください。",
+        "duplicate": "複製",
+        "restoreDefault": "既定に戻す"
+      },
+      "style": {
+        "title": "整形スタイル",
+        "description": "シーンが有効でないときの整形のしかた。"
+      },
+      "scene": {
+        "title": "有効なシーン",
+        "description": "シーンは毎回のディクテーションで整形スタイルを上書きします。",
+        "none": "シーンなし",
+        "builtInTitle": "組み込みシーン",
+        "builtInDescription": "すぐ使えるシーン。自分のシーンと同じように編集・削除でき、「復元」で戻せます。",
+        "edit": "編集",
+        "confirmDelete": "削除を確認",
+        "restoreBuiltIn": "組み込みシーンを復元",
+        "styleSkipped": "「{{name}}」が有効なため、整形スタイルは適用されません。",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "深く考える",
+        "description": "整形の前にモデルに推論させます。言い直しの統合や構成の組み直しが上手くなりますが、毎回数秒かかります。"
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "クラムシェルマイク",
         "description": "ノートパソコンの蓋を閉じたときに使用するマイク"
-      },
-      "postProcessingToggle": {
-        "label": "後処理",
-        "description": "文字起こし後の AI によるテキスト改善を有効化"
       },
       "muteWhileRecording": {
         "label": "録音中にミュート",
@@ -635,6 +665,57 @@
         "label": "新機能を表示",
         "description": "Handy のアップデート後にリリースノートを表示"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "単語",
+      "wordsDescription": "正しく認識してほしい用語。ASCII の用語は文字起こし後にあいまい補正も行われます。",
+      "wordsEmpty": "まだ単語がありません。",
+      "rulesTitle": "修正ルール",
+      "rulesDescription": "整形の前に毎回の文字起こしへ適用される、大文字小文字を区別しないリテラル置換。あいまい一致が届かない語句に使います。",
+      "rulesEmpty": "まだ修正ルールがありません。",
+      "patternPlaceholder": "誤った語句",
+      "replacementPlaceholder": "正しい語句",
+      "enabled": "有効",
+      "search": "単語とルールを検索",
+      "import": "インポート",
+      "export": "エクスポート",
+      "exportDone": "辞書をエクスポートしました",
+      "importReport": "{{accepted}} 件を取り込み、重複 {{duplicates}} 件と無効 {{invalid}} 行をスキップしました",
+      "hint": "単語は AI 整形にも渡されるので正しい綴りを認識します。ルールは整形の前にリテラルで適用されます。",
+      "learn": {
+        "title": "自分の修正から学習する",
+        "description": "ディクテーションのたびに、直前に書き込んだ入力欄を読み、あなたが直した単語を学習します。読むのはその入力欄だけで、貼り付け後 45 秒以内に限られます。パスワード欄やセキュア入力中は決して読みません。内容はこの Mac 内に留まります。オフにすると一切読みません。",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "文字起こし中…",
-    "processing": "処理中…"
+    "processing": "処理中…",
+    "learned": {
+      "title": "辞書に追加しました：{{pattern}} → {{replacement}}",
+      "undo": "元に戻す",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Handy v{{version}} の新機能"

@@ -53,12 +53,20 @@ const OVERLAY_HEIGHT: f64 = 50.0;
 const OVERLAY_STREAM_WIDTH: f64 = 400.0;
 const OVERLAY_STREAM_HEIGHT: f64 = 120.0;
 
+// The "learned a word" notice needs room for a sentence plus one button.
+const OVERLAY_LEARNED_WIDTH: f64 = 420.0;
+const OVERLAY_LEARNED_HEIGHT: f64 = 72.0;
+
 /// Overlay window size (logical) for a given UI state.
 fn overlay_dimensions(state: &str) -> (f64, f64) {
-    if state == "streaming" {
-        (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
-    } else {
-        (OVERLAY_WIDTH, OVERLAY_HEIGHT)
+    match state {
+        "streaming" => (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT),
+        // The learned notice and the translation failure/notice cards all need
+        // room for a sentence plus (for failures) one button.
+        "learned" | "translation_failed" | "notice" => {
+            (OVERLAY_LEARNED_WIDTH, OVERLAY_LEARNED_HEIGHT)
+        }
+        _ => (OVERLAY_WIDTH, OVERLAY_HEIGHT),
     }
 }
 
@@ -486,6 +494,33 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
 }
 
 fn show_overlay_state(app_handle: &AppHandle, state: &str) {
+    show_overlay_state_full(app_handle, state, None, None, None);
+}
+
+/// Same as [`show_overlay_state`], but placed next to `frame` when given.
+fn show_overlay_state_near(
+    app_handle: &AppHandle,
+    state: &str,
+    frame: Option<(f64, f64, f64, f64)>,
+    notice: Option<serde_json::Value>,
+) {
+    show_overlay_state_full(app_handle, state, frame, notice, None);
+}
+
+/// Same as [`show_overlay_state`], but merges `extra` into the `show-overlay`
+/// payload. Used by the translate workflow to carry its target language on the
+/// one channel the overlay handles while the app is in the background.
+fn show_overlay_state_with_extra(app_handle: &AppHandle, state: &str, extra: serde_json::Value) {
+    show_overlay_state_full(app_handle, state, None, None, Some(extra));
+}
+
+fn show_overlay_state_full(
+    app_handle: &AppHandle,
+    state: &str,
+    frame: Option<(f64, f64, f64, f64)>,
+    notice: Option<serde_json::Value>,
+    extra: Option<serde_json::Value>,
+) {
     // Whether the overlay shows at all is governed by overlay_style; position
     // only chooses Top vs Bottom placement. Checked here (off the main thread)
     // so the common overlay-disabled case never pays for a main-thread hop.
@@ -504,10 +539,63 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     // inline when already on the main thread, so this never deadlocks.
     let handle = app_handle.clone();
     let state = state.to_string();
-    let _ = app_handle.run_on_main_thread(move || show_overlay_state_on_main(&handle, &state));
+    let _ = app_handle.run_on_main_thread(move || {
+        show_overlay_state_on_main(&handle, &state, frame, notice, extra)
+    });
 }
 
-fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
+/// Gap between the text field and the notice placed next to it.
+const FIELD_NOTICE_GAP: f64 = 8.0;
+
+/// Place the overlay next to a screen rectangle — the text field the user was
+/// typing in — instead of the configured screen edge.
+fn calculate_overlay_position_near(
+    app_handle: &AppHandle,
+    width: f64,
+    height: f64,
+    frame: (f64, f64, f64, f64),
+) -> Option<(f64, f64)> {
+    let (field_x, field_y, field_width, field_height) = frame;
+    let monitor = get_monitor_with_cursor(app_handle)?;
+    let scale = monitor.scale_factor();
+    let monitor_x = monitor.position().x as f64 / scale;
+    let monitor_y = monitor.position().y as f64 / scale;
+    let monitor_width = monitor.size().width as f64 / scale;
+    let monitor_height = monitor.size().height as f64 / scale;
+
+    // Centred on the field, then kept fully on screen.
+    let x = (field_x + (field_width - width) / 2.0).clamp(
+        monitor_x,
+        (monitor_x + monitor_width - width).max(monitor_x),
+    );
+
+    // Prefer just below the field; flip above it when there is no room.
+    let below = field_y + field_height + FIELD_NOTICE_GAP;
+    let above = field_y - height - FIELD_NOTICE_GAP;
+    let y = if below + height <= monitor_y + monitor_height {
+        below
+    } else if above >= monitor_y {
+        above
+    } else {
+        below
+    };
+
+    Some((
+        x,
+        y.clamp(
+            monitor_y,
+            (monitor_y + monitor_height - height).max(monitor_y),
+        ),
+    ))
+}
+
+fn show_overlay_state_on_main(
+    app_handle: &AppHandle,
+    state: &str,
+    frame: Option<(f64, f64, f64, f64)>,
+    notice: Option<serde_json::Value>,
+    extra: Option<serde_json::Value>,
+) {
     // Size the overlay for this state (compact vs. streaming), then position it.
     let (width, height) = overlay_dimensions(state);
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
@@ -543,15 +631,17 @@ fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
 
             let pos_started = std::time::Instant::now();
             #[cfg(not(target_os = "windows"))]
-            let set_pos_elapsed =
-                if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
-                    let set_pos_started = std::time::Instant::now();
-                    let _ = overlay_window
-                        .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
-                    set_pos_started.elapsed()
-                } else {
-                    std::time::Duration::ZERO
-                };
+            let target = frame
+                .and_then(|frame| calculate_overlay_position_near(app_handle, width, height, frame))
+                .or_else(|| calculate_overlay_position(app_handle, width, height));
+            let set_pos_elapsed = if let Some((x, y)) = target {
+                let set_pos_started = std::time::Instant::now();
+                let _ = overlay_window
+                    .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+                set_pos_started.elapsed()
+            } else {
+                std::time::Duration::ZERO
+            };
             #[cfg(target_os = "windows")]
             let set_pos_elapsed = {
                 let set_pos_started = std::time::Instant::now();
@@ -589,7 +679,28 @@ fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
             );
         }
 
-        let _ = overlay_window.emit("show-overlay", state);
+        // The learned notice rides along with the state instead of its own event:
+        // `show-overlay` is the one channel the overlay provably handles while the
+        // app is in the background (it drives the recording/transcribing states),
+        // and a separate event sent around `show()` was only processed once the
+        // user activated the app — the notice looked like it needed the app to be
+        // opened first.
+        let payload = if notice.is_none() && extra.is_none() {
+            serde_json::json!(state)
+        } else {
+            let mut map = serde_json::Map::new();
+            map.insert("state".to_string(), serde_json::json!(state));
+            if let Some(notice) = notice {
+                map.insert("notice".to_string(), notice);
+            }
+            if let Some(serde_json::Value::Object(extra)) = extra {
+                for (key, value) in extra {
+                    map.insert(key, value);
+                }
+            }
+            serde_json::Value::Object(map)
+        };
+        let _ = overlay_window.emit("show-overlay", payload);
     }
 }
 
@@ -628,6 +739,54 @@ pub fn show_transcribing_overlay(app_handle: &AppHandle) {
 /// Shows the processing overlay window
 pub fn show_processing_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "processing");
+}
+
+/// Shows the recording pill for the translate workflow, labelled with the
+/// target language so the user can see what they are about to translate into.
+pub fn show_translation_recording_overlay(app_handle: &AppHandle, label: &str) {
+    show_overlay_state_with_extra(
+        app_handle,
+        "recording",
+        serde_json::json!({ "translation": { "label": label } }),
+    );
+}
+
+/// Shows the working spinner for the translate workflow.
+pub fn show_translating_overlay(app_handle: &AppHandle, label: &str) {
+    show_overlay_state_with_extra(
+        app_handle,
+        "translating",
+        serde_json::json!({ "translation": { "label": label } }),
+    );
+}
+
+/// Shows the translation-failure card with a retry button.
+pub fn show_translation_failed_overlay(app_handle: &AppHandle, label: &str) {
+    show_overlay_state_with_extra(
+        app_handle,
+        "translation_failed",
+        serde_json::json!({ "notice": { "label": label } }),
+    );
+}
+
+/// Shows a one-line notice (currently only "no target language configured").
+pub fn show_translation_notice(app_handle: &AppHandle, kind: &str) {
+    show_overlay_state_with_extra(
+        app_handle,
+        "notice",
+        serde_json::json!({ "notice": { "kind": kind } }),
+    );
+}
+
+/// Shows the "added to dictionary" notice next to the text field the user was
+/// typing in, the way Typeless does. Falls back to the screen edge when the
+/// field's position cannot be read.
+pub fn show_learned_overlay_at(
+    app_handle: &AppHandle,
+    frame: Option<(f64, f64, f64, f64)>,
+    notice: Option<serde_json::Value>,
+) {
+    show_overlay_state_near(app_handle, "learned", frame, notice);
 }
 
 /// Updates the overlay window position based on current settings

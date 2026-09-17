@@ -16,7 +16,9 @@
     "postProcessing": "Xử lý sau",
     "history": "Lịch sử",
     "debug": "Gỡ lỗi",
-    "about": "Giới thiệu"
+    "about": "Giới thiệu",
+    "dictionary": "Từ điển",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Để bắt đầu, hãy chọn một mô hình chuyển đổi giọng nói",
@@ -199,6 +201,10 @@
           "transcribe_with_post_process": {
             "name": "Phím tắt xử lý sau",
             "description": "Tùy chọn: Phím tắt chuyên dụng luôn áp dụng xử lý sau bằng AI cho bản chuyển đổi của bạn."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Cấu hình chưa hoàn tất — hãy đặt {{fields}}"
+      },
       "hotkey": {
         "title": "Phím tắt"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Tạo Prompt",
         "cancel": "Hủy",
         "selectToEdit": "Chọn một prompt ở trên để xem và chỉnh sửa chi tiết.",
-        "createFirst": "Nhấn 'Tạo Prompt mới' ở trên để tạo prompt xử lý sau đầu tiên của bạn."
+        "createFirst": "Nhấn 'Tạo Prompt mới' ở trên để tạo prompt xử lý sau đầu tiên của bạn.",
+        "duplicate": "Nhân bản",
+        "restoreDefault": "Khôi phục mặc định"
+      },
+      "style": {
+        "title": "Kiểu trau chuốt",
+        "description": "Cách trau chuốt bản ghi khi không có cảnh nào được bật."
+      },
+      "scene": {
+        "title": "Cảnh đang bật",
+        "description": "Cảnh thay thế kiểu trau chuốt trong mỗi lần đọc.",
+        "none": "Không dùng cảnh",
+        "builtInTitle": "Cảnh có sẵn",
+        "builtInDescription": "Cảnh dựng sẵn. Bạn có thể sửa hoặc xóa như cảnh của mình; khôi phục sẽ mang chúng trở lại.",
+        "edit": "Sửa",
+        "confirmDelete": "Xác nhận xóa",
+        "restoreBuiltIn": "Khôi phục cảnh có sẵn",
+        "styleSkipped": "“{{name}}” đang bật nên kiểu trau chuốt không được áp dụng.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Suy nghĩ sâu",
+        "description": "Cho mô hình suy luận trước khi trau chuốt. Tốt hơn khi gộp lời tự sửa và sắp xếp lại, nhưng thêm vài giây mỗi lần đọc."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "Micrô chế độ gập",
         "description": "Micrô sử dụng khi nắp laptop được đóng"
-      },
-      "postProcessingToggle": {
-        "label": "Xử lý sau",
-        "description": "Bật tinh chỉnh văn bản bằng AI sau khi chuyển đổi"
       },
       "muteWhileRecording": {
         "label": "Tắt tiếng khi ghi âm",
@@ -635,6 +665,57 @@
         "label": "Hiển thị điểm mới",
         "description": "Hiển thị ghi chú phát hành sau khi Handy cập nhật"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Từ",
+      "wordsDescription": "Thuật ngữ mà nhận dạng cần khớp đúng. Thuật ngữ ASCII còn được sửa mờ sau khi ghi.",
+      "wordsEmpty": "Chưa có từ nào.",
+      "rulesTitle": "Quy tắc sửa lỗi",
+      "rulesDescription": "Thay thế nguyên văn, không phân biệt hoa thường, áp cho mọi bản ghi trước khi trau chuốt. Dùng cho cụm từ mà khớp mờ không với tới.",
+      "rulesEmpty": "Chưa có quy tắc sửa lỗi.",
+      "patternPlaceholder": "Cụm sai",
+      "replacementPlaceholder": "Cụm đúng",
+      "enabled": "Bật",
+      "search": "Tìm từ và quy tắc",
+      "import": "Nhập",
+      "export": "Xuất",
+      "exportDone": "Đã xuất từ điển",
+      "importReport": "Đã nhập {{accepted}}, bỏ qua {{duplicates}} mục trùng và {{invalid}} dòng không hợp lệ",
+      "hint": "Từ cũng được gửi tới bước trau chuốt AI để biết chính xác cách viết; quy tắc áp nguyên văn trước khi trau chuốt.",
+      "learn": {
+        "title": "Học từ những lần tôi sửa",
+        "description": "Sau mỗi lần đọc, ô vừa được ghi sẽ được đọc để học những từ bạn sửa. Chỉ đọc ô đó, trong tối đa 45 giây sau khi dán, và không bao giờ đọc trong ô mật khẩu hay khi đang bật nhập liệu an toàn. Mọi thứ chỉ nằm trên máy Mac này. Tắt để dừng mọi việc đọc.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "Đang chuyển đổi...",
-    "processing": "Đang xử lý..."
+    "processing": "Đang xử lý...",
+    "learned": {
+      "title": "Đã thêm vào từ điển: {{pattern}} → {{replacement}}",
+      "undo": "Hoàn tác",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Điểm mới trong Handy v{{version}}"

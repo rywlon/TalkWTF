@@ -16,7 +16,9 @@
     "postProcessing": "후처리",
     "history": "히스토리",
     "debug": "디버그",
-    "about": "정보"
+    "about": "정보",
+    "dictionary": "사전",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "시작하려면 음성 인식 모델을 선택하세요",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "후처리 단축키",
             "description": "선택 사항: 항상 AI 후처리를 적용하는 전용 단축키입니다."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "설정이 완료되지 않았습니다 — {{fields}}을(를) 설정하세요"
+      },
       "hotkey": {
         "title": "단축키"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "프롬프트 만들기",
         "cancel": "취소",
         "selectToEdit": "세부 정보를 보고 편집하려면 위에서 프롬프트를 선택하세요.",
-        "createFirst": "첫 번째 후처리 프롬프트를 만들려면 위의 '새 프롬프트 만들기'를 클릭하세요."
+        "createFirst": "첫 번째 후처리 프롬프트를 만들려면 위의 '새 프롬프트 만들기'를 클릭하세요.",
+        "duplicate": "복제",
+        "restoreDefault": "기본값 복원"
+      },
+      "style": {
+        "title": "다듬기 스타일",
+        "description": "활성화된 장면이 없을 때 전사를 어떻게 다듬을지."
+      },
+      "scene": {
+        "title": "활성 장면",
+        "description": "장면은 받아쓰기마다 다듬기 스타일을 대체합니다.",
+        "none": "장면 없음",
+        "builtInTitle": "기본 제공 장면",
+        "builtInDescription": "바로 쓸 수 있는 장면입니다. 내 장면처럼 편집하거나 삭제할 수 있고, 복원하면 되돌아옵니다.",
+        "edit": "편집",
+        "confirmDelete": "삭제 확인",
+        "restoreBuiltIn": "기본 제공 장면 복원",
+        "styleSkipped": "\"{{name}}\"이(가) 활성이라 다듬기 스타일이 적용되지 않습니다.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "깊은 사고",
+        "description": "다듬기 전에 모델이 추론하게 합니다. 말 고침과 구조 재편에 더 낫지만, 받아쓰기마다 몇 초가 더 걸립니다."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "클램셸 마이크",
         "description": "노트북 덮개가 닫혀 있을 때 사용할 마이크"
-      },
-      "postProcessingToggle": {
-        "label": "후처리",
-        "description": "텍스트 변환 후 AI 기반 텍스트 개선 활성화"
       },
       "muteWhileRecording": {
         "label": "녹음 중 음소거",
@@ -635,6 +665,57 @@
         "label": "새 소식 표시",
         "description": "Handy 업데이트 후 릴리스 노트를 표시합니다"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "단어",
+      "wordsDescription": "정확히 인식되길 원하는 용어입니다. ASCII 용어는 전사 후 유사 보정도 함께 적용됩니다.",
+      "wordsEmpty": "아직 단어가 없습니다.",
+      "rulesTitle": "교정 규칙",
+      "rulesDescription": "다듬기 전에 모든 전사에 적용되는, 대소문자를 구분하지 않는 문자 그대로의 치환입니다. 유사 매칭이 닿지 않는 구문에 사용하세요.",
+      "rulesEmpty": "아직 교정 규칙이 없습니다.",
+      "patternPlaceholder": "잘못된 구문",
+      "replacementPlaceholder": "올바른 구문",
+      "enabled": "사용",
+      "search": "단어와 규칙 검색",
+      "import": "가져오기",
+      "export": "내보내기",
+      "exportDone": "사전을 내보냈습니다",
+      "importReport": "{{accepted}}개 가져옴, 중복 {{duplicates}}개와 잘못된 {{invalid}}행 건너뜀",
+      "hint": "단어는 AI 다듬기에도 전달되어 정확한 철자를 알게 합니다. 규칙은 다듬기 전에 문자 그대로 적용됩니다.",
+      "learn": {
+        "title": "내 수정에서 배우기",
+        "description": "받아쓰기마다 방금 입력한 칸을 읽어 고친 단어를 학습합니다. 그 칸만 읽고, 붙여넣은 뒤 45초까지만 읽으며, 비밀번호 칸이나 보안 입력 중에는 절대 읽지 않습니다. 모든 내용은 이 Mac에만 남습니다. 끄면 아무것도 읽지 않습니다.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "텍스트로 변환 중...",
-    "processing": "처리 중..."
+    "processing": "처리 중...",
+    "learned": {
+      "title": "사전에 추가됨: {{pattern}} → {{replacement}}",
+      "undo": "실행 취소",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Handy v{{version}}의 새 소식"

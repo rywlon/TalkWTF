@@ -16,7 +16,9 @@
     "postProcessing": "पोस्ट प्रोसेस",
     "history": "इतिहास",
     "debug": "डिबग",
-    "about": "के बारे में"
+    "about": "के बारे में",
+    "dictionary": "शब्दकोश",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "शुरू करने के लिए, एक ट्रांसक्रिप्शन मॉडल चुनें",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "पोस्ट-प्रोसेसिंग हॉटकी",
             "description": "वैकल्पिक: एक अलग हॉटकी जो आपके ट्रांसक्रिप्शन पर हमेशा AI पोस्ट-प्रोसेसिंग लागू करती है."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "सेटअप अधूरा है — {{fields}} सेट करें"
+      },
       "hotkey": {
         "title": "हॉटकी"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "प्रॉम्प्ट बनाएं",
         "cancel": "रद्द करें",
         "selectToEdit": "जानकारी देखने और बदलाव करने के लिए, ऊपर कोई प्रॉम्प्ट चुनें.",
-        "createFirst": "अपना पहला पोस्ट-प्रोसेसिंग प्रॉम्प्ट बनाने के लिए, ऊपर 'नया प्रॉम्प्ट बनाएं' पर क्लिक करें."
+        "createFirst": "अपना पहला पोस्ट-प्रोसेसिंग प्रॉम्प्ट बनाने के लिए, ऊपर 'नया प्रॉम्प्ट बनाएं' पर क्लिक करें.",
+        "duplicate": "डुप्लिकेट करें",
+        "restoreDefault": "डिफ़ॉल्ट पुनर्स्थापित करें"
+      },
+      "style": {
+        "title": "पॉलिश शैली",
+        "description": "जब कोई दृश्य सक्रिय न हो तो ट्रांसक्रिप्ट कैसे सँवारा जाता है।"
+      },
+      "scene": {
+        "title": "सक्रिय दृश्य",
+        "description": "दृश्य हर डिक्टेशन में पॉलिश शैली को बदल देता है।",
+        "none": "कोई दृश्य नहीं",
+        "builtInTitle": "अंतर्निहित दृश्य",
+        "builtInDescription": "तैयार दृश्य। इन्हें अपने दृश्यों की तरह संपादित या हटा सकते हैं; बहाल करने पर ये वापस आ जाते हैं।",
+        "edit": "संपादित करें",
+        "confirmDelete": "हटाना पुष्ट करें",
+        "restoreBuiltIn": "अंतर्निहित दृश्य बहाल करें",
+        "styleSkipped": "“{{name}}” सक्रिय है, इसलिए पॉलिश शैली लागू नहीं होती।",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "गहन सोच",
+        "description": "मॉडल को सँवारने से पहले सोचने दें। स्वयं-सुधार और पुनर्गठन में बेहतर, पर हर डिक्टेशन में कुछ सेकंड जोड़ता है।"
       }
     },
     "history": {
@@ -539,10 +573,6 @@
       "clamshellMicrophone": {
         "title": "क्लैमशेल माइक्रोफ़ोन",
         "description": "लैपटॉप का ढक्कन बंद होने पर इस्तेमाल होने वाला माइक्रोफ़ोन"
-      },
-      "postProcessingToggle": {
-        "label": "पोस्ट प्रोसेसिंग",
-        "description": "ट्रांसक्रिप्शन के बाद AI की मदद से टेक्स्ट सुधारने की सुविधा चालू करें"
       },
       "muteWhileRecording": {
         "label": "रिकॉर्डिंग के दौरान म्यूट करें",
@@ -635,6 +665,57 @@
           "details": "Handy का लोकल स्पीच-टू-टेक्स्ट transcribe.cpp और ggml पर आधारित है. Georgi Gerganov और योगदान देने वालों के शानदार काम के लिए धन्यवाद."
         }
       }
+    },
+    "dictionary": {
+      "wordsTitle": "शब्द",
+      "wordsDescription": "ऐसे शब्द जो पहचान को सही मिलने चाहिए। ASCII शब्द ट्रांसक्रिप्शन के बाद फ़ज़ी तरीके से भी सुधारे जाते हैं।",
+      "wordsEmpty": "अभी कोई शब्द नहीं।",
+      "rulesTitle": "सुधार नियम",
+      "rulesDescription": "हर ट्रांसक्रिप्ट पर पॉलिश से पहले लागू होने वाला शाब्दिक, केस-असंवेदनशील प्रतिस्थापन। उन वाक्यांशों के लिए जहाँ फ़ज़ी मिलान नहीं पहुँचता।",
+      "rulesEmpty": "अभी कोई सुधार नियम नहीं।",
+      "patternPlaceholder": "गलत वाक्यांश",
+      "replacementPlaceholder": "सही वाक्यांश",
+      "enabled": "सक्रिय",
+      "search": "शब्द और नियम खोजें",
+      "import": "आयात",
+      "export": "निर्यात",
+      "exportDone": "शब्दकोश निर्यात हो गया",
+      "importReport": "{{accepted}} आयात, {{duplicates}} डुप्लिकेट और {{invalid}} अमान्य पंक्तियाँ छोड़ी गईं",
+      "hint": "शब्द AI पॉलिश को भी भेजे जाते हैं ताकि उसे सही वर्तनी पता हो; नियम पॉलिश से पहले शाब्दिक रूप से लागू होते हैं।",
+      "learn": {
+        "title": "मेरे सुधारों से सीखें",
+        "description": "हर डिक्टेशन के बाद उस फ़ील्ड को पढ़ा जाता है जिसमें अभी लिखा गया, ताकि आपके सुधारे शब्द सीखे जा सकें। केवल वही फ़ील्ड पढ़ी जाती है, पेस्ट के बाद 45 सेकंड तक, और कभी पासवर्ड फ़ील्ड या सुरक्षित इनपुट के दौरान नहीं। सब कुछ इसी Mac पर रहता है। बंद करने पर कोई पढ़ाई नहीं होती।",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -701,7 +782,19 @@
   },
   "overlay": {
     "transcribing": "ट्रांसक्राइब हो रहा है...",
-    "processing": "प्रोसेस हो रहा है..."
+    "processing": "प्रोसेस हो रहा है...",
+    "learned": {
+      "title": "शब्दकोश में जोड़ा गया: {{pattern}} → {{replacement}}",
+      "undo": "पूर्ववत करें",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} शायद 1 शॉर्टकट को ब्लॉक कर रहा है",

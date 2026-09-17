@@ -135,7 +135,6 @@ const settingUpdaters: {
   overlay_position: (value) =>
     commands.changeOverlayPositionSetting(value as string),
   debug_mode: (value) => commands.changeDebugModeSetting(value as boolean),
-  custom_words: (value) => commands.updateCustomWords(value as string[]),
   word_correction_threshold: (value) =>
     commands.changeWordCorrectionThresholdSetting(value as number),
   paste_delay_ms: (value) =>
@@ -154,10 +153,11 @@ const settingUpdaters: {
   auto_submit_key: (value) =>
     commands.changeAutoSubmitKeySetting(value as string),
   history_limit: (value) => commands.updateHistoryLimit(value as number),
-  post_process_enabled: (value) =>
-    commands.changePostProcessEnabledSetting(value as boolean),
-  post_process_selected_prompt_id: (value) =>
-    commands.setPostProcessSelectedPrompt(value as string),
+  polish_style: (value) => commands.changePolishStyle(value as string),
+  learn_from_edits: (value) =>
+    commands.changeLearnFromEditsSetting(value as boolean),
+  post_process_thinking: (value) =>
+    commands.changePostProcessThinkingSetting(value as boolean),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>
@@ -571,6 +571,15 @@ export const useSettingsStore = create<SettingsStore>()(
 
       setUpdating(updateKey, true);
 
+      // Prefix the failure with the provider so a local server that is not
+      // running reads differently from a rejected cloud API key.
+      const describe = (error: string) => {
+        const label = get().settings?.post_process_providers?.find(
+          (provider) => provider.id === providerId,
+        )?.label;
+        return label ? `${label}: ${error}` : error;
+      };
+
       try {
         // Call Tauri backend command instead of fetch
         const result = await commands.fetchPostProcessModels(providerId);
@@ -579,10 +588,14 @@ export const useSettingsStore = create<SettingsStore>()(
           return result.data;
         } else {
           console.error("Failed to fetch models:", result.error);
+          toast.error(describe(result.error));
           return [];
         }
       } catch (error) {
         console.error("Failed to fetch models:", error);
+        toast.error(
+          describe(error instanceof Error ? error.message : String(error)),
+        );
         // Don't cache empty array on error - let user retry
         return [];
       } finally {

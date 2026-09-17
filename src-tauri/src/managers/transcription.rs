@@ -3,6 +3,7 @@ use crate::audio_toolkit::{
     remove_filler_words, OutputLanguageEvidence,
 };
 use crate::managers::audio::AudioRecordingManager;
+use crate::managers::dictionary::{apply_correction_rules, DictionarySnapshot, DictionaryStore};
 use crate::managers::model::{EngineType, ModelManager};
 use crate::settings::{
     get_settings, AppSettings, ModelUnloadTimeout, OrtAcceleratorSetting,
@@ -801,6 +802,18 @@ impl TranscriptionManager {
         Arc::clone(&self.router)
     }
 
+    /// Dictionary words and rules for one dictation, read once so the whole run
+    /// sees a consistent view. Looked up lazily through the held `AppHandle`
+    /// (the same idiom the idle watcher uses for the recorder) so the manager
+    /// needs no constructor plumbing. Falls back to empty when the store is not
+    /// managed — e.g. a build path that never initializes it.
+    fn dictionary_snapshot(&self) -> DictionarySnapshot {
+        self.app_handle
+            .try_state::<Arc<DictionaryStore>>()
+            .and_then(|store| store.snapshot().ok())
+            .unwrap_or_default()
+    }
+
     /// Begin a live streaming transcription on the held engine's session.
     /// Audio frames pushed via [`StreamRouter::feed`] (captured directly by the
     /// audio recorder) are decoded incrementally and emitted to the overlay as
@@ -1134,11 +1147,13 @@ impl TranscriptionManager {
         };
 
         let settings = get_settings(&self.app_handle);
+        let dictionary = self.dictionary_snapshot();
         // Streaming models do not receive a decode prompt, so custom words
         // always go through the shared fuzzy post-correction path.
         let filtered = post_process_transcription_text(
             finalized.text,
             &settings,
+            &dictionary,
             false,
             &finalized.output_language,
             &finalized.supported_languages,
@@ -1211,6 +1226,7 @@ impl TranscriptionManager {
 
         // Get current settings for configuration
         let settings = get_settings(&self.app_handle);
+        let dictionary = self.dictionary_snapshot();
 
         // Validate selected language against the model's supported languages.
         // If the language isn't supported, fall back to "auto" to prevent errors.
@@ -1307,11 +1323,11 @@ impl TranscriptionManager {
                         // whisper run extension to a non-whisper arch is rejected
                         // with INVALID_ARG, so skip it there and let the fuzzy
                         // post-correction handle custom words instead.
-                        let family = if settings.custom_words.is_empty() || !model_is_whisper {
+                        let family = if dictionary.words.is_empty() || !model_is_whisper {
                             None
                         } else {
                             Some(RunExtension::Whisper(WhisperRunOptions {
-                                initial_prompt: Some(settings.custom_words.join(", ")),
+                                initial_prompt: Some(dictionary.words.join(", ")),
                                 ..Default::default()
                             }))
                         };
@@ -1496,6 +1512,7 @@ impl TranscriptionManager {
         let filtered_result = post_process_transcription_text(
             result,
             &settings,
+            &dictionary,
             model_is_whisper,
             &output_language,
             &model_languages,
@@ -1769,19 +1786,29 @@ fn transcribe_cpp_run_plan(
 fn post_process_transcription_text(
     raw: String,
     settings: &AppSettings,
+    dictionary: &DictionarySnapshot,
     custom_words_already_prompted: bool,
     output_language: &OutputLanguageEvidence,
     supported_languages: &[String],
 ) -> String {
     fail_open_text_transform(raw, |raw| {
-        let corrected = if !settings.custom_words.is_empty() && !custom_words_already_prompted {
+        // Deterministic phrase corrections first, so a rule can fix something the
+        // fuzzy matcher cannot reach ("open type place" → "OpenTypeless"), then
+        // fuzzy per-term correction.
+        let corrected = if dictionary.rules.is_empty() {
+            raw
+        } else {
+            apply_correction_rules(&raw, &dictionary.rules)
+        };
+
+        let corrected = if !dictionary.words.is_empty() && !custom_words_already_prompted {
             apply_custom_words(
-                &raw,
-                &settings.custom_words,
+                &corrected,
+                &dictionary.words,
                 settings.word_correction_threshold,
             )
         } else {
-            raw
+            corrected
         };
 
         // Last-resort language evidence: confidence-gated detection from the
@@ -2232,6 +2259,7 @@ mod tests {
         let result = post_process_transcription_text(
             "eu vi um carro".to_string(),
             &settings,
+            &DictionarySnapshot::default(),
             false,
             &evidence,
             &supported,
@@ -2274,6 +2302,7 @@ mod tests {
         let result = post_process_transcription_text(
             "um uhm ok".to_string(),
             &settings,
+            &DictionarySnapshot::default(),
             false,
             &evidence,
             &languages(&["en", "pt"]),
@@ -2294,6 +2323,7 @@ mod tests {
             "um so the weather forecast said it would probably rain throughout the whole weekend"
                 .to_string(),
             &settings,
+            &DictionarySnapshot::default(),
             false,
             &OutputLanguageEvidence::Unknown,
             &languages(&["en", "pt", "es", "de"]),
@@ -2315,6 +2345,7 @@ mod tests {
         let result = post_process_transcription_text(
             "eu vi um carro na rua ontem de manhã quando fui ao mercado".to_string(),
             &settings,
+            &DictionarySnapshot::default(),
             false,
             &OutputLanguageEvidence::Unknown,
             &languages(&["en", "pt", "es", "de"]),
@@ -2401,6 +2432,7 @@ mod tests {
         let result = post_process_transcription_text(
             "eu vi um carro".to_string(),
             &settings,
+            &DictionarySnapshot::default(),
             false,
             &evidence,
             &supported,

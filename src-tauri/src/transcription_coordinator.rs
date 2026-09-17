@@ -534,8 +534,10 @@ pub struct TranscriptionCoordinator {
     tx: Sender<Command>,
 }
 
-pub fn is_transcribe_binding(id: &str) -> bool {
-    id == "transcribe" || id == "transcribe_with_post_process"
+/// Bindings whose key events drive the recording lifecycle through the
+/// coordinator: the two dictation keys and the translate workflow.
+pub fn is_workflow_binding(id: &str) -> bool {
+    crate::actions::DICTATION_BINDINGS.contains(&id) || id == crate::actions::TRANSLATE_BINDING
 }
 
 impl TranscriptionCoordinator {

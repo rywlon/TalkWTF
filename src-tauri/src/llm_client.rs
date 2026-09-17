@@ -172,11 +172,41 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
     Ok(headers)
 }
 
+/// Whether the endpoint points at this machine.
+///
+/// Local servers (Ollama, LM Studio, llama.cpp) must not be routed through a
+/// configured `HTTP_PROXY`: the proxy cannot reach the loopback address and
+/// answers 502, which hides the real problem ("the server is not running")
+/// behind a confusing gateway error. Cloud providers keep using the proxy,
+/// which some networks require.
+fn is_loopback_endpoint(base_url: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(base_url) else {
+        return false;
+    };
+
+    match url.host_str() {
+        Some(host) => {
+            let host = host.trim_start_matches('[').trim_end_matches(']');
+            host.eq_ignore_ascii_case("localhost")
+                || host
+                    .parse::<std::net::IpAddr>()
+                    .map(|ip| ip.is_loopback())
+                    .unwrap_or(false)
+        }
+        None => false,
+    }
+}
+
 /// Create an HTTP client with provider-specific headers
 fn create_client(provider: &PostProcessProvider, api_key: &str) -> Result<reqwest::Client, String> {
     let headers = build_headers(provider, api_key)?;
-    reqwest::Client::builder()
-        .default_headers(headers)
+    let mut builder = reqwest::Client::builder().default_headers(headers);
+
+    if is_loopback_endpoint(&provider.base_url) {
+        builder = builder.no_proxy();
+    }
+
+    builder
         .build()
         .map_err(|e| report_reqwest_error("Failed to build HTTP client", &e))
 }
@@ -292,28 +322,6 @@ fn report_reqwest_error(context: &str, error: &reqwest::Error) -> String {
     let details = format!("{context} (kind: {kinds}{url}){cause_details}");
     error!("{details}");
     details
-}
-
-/// Send a chat completion request to an OpenAI-compatible API
-/// Returns Ok(Some(content)) on success, Ok(None) if response has no content,
-/// or Err on actual errors (HTTP, parsing, etc.)
-pub async fn send_chat_completion(
-    provider: &PostProcessProvider,
-    api_key: String,
-    model: &str,
-    prompt: String,
-    disable_reasoning: bool,
-) -> Result<Option<String>, String> {
-    send_chat_completion_with_schema(
-        provider,
-        api_key,
-        model,
-        prompt,
-        None,
-        None,
-        disable_reasoning,
-    )
-    .await
 }
 
 /// Send a chat completion request with structured output support.
@@ -553,6 +561,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn only_loopback_endpoints_bypass_the_proxy() {
+        assert!(is_loopback_endpoint("http://localhost:11434/v1"));
+        assert!(is_loopback_endpoint("http://LOCALHOST:11434/v1"));
+        assert!(is_loopback_endpoint("http://127.0.0.1:11434/v1"));
+        assert!(is_loopback_endpoint("http://127.0.0.2:8080/v1"));
+        assert!(is_loopback_endpoint("http://[::1]:11434/v1"));
+
+        assert!(!is_loopback_endpoint("https://api.deepseek.com/v1"));
+        assert!(!is_loopback_endpoint("https://api.openai.com/v1"));
+        // A LAN server still goes through the proxy; set NO_PROXY for those.
+        assert!(!is_loopback_endpoint("http://192.168.1.5:11434/v1"));
+        assert!(!is_loopback_endpoint(""));
+        assert!(!is_loopback_endpoint("not a url"));
+    }
+
     fn provider(id: &str, base_url: &str) -> PostProcessProvider {
         PostProcessProvider {
             id: id.to_string(),
@@ -561,6 +585,7 @@ mod tests {
             allow_base_url_edit: true,
             models_endpoint: None,
             supports_structured_output: false,
+            requires_api_key: true,
         }
     }
 

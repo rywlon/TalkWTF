@@ -12,7 +12,24 @@ import type {
 import i18n, { syncLanguageFromSettings } from "@/i18n";
 import { getLanguageDirection } from "@/lib/utils/rtl";
 
-type OverlayState = "recording" | "streaming" | "transcribing" | "processing";
+/// What the backend learned from the edit, shown in the notice with an undo.
+type LearnedNotice = { pattern: string; replacement: string; count: number };
+
+type OverlayState =
+  | "recording"
+  | "streaming"
+  | "transcribing"
+  | "processing"
+  | "translating"
+  | "translation_failed"
+  | "notice"
+  | "learned";
+
+/** How long the "added to dictionary" notice stays before hiding itself. */
+const LEARNED_NOTICE_MS = 8000;
+
+/** How long the translation failure / notice cards stay before hiding. */
+const TRANSLATION_NOTICE_MS = 8000;
 
 // Number of reactive bars in the waveform (the simple, smoothed style shared by
 // every overlay form). Mic levels arrive as 16 FFT buckets; we take the first N.
@@ -43,6 +60,15 @@ const RecordingOverlay: React.FC = () => {
   // True once live text overflows the cap. A top overlay fades its top edge only
   // while overflowing, so the resting first line stays crisp flush under the pill.
   const [overflowing, setOverflowing] = useState(false);
+  // The correction we just learned, shown with an undo button.
+  const [learned, setLearned] = useState<LearnedNotice | null>(null);
+  // Translate workflow: the target language label, carried on the show-overlay
+  // payload so the recording pill can name what it will translate into.
+  const [translationLabel, setTranslationLabel] = useState<string | null>(null);
+  // Translation failure target (for the message) and the "no target configured"
+  // notice kind.
+  const [failureLabel, setFailureLabel] = useState<string>("");
+  const [noticeKind, setNoticeKind] = useState<string>("");
 
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
   // Live-text scroll-back: the text region "sticks" to the newest line while the
@@ -55,7 +81,33 @@ const RecordingOverlay: React.FC = () => {
   useEffect(() => {
     const setupEventListeners = async () => {
       const unlistenShow = await listen("show-overlay", async (event) => {
-        const overlayState = event.payload as OverlayState;
+        // Normally just the state name; the learned notice arrives as
+        // `{ state, notice }` so it travels on this channel instead of an event of
+        // its own, which the overlay did not process until the app was activated.
+        const raw = event.payload as
+          | OverlayState
+          | {
+              state: OverlayState;
+              notice?: LearnedNotice & { label?: string; kind?: string };
+              translation?: { label?: string };
+            };
+        const overlayState = typeof raw === "string" ? raw : raw.state;
+        // `notice` is overloaded: the learned notice carries pattern/replacement,
+        // the translate cards carry a target label or a notice kind.
+        if (typeof raw !== "string") {
+          if (overlayState === "learned" && raw.notice) {
+            setLearned(raw.notice as LearnedNotice);
+          }
+          if (overlayState === "translation_failed") {
+            setFailureLabel(raw.notice?.label ?? "");
+          }
+          if (overlayState === "notice") {
+            setNoticeKind(raw.notice?.kind ?? "");
+          }
+          setTranslationLabel(raw.translation?.label ?? null);
+        } else {
+          setTranslationLabel(null);
+        }
         // Reset synchronously before settings I/O. A fast microphone can emit
         // recording-ready while the awaits below are in flight; resetting after
         // them would overwrite that event and leave the overlay stuck arming.
@@ -121,6 +173,10 @@ const RecordingOverlay: React.FC = () => {
         if (payload.kind) setWorkKind(payload.kind);
       });
 
+      const unlistenLearned = await events.learnedCorrection.listen((event) => {
+        setLearned(event.payload);
+      });
+
       return () => {
         unlistenShow();
         unlistenHide();
@@ -128,11 +184,35 @@ const RecordingOverlay: React.FC = () => {
         unlistenLevel();
         unlistenStream();
         unlistenPhase();
+        unlistenLearned();
       };
     };
 
     setupEventListeners();
   }, []);
+
+  // The learned notice carries an undo affordance, so it hides itself instead of
+  // waiting for the pipeline to finish.
+  useEffect(() => {
+    if (state !== "learned" || !isVisible) return;
+    const id = setTimeout(() => {
+      setLearned(null);
+      commands.hideOverlay();
+    }, LEARNED_NOTICE_MS);
+    return () => clearTimeout(id);
+  }, [state, isVisible]);
+
+  // The translation failure / notice cards hide themselves like the learned
+  // notice; the retry slot stays in memory so the user can still retry from the
+  // settings page if the card is gone.
+  useEffect(() => {
+    if (state !== "translation_failed" && state !== "notice") return;
+    if (!isVisible) return;
+    const id = setTimeout(() => {
+      commands.hideOverlay();
+    }, TRANSLATION_NOTICE_MS);
+    return () => clearTimeout(id);
+  }, [state, isVisible]);
 
   // Elapsed capture timer starts only once microphone samples are flowing.
   useEffect(() => {
@@ -202,13 +282,18 @@ const RecordingOverlay: React.FC = () => {
 
   // dot (left) | waveform (center) | timer + cancel (right) — same structure for
   // pill & panel, so the Live morph is a pure width change.
-  const listeningRow = (showTimer: boolean, showCancel: boolean) => (
+  const listeningRow = (
+    showTimer: boolean,
+    showCancel: boolean,
+    label?: string,
+  ) => (
     <div className="sbase">
       <div className="sbase-l">
         <span className={`sdot ${captureReady ? "ready" : "arming"}`} />
       </div>
       {waveform}
       <div className="sbase-r">
+        {label && <span className="strans-label">{label}</span>}
         {showTimer && <span className="stimer">{fmtTime(elapsed)}</span>}
         {showCancel && cancelBtn}
       </div>
@@ -279,14 +364,104 @@ const RecordingOverlay: React.FC = () => {
     );
   }
 
+  // ---- Learned notice: we just wrote a correction into the dictionary. Shows
+  // what was learned plus a one-click undo, then hides itself.
+  if (state === "learned") {
+    // The payload arrives on its own event; if it has not landed yet, render
+    // nothing rather than falling through to the recording pill.
+    if (!learned) return null;
+
+    return (
+      <div
+        dir={direction}
+        className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
+      >
+        <div className="scard learned">
+          <div className="learned-row">
+            <p className="learned-text">
+              {learned.count > 1
+                ? t("overlay.learned.titlePlural", { count: learned.count })
+                : t("overlay.learned.title", {
+                    pattern: learned.pattern,
+                    replacement: learned.replacement,
+                  })}
+            </p>
+            <button
+              className="sx learned-undo"
+              onClick={() => {
+                setLearned(null);
+                void commands.undoLastDictionaryLearning();
+              }}
+            >
+              {t("overlay.learned.undo")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Translation failure: the LLM call failed. Never paste the untranslated
+  // source; offer a retry of the same transcript instead.
+  if (state === "translation_failed") {
+    return (
+      <div
+        dir={direction}
+        className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
+      >
+        <div className="scard learned">
+          <div className="learned-row">
+            <p className="learned-text">
+              {t("overlay.translate.failed", { label: failureLabel })}
+            </p>
+            <button
+              className="sx learned-undo"
+              onClick={() => {
+                commands.hideOverlay();
+                void commands.retryLastTranslation();
+              }}
+            >
+              {t("overlay.translate.retry")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Plain notice: currently only "no target language configured".
+  if (state === "notice") {
+    const message =
+      noticeKind === "no_target"
+        ? t("overlay.translate.noTarget")
+        : t("overlay.translate.failed", { label: "" });
+    return (
+      <div
+        dir={direction}
+        className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
+      >
+        <div className="scard learned">
+          <div className="learned-row">
+            <p className="learned-text">{message}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ---- Minimal overlay: exactly one row at a time — waveform (recording), or a
   // spinner + label (transcribing / processing). Never both. The pill animates its
   // width between them; the cancel button is in both rows so it stays put.
-  const working = state === "transcribing" || state === "processing";
+  const working =
+    state === "transcribing" ||
+    state === "processing" ||
+    state === "translating";
   const workLabel =
-    state === "processing"
-      ? t("overlay.processing")
-      : t("overlay.transcribing");
+    state === "translating"
+      ? t("overlay.translate.working")
+      : state === "processing"
+        ? t("overlay.processing")
+        : t("overlay.transcribing");
 
   return (
     <div
@@ -296,7 +471,15 @@ const RecordingOverlay: React.FC = () => {
       <div
         className={`scard compact ${working && isVisible ? "cworking" : ""}`}
       >
-        {working ? workingRow(workLabel, true) : listeningRow(false, true)}
+        {working
+          ? workingRow(workLabel, true)
+          : listeningRow(
+              false,
+              true,
+              translationLabel
+                ? t("overlay.translate.to", { label: translationLabel })
+                : undefined,
+            )}
       </div>
     </div>
   );

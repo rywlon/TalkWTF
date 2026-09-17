@@ -16,7 +16,9 @@
     "postProcessing": "पोस्ट प्रोसेस",
     "history": "हिस्ट्री",
     "debug": "डिबग",
-    "about": "बारेमा"
+    "about": "बारेमा",
+    "dictionary": "शब्दकोश",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "सुरु गर्न, एउटा ट्रान्सक्रिप्सन मोडेल छान्नुहोस्",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "पोस्ट-प्रोसेसिङ हटकी",
             "description": "वैकल्पिक: तपाईंको ट्रान्सक्रिप्सनमा सधैँ AI पोस्ट-प्रोसेसिङ लागू गर्ने छुट्टै हटकी।"
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "सेटअप अपूर्ण छ — {{fields}} सेट गर्नुहोस्"
+      },
       "hotkey": {
         "title": "हटकी"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "प्रम्प्ट बनाउनुहोस्",
         "cancel": "रद्द गर्नुहोस्",
         "selectToEdit": "विवरण हेर्न र सम्पादन गर्न माथिबाट प्रम्प्ट चयन गर्नुहोस्।",
-        "createFirst": "आफ्नो पहिलो पोस्ट-प्रोसेसिङ प्रम्प्ट बनाउन माथिको 'नयाँ प्रम्प्ट बनाउनुहोस्' क्लिक गर्नुहोस्।"
+        "createFirst": "आफ्नो पहिलो पोस्ट-प्रोसेसिङ प्रम्प्ट बनाउन माथिको 'नयाँ प्रम्प्ट बनाउनुहोस्' क्लिक गर्नुहोस्।",
+        "duplicate": "नक्कल गर्नुहोस्",
+        "restoreDefault": "पूर्वनिर्धारित पुनर्स्थापित गर्नुहोस्"
+      },
+      "style": {
+        "title": "पोलिस शैली",
+        "description": "कुनै दृश्य सक्रिय नभएको बेला ट्रान्स्क्रिप्ट कसरी पोलिस गरिन्छ।"
+      },
+      "scene": {
+        "title": "सक्रिय दृश्य",
+        "description": "दृश्यले हरेक डिक्टेसनमा पोलिस शैलीलाई प्रतिस्थापन गर्छ।",
+        "none": "दृश्य छैन",
+        "builtInTitle": "निर्मित दृश्यहरू",
+        "builtInDescription": "तयार दृश्यहरू। आफ्नै जस्तै सम्पादन वा मेटाउन सकिन्छ; पुनर्स्थापना गर्दा फर्किन्छन्।",
+        "edit": "सम्पादन",
+        "confirmDelete": "मेटाउने पुष्टि गर्नुहोस्",
+        "restoreBuiltIn": "निर्मित दृश्यहरू पुनर्स्थापना गर्नुहोस्",
+        "styleSkipped": "“{{name}}” सक्रिय छ, त्यसैले पोलिस शैली लागू हुँदैन।",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "गहिरो सोच",
+        "description": "पोलिस गर्नु अघि मोडेललाई सोच्न दिनुहोस्। आफ्नै सुधार र पुनर्संरचनामा राम्रो, तर हरेक डिक्टेसनमा केही सेकेन्ड थपिन्छ।"
       }
     },
     "history": {
@@ -539,10 +573,6 @@
       "clamshellMicrophone": {
         "title": "क्ल्यामशेल माइक्रोफोन",
         "description": "ल्यापटपको ढकनी बन्द हुँदा प्रयोग गर्ने माइक्रोफोन"
-      },
-      "postProcessingToggle": {
-        "label": "पोस्ट प्रोसेसिङ",
-        "description": "ट्रान्सक्रिप्सनपछि AI-आधारित टेक्स्ट परिष्करण अन गर्नुहोस्"
       },
       "muteWhileRecording": {
         "label": "रेकर्डिङ गर्दा म्युट गर्नुहोस्",
@@ -635,6 +665,57 @@
           "details": "Handy को स्थानीय स्पिच-टु-टेक्स्ट transcribe.cpp र ggml मा आधारित छ। Georgi Gerganov र योगदानकर्ताहरूको उत्कृष्ट कामका लागि धन्यवाद।"
         }
       }
+    },
+    "dictionary": {
+      "wordsTitle": "शब्दहरू",
+      "wordsDescription": "पहिचानले सही भेट्टाउनुपर्ने शब्दावली। ASCII शब्दहरू ट्रान्स्क्रिप्शनपछि अस्पष्ट रूपमा पनि सुधारिन्छन्।",
+      "wordsEmpty": "अझै कुनै शब्द छैन।",
+      "rulesTitle": "सुधार नियमहरू",
+      "rulesDescription": "पोलिस अघि हरेक ट्रान्स्क्रिप्टमा लागू हुने शाब्दिक, केस-असंवेदनशील प्रतिस्थापन। अस्पष्ट मिलानले नपुग्ने वाक्यांशका लागि।",
+      "rulesEmpty": "अझै कुनै सुधार नियम छैन।",
+      "patternPlaceholder": "गलत वाक्यांश",
+      "replacementPlaceholder": "सही वाक्यांश",
+      "enabled": "सक्रिय",
+      "search": "शब्द र नियम खोज्नुहोस्",
+      "import": "आयात",
+      "export": "निर्यात",
+      "exportDone": "शब्दकोश निर्यात भयो",
+      "importReport": "{{accepted}} आयात, {{duplicates}} दोहोरो र {{invalid}} अवैध हरफ छोडियो",
+      "hint": "शब्दहरू AI पोलिसमा पनि जान्छन् ताकि यसलाई सही हिज्जे थाहा होस्; नियम पोलिस अघि शाब्दिक रूपमा लागू हुन्छन्।",
+      "learn": {
+        "title": "मेरा सुधारबाट सिक्नुहोस्",
+        "description": "हरेक डिक्टेसनपछि भर्खर लेखिएको फाँट पढिन्छ, तपाईंले सुधारेका शब्द सिक्न। त्यो एउटै फाँट मात्र, टाँसिएपछि ४५ सेकेन्डसम्म, र पासवर्ड फाँट वा सुरक्षित इनपुटमा कहिल्यै पढिँदैन। सबै यही Mac मा रहन्छ। बन्द गर्दा कुनै पढाइ हुँदैन।",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -701,7 +782,19 @@
   },
   "overlay": {
     "transcribing": "ट्रान्सक्राइब गरिँदैछ...",
-    "processing": "प्रशोधन गरिँदैछ..."
+    "processing": "प्रशोधन गरिँदैछ...",
+    "learned": {
+      "title": "शब्दकोशमा थपियो: {{pattern}} → {{replacement}}",
+      "undo": "पूर्ववत",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} ले 1 सर्टकट रोकिरहेको हुन सक्छ",

@@ -13,10 +13,12 @@
     "general": "通用",
     "models": "模型",
     "advanced": "高级",
-    "postProcessing": "后处理",
+    "postProcessing": "AI 润色",
     "history": "历史记录",
     "debug": "调试",
-    "about": "关于"
+    "about": "关于",
+    "dictionary": "词典",
+    "translation": "翻译"
   },
   "onboarding": {
     "subtitle": "请选择一个转录模型以开始使用",
@@ -189,16 +191,20 @@
         "pressKeys": "请按键...",
         "bindings": {
           "transcribe": {
-            "name": "转录快捷键",
-            "description": "用于录制和转录语音的键盘快捷键。"
+            "name": "听写快捷键",
+            "description": "录制语音，转录后由 AI 润色，再把结果输入到当前应用。"
           },
           "cancel": {
             "name": "取消快捷键",
             "description": "用于取消当前录制的键盘快捷键。"
           },
           "transcribe_with_post_process": {
-            "name": "后处理快捷键",
-            "description": "可选：一个专用快捷键，始终对您的转录应用 AI 后处理。"
+            "name": "听写备用快捷键",
+            "description": "可选：为同一个听写工作流再绑一个按键组合。"
+          },
+          "translate": {
+            "name": "翻译快捷键",
+            "description": "录音后把转写翻译成目标语言，再输入结果。"
           }
         },
         "errors": {
@@ -401,21 +407,24 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "配置未完成 —— 请填写 {{fields}}"
+      },
       "hotkey": {
         "title": "快捷键"
       },
       "api": {
-        "title": "API（兼容 OpenAI）",
+        "title": "服务商",
         "provider": {
           "title": "提供商",
-          "description": "选择一个兼容 OpenAI 的提供商。"
+          "description": "填入自己的 API key 使用云端服务商，或用「自定义」指向任意 OpenAI 兼容服务。"
         },
         "appleIntelligence": {
           "unavailable": "Apple Intelligence 在此设备上不可用。需要运行 macOS Tahoe（26.0）或更高版本的 Apple Silicon Mac，并在系统设置中启用 Apple Intelligence。"
         },
         "baseUrl": {
           "title": "基础 URL",
-          "description": "所选提供商的 API 基础 URL。仅自定义提供商可编辑。",
+          "description": "你要使用的 OpenAI 兼容服务地址。只有「自定义」服务商可以修改。",
           "placeholder": "https://api.openai.com/v1"
         },
         "apiKey": {
@@ -433,25 +442,50 @@
         }
       },
       "prompts": {
-        "title": "提示词",
+        "title": "风格与场景",
         "selectedPrompt": {
-          "title": "已选提示词",
-          "description": "选择用于优化转录的模板或创建新模板。在提示词文本中使用 ${output} 来引用捕获的转录。"
+          "title": "我的场景",
+          "description": "你自己创建的场景，可以编辑、复制、删除。"
         },
         "noPrompts": "没有可用的提示词",
-        "selectPrompt": "选择提示词",
+        "selectPrompt": "启用",
         "createNew": "创建新提示词",
         "promptLabel": "提示词名称",
         "promptLabelPlaceholder": "输入提示词名称",
         "promptInstructions": "提示词指令",
-        "promptInstructionsPlaceholder": "编写转录后要执行的指令。示例：改进以下文本的语法和清晰度: ${output}",
-        "promptTip": "提示：使用 <code>${output}</code> 将转录文本插入到您的提示词中。",
+        "promptInstructionsPlaceholder": "对每次听写生效的指令，例如：改写成简洁的会议纪要，用要点呈现。",
+        "promptTip": "转写内容会自动附加，不需要写占位符。",
         "updatePrompt": "更新提示词",
-        "deletePrompt": "删除提示词",
+        "deletePrompt": "删除",
         "createPrompt": "创建提示词",
         "cancel": "取消",
         "selectToEdit": "选择上方的提示词以查看和编辑其详细信息。",
-        "createFirst": "点击上方的「创建新提示词」来创建您的第一个后处理提示词。"
+        "createFirst": "还没有自己的场景。",
+        "duplicate": "复制",
+        "restoreDefault": "恢复默认"
+      },
+      "style": {
+        "title": "润色风格",
+        "description": "未激活场景时，转写按这个风格润色。"
+      },
+      "scene": {
+        "title": "当前场景",
+        "description": "激活后，场景会覆盖润色风格。",
+        "none": "不使用场景",
+        "builtInTitle": "内置场景",
+        "builtInDescription": "内置场景可以像自己的场景一样编辑或删除；点「恢复内置场景」可补回。",
+        "edit": "编辑",
+        "confirmDelete": "确认删除",
+        "restoreBuiltIn": "恢复内置场景",
+        "styleSkipped": "已激活「{{name}}」，润色风格暂不生效。",
+        "export": "导出",
+        "import": "导入",
+        "exportDone": "润色配置已导出",
+        "importReport": "导入 {{accepted}} 个场景，跳过重复 {{duplicates}} 个、无效 {{invalid}} 个"
+      },
+      "thinking": {
+        "title": "深度思考",
+        "description": "让模型先推理再润色。处理改口和结构调整更准，但每次听写会多花几秒。"
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "合盖麦克风",
         "description": "笔记本电脑盖子关闭时使用的麦克风"
-      },
-      "postProcessingToggle": {
-        "label": "后处理",
-        "description": "启用转录后的 AI 文本优化"
       },
       "muteWhileRecording": {
         "label": "录制时静音",
@@ -635,6 +665,57 @@
         "label": "显示新功能",
         "description": "Handy 更新后显示发行说明"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "词汇",
+      "wordsDescription": "希望识别准确的专有名词。ASCII 词条在转写后还会做模糊纠错。",
+      "wordsEmpty": "还没有词汇。",
+      "rulesTitle": "纠错规则",
+      "rulesDescription": "在润色之前对每次转写做字面、大小写不敏感的替换。用于模糊匹配覆盖不到的短语。",
+      "rulesEmpty": "还没有纠错规则。",
+      "patternPlaceholder": "错误写法",
+      "replacementPlaceholder": "正确写法",
+      "enabled": "启用",
+      "search": "搜索词汇与规则",
+      "import": "导入",
+      "export": "导出",
+      "exportDone": "词典已导出",
+      "importReport": "导入 {{accepted}} 条，跳过重复 {{duplicates}} 条、无效 {{invalid}} 条",
+      "hint": "词汇也会发给 AI 润色，让它知道正确拼写；纠错规则在润色之前按字面生效。",
+      "learn": {
+        "title": "从我的修改中学习",
+        "description": "每次听写后读取刚输入的那个输入框，把你改掉的错词学进词典。只读那一个输入框，且仅在粘贴后 45 秒内；密码框和安全输入期间完全不读。内容只留在本机。关闭后不再读取任何内容。",
+        "rejectedTitle": "不再学习的条目",
+        "rejectedDescription": "撤销学到的修正后，错听文本会记在这里：同一个错听不会再自动学进词典。",
+        "rejectedButton": "查看（{{count}}）",
+        "rejectedEmpty": "还没有。",
+        "rejectedRestore": "恢复学习",
+        "rejectedClear": "清空全部"
+      },
+      "diagnose": {
+        "title": "可访问性检查",
+        "description": "立刻读一次当前焦点输入框，并报告辅助功能层看到了什么。学不到词时用它排查。",
+        "action": "运行检查"
+      }
+    },
+    "translation": {
+      "title": "翻译",
+      "description": "说一句话，直接得到目标语言的译文。需要先配置 AI 服务商（设置 → AI 润色 → 服务商）。",
+      "shortcut": {
+        "title": "翻译快捷键",
+        "description": "开始 / 结束一次翻译的按键。"
+      },
+      "targets": {
+        "title": "目标语言",
+        "description": "最多 3 种语言，下一次翻译使用当前选中的那个。",
+        "listTitle": "语言",
+        "listDescription": "最多选择 3 种目标语言。",
+        "empty": "还没有选择目标语言，请在下方添加。",
+        "remove": "移除 {{language}}",
+        "addPlaceholder": "添加语言",
+        "activeTitle": "当前语言",
+        "activeDescription": "下一次翻译使用的语言。"
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "正在转录...",
-    "processing": "处理中..."
+    "processing": "处理中...",
+    "learned": {
+      "title": "已加入词典：{{pattern}} → {{replacement}}",
+      "undo": "撤销",
+      "titlePlural": "已加入词典：{{count}} 处修正"
+    },
+    "translate": {
+      "to": "翻译为 {{label}}",
+      "working": "翻译中...",
+      "failed": "翻译失败（目标：{{label}}）",
+      "retry": "重试",
+      "noTarget": "请先在设置里选择目标语言"
+    }
   },
   "whatsNew": {
     "title": "Handy v{{version}} 新功能"

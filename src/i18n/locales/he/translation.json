@@ -16,7 +16,9 @@
     "postProcessing": "עיבוד משלים",
     "history": "היסטוריה",
     "debug": "ניפוי שגיאות",
-    "about": "אודות"
+    "about": "אודות",
+    "dictionary": "מילון",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "כדי להתחיל, בחר מודל תמלול",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "קיצור לעיבוד משלים",
             "description": "אופציונלי: קיצור מקשים ייעודי שתמיד מפעיל עיבוד AI על התמלול."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "ההגדרה אינה שלמה — הגדר {{fields}}"
+      },
       "hotkey": {
         "title": "קיצור מקשים"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "צור פרומפט",
         "cancel": "ביטול",
         "selectToEdit": "בחר פרומפט למעלה כדי לצפות בפרטים שלו ולערוך אותם.",
-        "createFirst": "לחץ על 'צור פרומפט חדש' למעלה כדי ליצור את פרומפט העיבוד הראשון שלך."
+        "createFirst": "לחץ על 'צור פרומפט חדש' למעלה כדי ליצור את פרומפט העיבוד הראשון שלך.",
+        "duplicate": "שכפל",
+        "restoreDefault": "שחזר ברירת מחדל"
+      },
+      "style": {
+        "title": "סגנון ליטוש",
+        "description": "איך התמלול מלוטש כשאין סצנה פעילה."
+      },
+      "scene": {
+        "title": "סצנה פעילה",
+        "description": "הסצנה מחליפה את סגנון הליטוש בכל הכתבה.",
+        "none": "בלי סצנה",
+        "builtInTitle": "סצנות מובנות",
+        "builtInDescription": "סצנות מוכנות. אפשר לערוך או למחוק אותן כמו משלך; שחזור מחזיר אותן.",
+        "edit": "עריכה",
+        "confirmDelete": "אישור מחיקה",
+        "restoreBuiltIn": "שחזור סצנות מובנות",
+        "styleSkipped": "‏\"{{name}}\" פעילה, ולכן סגנון הליטוש לא מיושם.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "חשיבה מעמיקה",
+        "description": "תן למודל לחשוב לפני הליטוש. טוב יותר בטיפול בתיקונים עצמיים ובארגון מחדש, אך מוסיף שניות לכל הכתבה."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "מיקרופון במצב clamshell",
         "description": "המיקרופון שישמש כשהמחשב הנייד סגור"
-      },
-      "postProcessingToggle": {
-        "label": "עיבוד משלים",
-        "description": "הפעל שיפור טקסט מבוסס AI אחרי התמלול"
       },
       "muteWhileRecording": {
         "label": "השתק בזמן הקלטה",
@@ -635,6 +665,57 @@
         "label": "הצג מה חדש",
         "description": "הצג הערות גרסה לאחר עדכוני Handy"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "מילים",
+      "wordsDescription": "מונחים שהזיהוי אמור לקלוע אליהם. מונחי ASCII מתוקנים גם בקירוב לאחר התמלול.",
+      "wordsEmpty": "אין מילים עדיין.",
+      "rulesTitle": "כללי תיקון",
+      "rulesDescription": "החלפות מילוליות, לא תלויות רישיות, שמוחלות על כל תמלול לפני הליטוש. לביטויים שההתאמה המקורבת לא מגיעה אליהם.",
+      "rulesEmpty": "אין כללי תיקון עדיין.",
+      "patternPlaceholder": "ביטוי שגוי",
+      "replacementPlaceholder": "ביטוי נכון",
+      "enabled": "מופעל",
+      "search": "חיפוש במילים ובכללים",
+      "import": "ייבוא",
+      "export": "ייצוא",
+      "exportDone": "המילון יוצא",
+      "importReport": "יובאו {{accepted}}, דולגו {{duplicates}} כפולים ו-{{invalid}} שורות שגויות",
+      "hint": "המילים נשלחות גם לליטוש ה-AI כדי שידע את האיות המדויק; הכללים מוחלים מילולית לפני הליטוש.",
+      "learn": {
+        "title": "ללמוד מהתיקונים שלי",
+        "description": "אחרי כל הכתבה נקרא השדה שאליו נכתב הרגע כדי ללמוד את המילים שתיקנת. רק השדה הזה נקרא, עד 45 שניות אחרי ההדבקה, ואף פעם לא בשדות סיסמה או כשקלט מאובטח פעיל. הכול נשאר במאק הזה. כיבוי עוצר כל קריאה.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "מתמלל...",
-    "processing": "מעבד..."
+    "processing": "מעבד...",
+    "learned": {
+      "title": "נוסף למילון: {{pattern}} → {{replacement}}",
+      "undo": "בטל",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "חדש ב-Handy v{{version}}"

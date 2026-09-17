@@ -433,16 +433,18 @@ pub fn init_shortcuts(app: &AppHandle) -> Result<(), String> {
         if id == "cancel" {
             continue;
         }
-        // Skip post-processing shortcut when the feature is disabled
-        if id == "transcribe_with_post_process" && !user_settings.post_process_enabled {
-            continue;
-        }
 
         let binding = user_settings
             .bindings
             .get(&id)
             .cloned()
             .unwrap_or(default_binding);
+
+        // Unbound workflows (translate until the user picks a key) register
+        // nothing; the manager rejects an empty hotkey string.
+        if binding.current_binding.trim().is_empty() {
+            continue;
+        }
 
         if let Err(e) = state.register(&binding) {
             error!(

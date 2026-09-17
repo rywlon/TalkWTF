@@ -16,7 +16,9 @@
     "postProcessing": "Постобробка",
     "history": "Історія",
     "debug": "Дебаг",
-    "about": "Інфо"
+    "about": "Інфо",
+    "dictionary": "Словник",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Для початку оберіть модель транскрипції",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "Гаряча клавіша постобробки",
             "description": "Необов'язково: Спеціальна гаряча клавіша, яка завжди застосовує AI-постобробку до вашої транскрипції."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Налаштування не завершено — вкажіть {{fields}}"
+      },
       "hotkey": {
         "title": "Гаряча клавіша"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Створити промпт",
         "cancel": "Скасувати",
         "selectToEdit": "Оберіть промпт вище для перегляду та редагування його деталей.",
-        "createFirst": "Натисніть «Створити новий промпт» вище, щоб створити ваш перший промпт постобробки."
+        "createFirst": "Натисніть «Створити новий промпт» вище, щоб створити ваш перший промпт постобробки.",
+        "duplicate": "Дублювати",
+        "restoreDefault": "Відновити типове"
+      },
+      "style": {
+        "title": "Стиль обробки",
+        "description": "Як обробляється текст, коли немає активної сцени."
+      },
+      "scene": {
+        "title": "Активна сцена",
+        "description": "Сцена замінює стиль обробки під час кожної диктовки.",
+        "none": "Без сцени",
+        "builtInTitle": "Вбудовані сцени",
+        "builtInDescription": "Готові сцени. Їх можна редагувати чи видаляти як власні; відновлення повертає їх.",
+        "edit": "Редагувати",
+        "confirmDelete": "Підтвердити видалення",
+        "restoreBuiltIn": "Відновити вбудовані сцени",
+        "styleSkipped": "Активна «{{name}}», тому стиль обробки не застосовується.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Глибоке міркування",
+        "description": "Дозволити моделі міркувати перед обробкою. Краще з самокорекціями та перебудовою, але додає секунди до кожної диктовки."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "Мікрофон у закритому режимі",
         "description": "Мікрофон для використання при закритій кришці ноутбука"
-      },
-      "postProcessingToggle": {
-        "label": "Постобробка",
-        "description": "Увімкнути покращення тексту за допомогою AI після транскрипції"
       },
       "muteWhileRecording": {
         "label": "Вимкнути звук під час запису",
@@ -635,6 +665,57 @@
         "label": "Показувати новини",
         "description": "Показувати примітки до випуску після оновлень Handy"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Слова",
+      "wordsDescription": "Терміни, які розпізнавання має вгадувати. ASCII-терміни додатково нечітко правляться після розшифрування.",
+      "wordsEmpty": "Слів ще немає.",
+      "rulesTitle": "Правила виправлення",
+      "rulesDescription": "Буквальні заміни без урахування регістру, застосовані до кожного розшифрування перед обробкою. Для фраз, до яких нечітке порівняння не дістає.",
+      "rulesEmpty": "Правил виправлення ще немає.",
+      "patternPlaceholder": "Хибна фраза",
+      "replacementPlaceholder": "Правильна фраза",
+      "enabled": "Увімкнено",
+      "search": "Шукати слова й правила",
+      "import": "Імпорт",
+      "export": "Експорт",
+      "exportDone": "Словник експортовано",
+      "importReport": "Імпортовано {{accepted}}, пропущено {{duplicates}} дублікатів і {{invalid}} хибних рядків",
+      "hint": "Слова також надсилаються в ІІ-обробку, щоб вона знала точний правопис; правила діють буквально до обробки.",
+      "learn": {
+        "title": "Вчитися на моїх виправленнях",
+        "description": "Після кожної диктовки читається поле, куди щойно було вставлено текст, щоб вивчити виправлені вами слова. Читається лише це поле, до 45 секунд після вставлення, і ніколи — у полях паролів або під час активного захищеного введення. Усе залишається на цьому Mac. Вимкнення припиняє читання.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "Обробка...",
-    "processing": "Постобробка..."
+    "processing": "Постобробка...",
+    "learned": {
+      "title": "Додано до словника: {{pattern}} → {{replacement}}",
+      "undo": "Скасувати",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Нове в Handy v{{version}}"

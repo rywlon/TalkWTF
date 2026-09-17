@@ -16,7 +16,9 @@
     "postProcessing": "Postprocessament",
     "history": "Historial",
     "debug": "Depuració",
-    "about": "Quant a"
+    "about": "Quant a",
+    "dictionary": "Diccionari",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Per començar, trieu un model de transcripció",
@@ -179,6 +181,10 @@
           "transcribe_with_post_process": {
             "name": "Drecera de postprocessament",
             "description": "Opcional: una drecera específica que sempre aplica postprocessament amb IA a la transcripció."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Configuració incompleta: defineix {{fields}}"
+      },
       "hotkey": {
         "title": "Drecera de teclat"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Creeu la indicació",
         "cancel": "Cancel·leu",
         "selectToEdit": "Seleccioneu una indicació more amunt per veure'n i editar-ne els detalls.",
-        "createFirst": "Feu clic a «Creeu una indicació nova» més amunt per crear la primera indicació de postprocessament."
+        "createFirst": "Feu clic a «Creeu una indicació nova» més amunt per crear la primera indicació de postprocessament.",
+        "duplicate": "Duplica",
+        "restoreDefault": "Restaura el valor per defecte"
+      },
+      "style": {
+        "title": "Estil de poliment",
+        "description": "Com es poleix la transcripció quan no hi ha cap escena activa."
+      },
+      "scene": {
+        "title": "Escena activa",
+        "description": "L'escena substitueix l'estil de poliment a cada dictat.",
+        "none": "Sense escena",
+        "builtInTitle": "Escenes integrades",
+        "builtInDescription": "Escenes fetes. Pots editar-les o esborrar-les com les teves; «Restaura» les torna.",
+        "edit": "Edita",
+        "confirmDelete": "Confirma l'esborrat",
+        "restoreBuiltIn": "Restaura les escenes integrades",
+        "styleSkipped": "«{{name}}» està activa, així que l'estil de poliment no s'aplica.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Pensament profund",
+        "description": "Deixa que el model raoni abans de polir. Millor per resoldre autocorreccions i reestructurar, però afegeix segons a cada dictat."
       }
     },
     "history": {
@@ -539,10 +573,6 @@
       "clamshellMicrophone": {
         "title": "Micròfon amb la tapa tancada",
         "description": "Micròfon que s'utilitzarà quan la tapa del portàtil estigui tancada"
-      },
-      "postProcessingToggle": {
-        "label": "Postprocessament",
-        "description": "Activa la millora del text amb IA després de la transcripció"
       },
       "muteWhileRecording": {
         "label": "Silencia durant l'enregistrament",
@@ -635,6 +665,57 @@
           "details": "La transcripció local de veu a text del Handy es basa en el transcribe.cpp i el ggml. Gràcies a la gran feina de Georgi Gerganov i dels col·laboradors."
         }
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Paraules",
+      "wordsDescription": "Termes que el reconeixedor hauria d'encertar. Els termes ASCII també es corregeixen de manera difusa després de la transcripció.",
+      "wordsEmpty": "Encara no hi ha paraules.",
+      "rulesTitle": "Regles de correcció",
+      "rulesDescription": "Substitucions literals i insensibles a majúscules aplicades a cada transcripció abans de polir. Per a frases que la coincidència difusa no abasta.",
+      "rulesEmpty": "Encara no hi ha regles de correcció.",
+      "patternPlaceholder": "Frase incorrecta",
+      "replacementPlaceholder": "Frase correcta",
+      "enabled": "Activat",
+      "search": "Cerca paraules i regles",
+      "import": "Importa",
+      "export": "Exporta",
+      "exportDone": "Diccionari exportat",
+      "importReport": "Importades {{accepted}}, omeses {{duplicates}} duplicades i {{invalid}} files no vàlides",
+      "hint": "Les paraules també s'envien al polit de IA perquè conegui l'ortografia exacta; les regles s'apliquen literalment abans de polir.",
+      "learn": {
+        "title": "Aprèn de les meves correccions",
+        "description": "Després de cada dictat es llegeix el camp on s'acaba d'escriure per aprendre les paraules que corregeixes. Només es llegeix aquest camp, fins a 45 segons després d'enganxar, i mai en camps de contrasenya ni amb entrada segura activa. Tot es queda en aquest Mac. Desactiva-ho per aturar qualsevol lectura.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -701,7 +782,19 @@
   },
   "overlay": {
     "transcribing": "S'està transcrivint...",
-    "processing": "S'està processant..."
+    "processing": "S'està processant...",
+    "learned": {
+      "title": "Afegit al diccionari: {{pattern}} → {{replacement}}",
+      "undo": "Desfés",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} pot estar blocant 1 drecera",

@@ -16,7 +16,9 @@
     "postProcessing": "Nachbearbeitung",
     "history": "Verlauf",
     "debug": "Debug",
-    "about": "Info"
+    "about": "Info",
+    "dictionary": "Wörterbuch",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "Wähle ein Transkriptionsmodell, um loszulegen",
@@ -199,6 +201,10 @@
           "transcribe_with_post_process": {
             "name": "Nachbearbeitungs-Tastenkürzel",
             "description": "Optional: Ein dediziertes Tastenkürzel, das immer die KI-Nachbearbeitung auf deine Transkription anwendet."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,6 +407,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Einrichtung unvollständig — {{fields}} festlegen"
+      },
       "hotkey": {
         "title": "Tastenkürzel"
       },
@@ -451,7 +460,32 @@
         "createPrompt": "Prompt erstellen",
         "cancel": "Abbrechen",
         "selectToEdit": "Wähle oben einen Prompt aus, um dessen Details anzuzeigen und zu bearbeiten.",
-        "createFirst": "Klicke oben auf 'Neuen Prompt erstellen', um deinen ersten Nachbearbeitungs-Prompt zu erstellen."
+        "createFirst": "Klicke oben auf 'Neuen Prompt erstellen', um deinen ersten Nachbearbeitungs-Prompt zu erstellen.",
+        "duplicate": "Duplizieren",
+        "restoreDefault": "Standard wiederherstellen"
+      },
+      "style": {
+        "title": "Polierstil",
+        "description": "Wie Transkripte poliert werden, wenn keine Szene aktiv ist."
+      },
+      "scene": {
+        "title": "Aktive Szene",
+        "description": "Eine Szene ersetzt den Polierstil bei jedem Diktat.",
+        "none": "Keine Szene",
+        "builtInTitle": "Eingebaute Szenen",
+        "builtInDescription": "Fertige Szenen. Du kannst sie wie eigene bearbeiten oder löschen; Wiederherstellen holt sie zurück.",
+        "edit": "Bearbeiten",
+        "confirmDelete": "Löschen bestätigen",
+        "restoreBuiltIn": "Eingebaute Szenen wiederherstellen",
+        "styleSkipped": "„{{name}}“ ist aktiv, daher wird der Polierstil nicht angewendet.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Tiefes Denken",
+        "description": "Das Modell vor dem Polieren nachdenken lassen. Besser bei Selbstkorrekturen und Umbau, kostet aber Sekunden pro Diktat."
       }
     },
     "history": {
@@ -525,10 +559,6 @@
       "clamshellMicrophone": {
         "title": "Clamshell-Mikrofon",
         "description": "Mikrofon bei geschlossenem Laptop-Deckel"
-      },
-      "postProcessingToggle": {
-        "label": "Nachbearbeitung",
-        "description": "KI-gestützte Textverfeinerung nach der Transkription aktivieren"
       },
       "muteWhileRecording": {
         "label": "Während Aufnahme stummschalten",
@@ -635,6 +665,57 @@
         "label": "Neuerungen anzeigen",
         "description": "Versionshinweise nach Handy-Updates anzeigen"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Wörter",
+      "wordsDescription": "Begriffe, die die Erkennung treffen soll. ASCII-Begriffe werden nach der Transkription zusätzlich unscharf korrigiert.",
+      "wordsEmpty": "Noch keine Wörter.",
+      "rulesTitle": "Korrekturregeln",
+      "rulesDescription": "Wörtliche, groß-/kleinschreibungsunabhängige Ersetzungen, die vor dem Polieren auf jedes Transkript angewendet werden. Für Wendungen, die die unscharfe Suche nicht erreicht.",
+      "rulesEmpty": "Noch keine Korrekturregeln.",
+      "patternPlaceholder": "Falsche Wendung",
+      "replacementPlaceholder": "Richtige Wendung",
+      "enabled": "Aktiv",
+      "search": "Wörter und Regeln durchsuchen",
+      "import": "Importieren",
+      "export": "Exportieren",
+      "exportDone": "Wörterbuch exportiert",
+      "importReport": "{{accepted}} importiert, {{duplicates}} Duplikat(e) und {{invalid}} ungültige Zeile(n) übersprungen",
+      "hint": "Wörter gehen auch an die KI-Politur, damit sie die genaue Schreibweise kennt; Regeln wirken wörtlich vor dem Polieren.",
+      "learn": {
+        "title": "Aus meinen Korrekturen lernen",
+        "description": "Nach jedem Diktat wird das Feld gelesen, in das gerade geschrieben wurde, um die von dir korrigierten Wörter zu lernen. Gelesen wird nur dieses Feld, bis zu 45 Sekunden nach dem Einfügen, und nie in Passwortfeldern oder bei aktivierter sicherer Eingabe. Alles bleibt auf diesem Mac. Ausschalten beendet jedes Lesen.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "Transkribiere...",
-    "processing": "Verarbeite..."
+    "processing": "Verarbeite...",
+    "learned": {
+      "title": "Zum Wörterbuch hinzugefügt: {{pattern}} → {{replacement}}",
+      "undo": "Rückgängig",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "Neu in Handy v{{version}}"

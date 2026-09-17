@@ -13,10 +13,12 @@
     "general": "General",
     "models": "Models",
     "advanced": "Advanced",
-    "postProcessing": "Post Process",
+    "postProcessing": "AI Polish",
     "history": "History",
     "debug": "Debug",
-    "about": "About"
+    "about": "About",
+    "dictionary": "Dictionary",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "To get started, choose a transcription model",
@@ -169,16 +171,20 @@
         "pressKeys": "Press keys...",
         "bindings": {
           "transcribe": {
-            "name": "Transcribe Shortcut",
-            "description": "The keyboard shortcut to record and transcribe your voice."
+            "name": "Dictation Shortcut",
+            "description": "Records your voice, then transcribes and polishes it before typing the result."
           },
           "cancel": {
             "name": "Cancel Shortcut",
             "description": "The keyboard shortcut to cancel the current recording."
           },
           "transcribe_with_post_process": {
-            "name": "Post-Processing Hotkey",
-            "description": "Optional: A dedicated hotkey that always applies AI post-processing to your transcription."
+            "name": "Second Dictation Shortcut",
+            "description": "Optional: bind an additional key combination to the same dictation workflow."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -401,21 +407,24 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "Setup incomplete — set {{fields}}"
+      },
       "hotkey": {
-        "title": "Hotkey"
+        "title": "Shortcut"
       },
       "api": {
-        "title": "API (OpenAI Compatible)",
+        "title": "Provider",
         "provider": {
           "title": "Provider",
-          "description": "Select an OpenAI-compatible provider."
+          "description": "Bring your own API key for a cloud provider, or point Custom at any OpenAI-compatible endpoint."
         },
         "appleIntelligence": {
           "unavailable": "Apple Intelligence is not available on this device. Requires an Apple Silicon Mac running macOS Tahoe (26.0) or later with Apple Intelligence enabled in System Settings."
         },
         "baseUrl": {
           "title": "Base URL",
-          "description": "API base URL for the selected provider. Only the custom provider can be edited.",
+          "description": "Address of the OpenAI-compatible server you want to use. Only the Custom provider can be repointed.",
           "placeholder": "https://api.openai.com/v1"
         },
         "apiKey": {
@@ -433,25 +442,50 @@
         }
       },
       "prompts": {
-        "title": "Prompt",
+        "title": "Style & Scenes",
         "selectedPrompt": {
-          "title": "Selected Prompt",
-          "description": "Select a template for refining transcriptions or create a new one. Use ${output} inside the prompt text to reference the captured transcript."
+          "title": "My scenes",
+          "description": "Scenes you created. Edit, duplicate, or delete them."
         },
         "noPrompts": "No prompts available",
-        "selectPrompt": "Select a prompt",
+        "selectPrompt": "Activate",
         "createNew": "Create New Prompt",
         "promptLabel": "Prompt Label",
         "promptLabelPlaceholder": "Enter prompt name",
         "promptInstructions": "Prompt Instructions",
-        "promptInstructionsPlaceholder": "Write the instructions to run after transcription. Example: Improve grammar and clarity for the following text: ${output}",
-        "promptTip": "Tip: Use <code>${output}</code> to insert the transcribed text in your prompt.",
+        "promptInstructionsPlaceholder": "Instructions applied to every dictation, e.g. rewrite as concise meeting notes with bullets.",
+        "promptTip": "The transcript is appended automatically — no placeholder needed.",
         "updatePrompt": "Update Prompt",
-        "deletePrompt": "Delete Prompt",
+        "deletePrompt": "Delete",
         "createPrompt": "Create Prompt",
         "cancel": "Cancel",
         "selectToEdit": "Select a prompt above to view and edit its details.",
-        "createFirst": "Click 'Create New Prompt' above to create your first post-processing prompt."
+        "createFirst": "No scenes of your own yet.",
+        "duplicate": "Duplicate",
+        "restoreDefault": "Restore Default"
+      },
+      "style": {
+        "title": "Polish style",
+        "description": "How transcripts are polished when no scene is active."
+      },
+      "scene": {
+        "title": "Active scene",
+        "description": "A scene overrides the polish style for every dictation.",
+        "none": "No scene",
+        "builtInTitle": "Built-in scenes",
+        "builtInDescription": "Ready-made scenes. Edit or delete them like your own; restoring brings them back.",
+        "edit": "Edit",
+        "confirmDelete": "Confirm delete",
+        "restoreBuiltIn": "Restore built-in scenes",
+        "styleSkipped": "“{{name}}” is active, so the polish style is not applied.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "Deep thinking",
+        "description": "Let the model reason before polishing. Better at resolving self-corrections and restructuring, but adds several seconds to every dictation."
       }
     },
     "history": {
@@ -539,10 +573,6 @@
       "clamshellMicrophone": {
         "title": "Clamshell Microphone",
         "description": "Microphone to use when laptop lid is closed"
-      },
-      "postProcessingToggle": {
-        "label": "Post Processing",
-        "description": "Enable AI-powered text refinement after transcription"
       },
       "muteWhileRecording": {
         "label": "Mute While Recording",
@@ -635,6 +665,57 @@
           "details": "Handy's local speech-to-text is built on transcribe.cpp and ggml. Thanks to the amazing work by Georgi Gerganov and contributors."
         }
       }
+    },
+    "dictionary": {
+      "wordsTitle": "Words",
+      "wordsDescription": "Terms the recognizer should get right. ASCII terms are also fuzzy-corrected after transcription.",
+      "wordsEmpty": "No words yet.",
+      "rulesTitle": "Correction rules",
+      "rulesDescription": "Literal, case-insensitive replacements applied to every transcript before polishing. Use them for phrases the fuzzy matcher cannot reach.",
+      "rulesEmpty": "No correction rules yet.",
+      "patternPlaceholder": "Wrong phrase",
+      "replacementPlaceholder": "Corrected phrase",
+      "enabled": "Enabled",
+      "search": "Search words and rules",
+      "import": "Import",
+      "export": "Export",
+      "exportDone": "Dictionary exported",
+      "importReport": "Imported {{accepted}}, skipped {{duplicates}} duplicate(s) and {{invalid}} invalid row(s)",
+      "hint": "Words also go to the AI polisher, so it knows the exact spelling. Correction rules are applied literally before polishing.",
+      "learn": {
+        "title": "Learn from my corrections",
+        "description": "After each dictation, read the field we just typed into and learn the words you fix. Reads only that one field, for up to 45 seconds after a paste, and never in password fields or while secure input is active. Everything stays on this Mac. Turn off to stop all reading.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -701,7 +782,19 @@
   },
   "overlay": {
     "transcribing": "Transcribing...",
-    "processing": "Processing..."
+    "processing": "Processing...",
+    "learned": {
+      "title": "Added to dictionary: {{pattern}} → {{replacement}}",
+      "undo": "Undo",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} may be blocking 1 shortcut",

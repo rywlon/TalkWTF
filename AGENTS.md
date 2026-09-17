@@ -23,8 +23,10 @@
   数据中转代理（即 OpenTypeless 的 `/api/proxy/*`、`/api/backup`、账号体系那一套）。
 - **允许 BYOK（Bring Your Own Key）**：用户在设置里填自己的 API key，直连 provider。
   例如 AI 润色接 **DeepSeek API 是允许的**——用户自己的 key、直连 DeepSeek，不经过我们。
-  同理允许 OpenAI / Anthropic / OpenRouter / Groq 等，也允许本地 Ollama。
-- **本地优先**：默认走本地（Ollama 做润色、本地 ASR），云端 provider 由用户自行选择。
+  同理允许 OpenAI / Anthropic / OpenRouter / Groq 等；若想指向本地或自建的 OpenAI 兼容服务，
+  用 `Custom` provider 自己填地址即可（不预置、不推荐、不保证）。
+- **本地优先**：本地 ASR 默认可用且不联网。润色默认不联网——只有用户在设置里显式选好 provider
+  并填好 key 之后才会发出请求。
 - 除用户显式配置的 provider 外，App 自身不联网。
 - 个人使用：不做签名、公证、自动更新。
 - 保留 MIT 许可声明；改名为自己的名字、换 logo（商标不在 MIT 内）。
@@ -36,6 +38,11 @@
 - 理由：Handy 的本地 ASR 运行时是难复制、必须保留的部分；OpenTypeless 的润色+词典是相对简单、可移植的部分。
 - 绝对不要反过来把 Handy 的本地模型塞进 OpenTypeless。
 - 两边技术栈几乎相同，UI 代码可大量直接搬运。
+- **目标是功能对齐 OpenTypeless（除云/账号），结构保持 Handy**。凡是 OpenTypeless 有的能力，
+  默认都要有；差异只在实现底座（本地 ASR 用 Handy 的 transcribe.cpp + Qwen3-ASR）和「无自建云」这条硬约束。
+- **交互模型对齐 OpenTypeless**：听写是「转录 + 润色」一个动作，没有"纯转写模式"；
+  不同用途用不同工作流热键（听写 / Ask / 翻译），每个工作流可绑多个快捷键。
+- 润色不是让用户手写 prompt，而是「润色风格 + 场景」；prompt 文本属于高级用法。
 
 ## 已知代码线索
 
@@ -90,18 +97,38 @@
 
 ## 阶段计划
 
-1. 解锁 + 重做润色 UI：拆掉 experimental gating，做好用的 provider/prompt 界面，接本地 Ollama
-2. 词典增强：增删改、导入导出、纠正规则、per-app 映射
-3. app-aware 润色：按前台 app 调语气/格式
-4. 视觉重做：改成 Apple 原生风格（见「UI 风格」一节），去掉粉色，统一 UI，light/dark
+> 总原则：结构照 Handy，功能照 OpenTypeless（去掉云/账号）。下面是功能对齐的推进顺序。
+
+1. 解锁 + 重做润色 UI：拆掉 experimental gating，做好用的 provider/prompt 界面，接通 BYOK（DeepSeek 等）— 已完成
+1.5 取消纯转写模式：所有听写热键默认走后处理（`transcribe` 也润色），移除 `post_process_enabled` 开关 — 已完成
+2. 润色风格 + 场景：内置/自定义场景、导入导出、激活状态；用户选风格而不是手写 prompt
+   — 2a（风格 + 场景 + 提示词组装）已完成；2b（导入导出）未开始
+3. 词典增强：增删改、导入导出、纠正规则（本地 SQLite）— 已完成
+3.5 自动学词：听写后读取刚输入的输入框，把你改掉的错词学进词典（先加 + 撤销，对标 Typeless）
+   — 已完成（待真机冒烟）
+4. ~~app-aware 润色~~ **已否决**（2026-09-17）：有价值的部分是窗口标题/浏览器 URL 那类上下文，
+   隐私约束下不发，剩下粗粒度分类收益太低。spec 保留在 docs/specs/phase-2b-and-phase-4.md 作记录。
+2b. 润色风格 + 场景的导入导出（阶段 2 剩下的部分）— 已完成（2026-09-17）
+5. ~~多工作流热键：Ask Anything、翻译选中文本；每个工作流可绑多个快捷键~~ **已收缩**（2026-09-17）：
+   不做多快捷键框架、不做 Ask Anything、不做选中文本翻译。spec 作废记录在
+   `docs/specs/phase-5-multi-workflow-shortcuts.md`。
+7. 自动翻译：独立 Translate 工作流（单个自绑热键）→ 语音 → 本地转写 → BYOK LLM 翻译成目标语言 →
+   粘贴；目标语言最多 3 个、设置里切换当前目标；悬浮窗显示「翻译为 X」；失败不粘贴 + 悬浮窗重试
+   — 已实现（2026-09-17，待真机冒烟）。spec：`docs/specs/phase-7-auto-translate.md`。
+6. 视觉重做：改成 Apple 原生风格（见「UI 风格」一节），去掉粉色，统一 UI，light/dark；
+   含状态胶囊（准备/录音/转写/润色/失败）— 未开始（用户 2026-09-17 决定本轮不做）
 
 ## 验收标准（Definition of Done）
 
 - 无自建云后端、无账号、无遥测
-- AI 润色支持 BYOK（DeepSeek 等云端 provider）与本地 Ollama
+- AI 润色支持 BYOK（DeepSeek 等云端 provider）
 - 本地 ASR 可用（Qwen3-ASR 0.6B，中文）
-- 润色：UI 显眼、可接 Ollama、有提示词/场景管理
+- 听写 = 转录 + 润色，没有纯转写模式；润色失败自动降级为原始转写，且用户能知道失败原因
+- 润色：UI 显眼、可接 DeepSeek 等 BYOK provider、有场景/风格与提示词管理
 - 词典：可增删改、导入导出、纠正规则
+- 自动翻译：独立 Translate 工作流（单个自绑热键）→ 语音 → 本地转写 → BYOK LLM → 粘贴译文；
+  目标语言最多 3 个、设置里切换；未配语言给提示；失败不粘贴 + 悬浮窗重试
+  （原「多工作流热键 / Ask / 翻译选中文本」已按 2026-09-17 决定收缩，见阶段计划）
 - UI：Apple 原生风格、无粉色、跟随系统 light/dark、可读
 - 构建通过、测试通过
 

@@ -21,9 +21,9 @@ use tauri::{AppHandle, Emitter, Manager};
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
-    self, get_settings, AutoSubmitKey, ClipboardHandling, KeyboardImplementation, LLMPrompt,
-    OverlayPosition, OverlayStyle, PasteMethod, ShortcutActivation, ShortcutBinding, SoundTheme,
-    Theme, TypingTool, VadBackend, APPLE_INTELLIGENCE_PROVIDER_ID,
+    self, get_settings, AutoSubmitKey, ClipboardHandling, KeyboardImplementation, OverlayPosition,
+    OverlayStyle, PasteMethod, PolishStyleOption, Scene, ShortcutActivation, ShortcutBinding,
+    SoundTheme, Theme, TypingTool, VadBackend, APPLE_INTELLIGENCE_PROVIDER_ID,
 };
 use crate::tray;
 
@@ -165,10 +165,14 @@ pub fn change_binding(
         }
     }
 
-    // Unregister the existing binding
-    if let Err(e) = unregister_shortcut(&app, binding_to_modify.clone()) {
-        let error_msg = format!("Failed to unregister shortcut: {}", e);
-        error!("change_binding error: {}", error_msg);
+    // Unregister the existing binding. An unbound workflow (translate before the
+    // user picks a key) has nothing registered, and unregistering an empty
+    // string would only log a parse error.
+    if !binding_to_modify.current_binding.trim().is_empty() {
+        if let Err(e) = unregister_shortcut(&app, binding_to_modify.clone()) {
+            let error_msg = format!("Failed to unregister shortcut: {}", e);
+            error!("change_binding error: {}", error_msg);
+        }
     }
 
     // Validate the new shortcut for the current keyboard implementation
@@ -213,6 +217,10 @@ pub fn change_binding(
 /// Best-effort re-register of the previous binding after a failed change,
 /// so a failure leaves the user's shortcut working exactly as before.
 fn restore_registration(app: &AppHandle, binding: &ShortcutBinding) {
+    // Nothing to restore when the previous state was "unbound".
+    if binding.current_binding.trim().is_empty() {
+        return;
+    }
     if let Err(e) = register_shortcut(app, binding.clone()) {
         error!(
             "Failed to restore previous binding '{}' ({}): {}",
@@ -225,6 +233,29 @@ fn restore_registration(app: &AppHandle, binding: &ShortcutBinding) {
 #[specta::specta]
 pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, String> {
     let binding = settings::get_stored_binding(&app, &id);
+
+    // A workflow whose default is "unbound" (translate) resets to no shortcut at
+    // all: unregister the current key and store the empty value. `change_binding`
+    // rejects empty input by design, so this path can't go through it.
+    if binding.default_binding.trim().is_empty() {
+        let mut settings = settings::get_settings(&app);
+        if let Some(existing) = settings.bindings.get(&id).cloned() {
+            if !existing.current_binding.trim().is_empty() {
+                let _ = unregister_shortcut(&app, existing);
+            }
+        }
+        if let Some(entry) = settings.bindings.get_mut(&id) {
+            entry.current_binding = String::new();
+        }
+        settings::write_settings(&app, settings.clone());
+        crate::secure_input::reconcile_fallback(&app);
+        return Ok(BindingResponse {
+            success: true,
+            binding: settings.bindings.get(&id).cloned(),
+            error: None,
+        });
+    }
+
     change_binding(app, id, binding.default_binding)
 }
 
@@ -235,6 +266,11 @@ pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, Stri
 pub fn suspend_all_shortcuts(app: &AppHandle) {
     for (id, binding) in settings::get_bindings(app) {
         if id == "cancel" {
+            continue;
+        }
+        // Unbound workflows (e.g. translate until the user picks a key) have
+        // nothing registered to unregister.
+        if binding.current_binding.trim().is_empty() {
             continue;
         }
         if let Err(e) = unregister_shortcut(app, binding) {
@@ -255,7 +291,7 @@ pub fn resume_all_shortcuts(app: &AppHandle) {
         if id == "cancel" {
             continue;
         }
-        if id == "transcribe_with_post_process" && !settings.post_process_enabled {
+        if binding.current_binding.trim().is_empty() {
             continue;
         }
         if let Err(e) = register_shortcut(app, binding.clone()) {
@@ -416,6 +452,9 @@ fn unregister_all_shortcuts(app: &AppHandle, implementation: KeyboardImplementat
         if id == "cancel" {
             continue;
         }
+        if binding.current_binding.trim().is_empty() {
+            continue;
+        }
 
         let result = match implementation {
             KeyboardImplementation::Tauri => tauri_impl::unregister_shortcut(app, binding),
@@ -446,16 +485,16 @@ fn register_all_shortcuts_for_implementation(
             continue;
         }
 
-        // Skip post-processing shortcut when the feature is disabled
-        if id == "transcribe_with_post_process" && !current_settings.post_process_enabled {
-            continue;
-        }
-
         let mut binding = current_settings
             .bindings
             .get(id)
             .cloned()
             .unwrap_or_else(|| default_binding.clone());
+
+        // An unbound workflow stays unbound across implementation switches.
+        if binding.current_binding.trim().is_empty() {
+            continue;
+        }
 
         // Validate the shortcut for the target implementation
         if let Err(e) =
@@ -829,15 +868,6 @@ pub fn change_whats_new_last_seen_version_setting(
 
 #[tauri::command]
 #[specta::specta]
-pub fn update_custom_words(app: AppHandle, words: Vec<String>) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    settings.custom_words = words;
-    settings::write_settings(&app, settings);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn change_word_correction_threshold_setting(
     app: AppHandle,
     threshold: f64,
@@ -1000,30 +1030,6 @@ pub fn change_auto_submit_key_setting(app: AppHandle, key: String) -> Result<(),
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    settings.post_process_enabled = enabled;
-    settings::write_settings(&app, settings.clone());
-
-    // Register or unregister the post-processing shortcut
-    if let Some(binding) = settings
-        .bindings
-        .get("transcribe_with_post_process")
-        .cloned()
-    {
-        if enabled {
-            let _ = register_shortcut(&app, binding);
-        } else {
-            let _ = unregister_shortcut(&app, binding);
-        }
-    }
-
-    crate::secure_input::reconcile_fallback(&app);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn change_experimental_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.experimental_enabled = enabled;
@@ -1048,7 +1054,7 @@ pub fn change_post_process_base_url_setting(
         .post_process_provider_mut(&provider_id)
         .expect("Provider looked up above must exist");
 
-    if provider.id != "custom" {
+    if !provider.allow_base_url_edit {
         return Err(format!(
             "Provider '{}' does not allow editing the base URL",
             label
@@ -1115,76 +1121,277 @@ pub fn set_post_process_provider(app: AppHandle, provider_id: String) -> Result<
 
 #[tauri::command]
 #[specta::specta]
-pub fn add_post_process_prompt(
+pub fn add_scene(
     app: AppHandle,
     name: String,
+    description: String,
     prompt: String,
-) -> Result<LLMPrompt, String> {
+) -> Result<Scene, String> {
+    let (name, description, prompt) = settings::prepare_scene_input(&name, &description, &prompt)?;
     let mut settings = settings::get_settings(&app);
 
-    // Generate unique ID using timestamp and random component
-    let id = format!("prompt_{}", chrono::Utc::now().timestamp_millis());
+    if settings.scenes.len() >= settings::SCENES_MAX_COUNT {
+        return Err(format!(
+            "At most {} scenes are supported",
+            settings::SCENES_MAX_COUNT
+        ));
+    }
 
-    let new_prompt = LLMPrompt {
-        id: id.clone(),
+    let now = chrono::Utc::now().to_rfc3339();
+    let base = chrono::Utc::now().timestamp_millis();
+    let mut suffix = 0;
+    let mut id = format!("scene_{base}");
+    while settings.scenes.iter().any(|scene| scene.id == id) {
+        suffix += 1;
+        id = format!("scene_{base}_{suffix}");
+    }
+
+    let scene = Scene {
+        id,
         name,
+        description,
         prompt,
+        created_at: now.clone(),
+        updated_at: now,
     };
 
-    settings.post_process_prompts.push(new_prompt.clone());
+    settings.scenes.push(scene.clone());
     settings::write_settings(&app, settings);
 
-    Ok(new_prompt)
+    Ok(scene)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn update_post_process_prompt(
+pub fn update_scene(
     app: AppHandle,
     id: String,
     name: String,
+    description: String,
     prompt: String,
-) -> Result<(), String> {
+) -> Result<Scene, String> {
+    let (name, description, prompt) = settings::prepare_scene_input(&name, &description, &prompt)?;
     let mut settings = settings::get_settings(&app);
 
-    if let Some(existing_prompt) = settings
-        .post_process_prompts
+    let scene = settings
+        .scenes
         .iter_mut()
-        .find(|p| p.id == id)
-    {
-        existing_prompt.name = name;
-        existing_prompt.prompt = prompt;
-        settings::write_settings(&app, settings);
-        Ok(())
-    } else {
-        Err(format!("Prompt with id '{}' not found", id))
-    }
+        .find(|scene| scene.id == id)
+        .ok_or_else(|| format!("Scene '{id}' not found"))?;
+
+    scene.name = name;
+    scene.description = description;
+    scene.prompt = prompt;
+    scene.updated_at = chrono::Utc::now().to_rfc3339();
+    let updated = scene.clone();
+
+    settings::write_settings(&app, settings);
+    Ok(updated)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), String> {
+pub fn delete_scene(app: AppHandle, id: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
 
-    // Don't allow deleting the last prompt
-    if settings.post_process_prompts.len() <= 1 {
-        return Err("Cannot delete the last prompt".to_string());
+    let original_len = settings.scenes.len();
+    settings.scenes.retain(|scene| scene.id != id);
+    if settings.scenes.len() == original_len {
+        return Err(format!("Scene '{id}' not found"));
     }
 
-    // Find and remove the prompt
-    let original_len = settings.post_process_prompts.len();
-    settings.post_process_prompts.retain(|p| p.id != id);
-
-    if settings.post_process_prompts.len() == original_len {
-        return Err(format!("Prompt with id '{}' not found", id));
+    // No scene is a valid state (the global style applies), so deleting the
+    // active scene just clears the selection.
+    if settings.active_scene_id.as_deref() == Some(id.as_str()) {
+        settings.active_scene_id = None;
     }
 
-    // If the deleted prompt was selected, select the first one or None
-    if settings.post_process_selected_prompt_id.as_ref() == Some(&id) {
-        settings.post_process_selected_prompt_id =
-            settings.post_process_prompts.first().map(|p| p.id.clone());
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// Restore a built-in scene to the text this build ships. Only built-in ids are
+/// accepted; user scenes have no original to go back to.
+#[tauri::command]
+#[specta::specta]
+pub fn reset_scene(app: AppHandle, id: String) -> Result<Scene, String> {
+    let built_in = settings::built_in_scenes()
+        .into_iter()
+        .find(|scene| scene.id == id)
+        .ok_or_else(|| format!("Scene '{id}' is not a built-in scene"))?;
+
+    let mut settings = settings::get_settings(&app);
+    let scene = settings
+        .scenes
+        .iter_mut()
+        .find(|scene| scene.id == id)
+        .ok_or_else(|| format!("Scene '{id}' not found"))?;
+
+    scene.name = built_in.name;
+    scene.description = built_in.description;
+    scene.prompt = built_in.prompt;
+    let restored = scene.clone();
+
+    settings::write_settings(&app, settings);
+    Ok(restored)
+}
+
+/// Re-add built-in scenes the user deleted. Existing ones are never touched, so
+/// an edited built-in keeps the user's text.
+#[tauri::command]
+#[specta::specta]
+pub fn restore_built_in_scenes(app: AppHandle) -> Result<Vec<Scene>, String> {
+    let mut settings = settings::get_settings(&app);
+    let mut changed = false;
+
+    for built_in in settings::built_in_scenes() {
+        if !settings.scenes.iter().any(|scene| scene.id == built_in.id) {
+            settings.scenes.push(built_in);
+            changed = true;
+        }
     }
 
+    if changed {
+        settings::write_settings(&app, settings.clone());
+    }
+
+    Ok(settings.scenes)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_active_scene(app: AppHandle, id: Option<String>) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+
+    if let Some(id) = &id {
+        if !settings.scenes.iter().any(|scene| &scene.id == id) {
+            return Err(format!("Scene '{id}' not found"));
+        }
+    }
+
+    settings.active_scene_id = id;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_post_process_thinking_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.post_process_thinking = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_polish_style(app: AppHandle, style: String) -> Result<(), String> {
+    if !settings::is_known_polish_style(&style) {
+        return Err(format!("Unknown polish style '{style}'"));
+    }
+
+    let mut settings = settings::get_settings(&app);
+    settings.polish_style = style;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// The styles the settings UI lists, with their labels. Served by the backend so
+/// the ids the UI sends back can never drift from the ones we validate.
+#[tauri::command]
+#[specta::specta]
+pub fn change_learn_from_edits_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.learn_from_edits = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_polish_styles() -> Vec<PolishStyleOption> {
+    settings::polish_style_options()
+}
+
+/// The languages the translate workflow can target, served by the backend so the
+/// ids the UI sends back can never drift from the ones we validate.
+#[tauri::command]
+#[specta::specta]
+pub fn get_translation_languages() -> Vec<settings::TranslationLanguage> {
+    settings::translation_languages()
+}
+
+/// Add a target language (idempotent; at most
+/// [`settings::TRANSLATION_TARGETS_MAX_COUNT`]). The first language added also
+/// becomes the active target.
+#[tauri::command]
+#[specta::specta]
+pub fn add_translation_target(app: AppHandle, code: String) -> Result<Vec<String>, String> {
+    if !settings::is_known_translation_language(&code) {
+        return Err(format!("Unknown translation language '{code}'"));
+    }
+
+    let mut settings = settings::get_settings(&app);
+    let already_present = settings
+        .translation_targets
+        .iter()
+        .any(|target| target == &code);
+
+    if !already_present {
+        if settings.translation_targets.len() >= settings::TRANSLATION_TARGETS_MAX_COUNT {
+            return Err(format!(
+                "At most {} target languages are supported",
+                settings::TRANSLATION_TARGETS_MAX_COUNT
+            ));
+        }
+        settings.translation_targets.push(code.clone());
+    }
+
+    settings.translation_targets =
+        settings::prepare_translation_targets(&settings.translation_targets);
+    if settings.translation_active_target.is_none() {
+        settings.translation_active_target = settings.translation_targets.first().cloned();
+    }
+
+    settings::write_settings(&app, settings.clone());
+    Ok(settings.translation_targets)
+}
+
+/// Remove a target language. When the active one is removed the first remaining
+/// target takes over (or `None` when the list becomes empty).
+#[tauri::command]
+#[specta::specta]
+pub fn remove_translation_target(app: AppHandle, code: String) -> Result<Vec<String>, String> {
+    let mut settings = settings::get_settings(&app);
+    settings
+        .translation_targets
+        .retain(|target| target != &code);
+
+    if settings.translation_active_target.as_deref() == Some(code.as_str()) {
+        settings.translation_active_target = settings.translation_targets.first().cloned();
+    }
+
+    settings::write_settings(&app, settings.clone());
+    Ok(settings.translation_targets)
+}
+
+/// Choose which configured target the translate workflow uses.
+#[tauri::command]
+#[specta::specta]
+pub fn set_active_translation_target(app: AppHandle, code: Option<String>) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+
+    if let Some(code) = &code {
+        if !settings
+            .translation_targets
+            .iter()
+            .any(|target| target == code)
+        {
+            return Err(format!("Target language '{code}' is not configured"));
+        }
+    }
+
+    settings.translation_active_target = code;
     settings::write_settings(&app, settings);
     Ok(())
 }
@@ -1224,7 +1431,7 @@ pub async fn fetch_post_process_models(
         .unwrap_or_default();
 
     // Skip fetching if no API key for providers that typically need one
-    if api_key.trim().is_empty() && provider.id != "custom" {
+    if api_key.trim().is_empty() && provider.requires_api_key {
         return Err(format!(
             "API key is required for {}. Please add an API key to list available models.",
             provider.label
@@ -1232,21 +1439,6 @@ pub async fn fetch_post_process_models(
     }
 
     crate::llm_client::fetch_models(provider, api_key).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn set_post_process_selected_prompt(app: AppHandle, id: String) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-
-    // Verify the prompt exists
-    if !settings.post_process_prompts.iter().any(|p| p.id == id) {
-        return Err(format!("Prompt with id '{}' not found", id));
-    }
-
-    settings.post_process_selected_prompt_id = Some(id);
-    settings::write_settings(&app, settings);
-    Ok(())
 }
 
 #[tauri::command]

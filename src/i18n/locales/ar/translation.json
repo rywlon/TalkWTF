@@ -16,7 +16,9 @@
     "history": "السجل",
     "debug": "تصحيح الأخطاء",
     "about": "حول",
-    "models": "النماذج"
+    "models": "النماذج",
+    "dictionary": "القاموس",
+    "translation": "Translate"
   },
   "onboarding": {
     "subtitle": "للبدء، اختر نموذج التفريغ الصوتي",
@@ -176,6 +178,10 @@
           "transcribe_with_post_process": {
             "name": "مفتاح المعالجة اللاحقة",
             "description": "اختياري: مفتاح اختصار مخصص يطبق دائماً المعالجة اللاحقة بالذكاء الاصطناعي على التفريغ الصوتي."
+          },
+          "translate": {
+            "name": "Translate Shortcut",
+            "description": "Records your voice, then translates it into the target language before typing the result."
           }
         },
         "errors": {
@@ -378,6 +384,9 @@
       }
     },
     "postProcessing": {
+      "status": {
+        "incomplete": "الإعداد غير مكتمل — حدّد {{fields}}"
+      },
       "hotkey": {
         "title": "مفتاح الاختصار"
       },
@@ -428,7 +437,32 @@
         "createPrompt": "إنشاء مطالبة",
         "cancel": "إلغاء",
         "selectToEdit": ".اختر مطالبة أعلاه لعرض وتعديل تفاصيلها",
-        "createFirst": ".انقر على 'إنشاء مطالبة جديدة' أعلاه لإنشاء أول مطالبة معالجة لاحقة لك"
+        "createFirst": ".انقر على 'إنشاء مطالبة جديدة' أعلاه لإنشاء أول مطالبة معالجة لاحقة لك",
+        "duplicate": "تكرار",
+        "restoreDefault": "استعادة الافتراضي"
+      },
+      "style": {
+        "title": "نمط التلميع",
+        "description": "كيف يُنقّح النص عندما لا يكون هناك مشهد مفعّل."
+      },
+      "scene": {
+        "title": "المشهد المفعّل",
+        "description": "المشهد يتجاوز نمط التلميع في كل إملاء.",
+        "none": "بدون مشهد",
+        "builtInTitle": "مشاهد جاهزة",
+        "builtInDescription": "مشاهد جاهزة. يمكنك تعديلها أو حذفها مثل مشاهدك، وزر الاستعادة يعيدها.",
+        "edit": "تعديل",
+        "confirmDelete": "تأكيد الحذف",
+        "restoreBuiltIn": "استعادة المشاهد الجاهزة",
+        "styleSkipped": "‏«{{name}}» مفعّل، لذلك لا يُطبَّق نمط التلميع.",
+        "export": "Export",
+        "import": "Import",
+        "exportDone": "Polish profile exported",
+        "importReport": "Imported {{accepted}} scene(s), skipped {{duplicates}} duplicate(s) and {{invalid}} invalid"
+      },
+      "thinking": {
+        "title": "تفكير عميق",
+        "description": "دع النموذج يستنتج قبل التلميع. أفضل في تصحيح التصحيحات الذاتية وإعادة التنظيم، لكنه يضيف ثوانٍ لكل إملاء."
       }
     },
     "history": {
@@ -502,10 +536,6 @@
       "clamshellMicrophone": {
         "title": "ميكروفون وضع الإغلاق",
         "description": "الميكروفون المراد استخدامه عندما يكون غطاء المحمول مغلقاً"
-      },
-      "postProcessingToggle": {
-        "label": "معالجة لاحقة",
-        "description": "تمكين تحسين النص المدعوم بالذكاء الاصطناعي بعد التفريغ الصوتي"
       },
       "muteWhileRecording": {
         "label": "كتم الصوت أثناء التسجيل",
@@ -635,6 +665,57 @@
         "label": "إعادة الفحص",
         "tooltip": "إعادة الفحص بحثًا عن النماذج المضافة إلى مجلد النماذج أو ذاكرة Hugging Face التخزينية المؤقتة خارج Handy"
       }
+    },
+    "dictionary": {
+      "wordsTitle": "الكلمات",
+      "wordsDescription": "المصطلحات التي يجب أن يتعرف عليها المحرك. المصطلحات اللاتينية تُصحَّح أيضًا تقريبيًا بعد النسخ.",
+      "wordsEmpty": "لا توجد كلمات بعد.",
+      "rulesTitle": "قواعد التصحيح",
+      "rulesDescription": "استبدال حرفي غير حساس لحالة الأحرف يُطبَّق على كل نص قبل التلميع. استخدمه للعبارات التي لا يصل إليها المطابق التقريبي.",
+      "rulesEmpty": "لا توجد قواعد تصحيح بعد.",
+      "patternPlaceholder": "العبارة الخاطئة",
+      "replacementPlaceholder": "العبارة الصحيحة",
+      "enabled": "مفعّل",
+      "search": "ابحث في الكلمات والقواعد",
+      "import": "استيراد",
+      "export": "تصدير",
+      "exportDone": "تم تصدير القاموس",
+      "importReport": "تم استيراد {{accepted}}، وتخطي {{duplicates}} مكررًا و{{invalid}} صفًا غير صالح",
+      "hint": "تُرسل الكلمات أيضًا إلى محسّن الذكاء الاصطناعي ليعرف الإملاء الصحيح؛ وتُطبَّق قواعد التصحيح حرفيًا قبل التلميع.",
+      "learn": {
+        "title": "التعلّم من تصحيحاتي",
+        "description": "بعد كل إملاء، يُقرأ الحقل الذي كُتب فيه لتعلّم الكلمات التي تصحّحها. يُقرأ ذلك الحقل وحده، ولمدة 45 ثانية بعد اللصق فقط، ولا يُقرأ أبدًا في حقول كلمات المرور أو أثناء الإدخال الآمن. كل شيء يبقى على هذا الجهاز. أوقفه لإيقاف أي قراءة.",
+        "rejectedTitle": "Not learned again",
+        "rejectedDescription": "Undoing a learned correction records the misheard text here, so the same mishearing is not learned again.",
+        "rejectedButton": "View ({{count}})",
+        "rejectedEmpty": "Nothing here yet.",
+        "rejectedRestore": "Learn again",
+        "rejectedClear": "Clear all"
+      },
+      "diagnose": {
+        "title": "Accessibility check",
+        "description": "Reads the focused field right now and reports what the accessibility layer sees. Useful when corrections are not being learned.",
+        "action": "Run check"
+      }
+    },
+    "translation": {
+      "title": "Translate",
+      "description": "Speak and get the result in another language. Needs an AI provider (Settings → AI Polishing → Provider).",
+      "shortcut": {
+        "title": "Translate Shortcut",
+        "description": "The key that starts and stops a translation."
+      },
+      "targets": {
+        "title": "Target languages",
+        "description": "Up to three languages. The active one is used for the next translation.",
+        "listTitle": "Languages",
+        "listDescription": "Choose up to 3 target languages.",
+        "empty": "No target language selected yet. Add one below.",
+        "remove": "Remove {{language}}",
+        "addPlaceholder": "Add a language",
+        "activeTitle": "Active language",
+        "activeDescription": "The language the next translation will use."
+      }
     }
   },
   "footer": {
@@ -698,7 +779,19 @@
   },
   "overlay": {
     "transcribing": "...جاري التفريغ",
-    "processing": "...جاري المعالجة"
+    "processing": "...جاري المعالجة",
+    "learned": {
+      "title": "أُضيف إلى القاموس: {{pattern}} → {{replacement}}",
+      "undo": "تراجع",
+      "titlePlural": "Added to dictionary: {{count}} corrections"
+    },
+    "translate": {
+      "to": "Translating to {{label}}",
+      "working": "Translating...",
+      "failed": "Translation failed (target: {{label}})",
+      "retry": "Retry",
+      "noTarget": "Choose a target language in Settings first"
+    }
   },
   "whatsNew": {
     "title": "الجديد في Handy v{{version}}"
