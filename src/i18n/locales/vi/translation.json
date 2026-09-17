@@ -18,7 +18,10 @@
     "debug": "Gỡ lỗi",
     "about": "Giới thiệu",
     "dictionary": "Từ điển",
-    "translation": "Translate"
+    "translation": "Translate",
+    "dashboard": "Dashboard",
+    "library": "Library",
+    "settings": "Settings"
   },
   "onboarding": {
     "subtitle": "Để bắt đầu, hãy chọn một mô hình chuyển đổi giọng nói",
@@ -103,7 +106,7 @@
     },
     "permissions": {
       "title": "Cần cấp quyền",
-      "description": "Handy cần một số quyền để hoạt động bình thường.",
+      "description": "TalkWTF cần một số quyền để hoạt động bình thường.",
       "microphone": {
         "title": "Quyền truy cập Micrô",
         "description": "Cần thiết để nghe giọng nói của bạn để chuyển đổi."
@@ -177,13 +180,13 @@
       "searchPlaceholder": "Tìm mô hình theo tên…",
       "rescan": {
         "label": "Quét lại",
-        "tooltip": "Quét lại các mô hình được thêm vào thư mục mô hình hoặc bộ nhớ đệm Hugging Face bên ngoài Handy"
+        "tooltip": "Quét lại các mô hình được thêm vào thư mục mô hình hoặc bộ nhớ đệm Hugging Face bên ngoài TalkWTF"
       }
     },
     "general": {
       "title": "Chung",
       "shortcut": {
-        "title": "Phím tắt Handy",
+        "title": "Phím tắt TalkWTF",
         "description": "Cấu hình phím tắt để kích hoạt ghi âm chuyển đổi giọng nói thành văn bản",
         "loading": "Đang tải phím tắt...",
         "none": "Chưa cấu hình phím tắt",
@@ -233,7 +236,9 @@
           "push_to_talk": "Ghi âm trong lúc bạn giữ phím tắt",
           "toggle": "Nhấn phím tắt để bắt đầu ghi âm, nhấn lại để dừng"
         }
-      }
+      },
+      "shortcutsGroup": "Shortcuts",
+      "behaviorGroup": "Behavior"
     },
     "sound": {
       "title": "Âm thanh",
@@ -299,11 +304,11 @@
       },
       "autostart": {
         "label": "Khởi động cùng hệ thống",
-        "description": "Tự động khởi động Handy khi bạn đăng nhập vào máy tính."
+        "description": "Tự động khởi động TalkWTF khi bạn đăng nhập vào máy tính."
       },
       "showTrayIcon": {
         "label": "Hiển thị biểu tượng khay",
-        "description": "Hiển thị biểu tượng Handy trong khay hệ thống."
+        "description": "Hiển thị biểu tượng TalkWTF trong khay hệ thống."
       },
       "overlay": {
         "style": {
@@ -526,7 +531,7 @@
       },
       "updateChecks": {
         "label": "Kiểm tra cập nhật",
-        "description": "Tự động kiểm tra phiên bản mới của Handy",
+        "description": "Tự động kiểm tra phiên bản mới của TalkWTF",
         "lockedDescription": "Đã bị vô hiệu hóa bởi cấu hình hệ thống (HANDY_DISABLE_UPDATER)"
       },
       "soundTheme": {
@@ -600,7 +605,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Chẩn đoán bàn phím",
-        "description": "Kiểm tra xem các sự kiện bàn phím có đến được Handy hay không. Chỉ số lượng sự kiện được ghi lại — không bao giờ ghi lại bạn bấm phím nào.",
+        "description": "Kiểm tra xem các sự kiện bàn phím có đến được TalkWTF hay không. Chỉ số lượng sự kiện được ghi lại — không bao giờ ghi lại bạn bấm phím nào.",
         "run": "Chạy chẩn đoán 10 giây",
         "running": "Đang lắng nghe… hãy bấm phím tắt của bạn vài lần (ví dụ: Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -614,7 +619,7 @@
         "mouse": "Chuột",
         "verdictBlocked": "Secure Input đang chặn các sự kiện phím — phím tắt có chứa phím thường không thể hoạt động cho đến khi vấn đề này được xử lý.",
         "verdictSuspicious": "Có sự kiện phím bổ trợ nhưng không có sự kiện phím nào — thứ gì đó đang chặn phím dù Secure Input báo là đang tắt. Vui lòng báo cáo việc này trên GitHub.",
-        "verdictOk": "Các sự kiện phím đang đến Handy bình thường.",
+        "verdictOk": "Các sự kiện phím đang đến TalkWTF bình thường.",
         "verdictNoEvents": "Không ghi nhận sự kiện nào — bạn có bấm phím nào trong lúc kiểm tra không?",
         "failed": "Chẩn đoán thất bại: {{error}}"
       },
@@ -637,33 +642,15 @@
       "title": "Giới thiệu",
       "version": {
         "title": "Phiên bản",
-        "description": "Phiên bản hiện tại của Handy"
+        "description": "Phiên bản hiện tại của TalkWTF"
       },
       "appDataDirectory": {
         "title": "Thư mục dữ liệu ứng dụng",
-        "description": "Vị trí Handy lưu trữ dữ liệu"
-      },
-      "sourceCode": {
-        "title": "Mã nguồn",
-        "description": "Xem mã nguồn và đóng góp",
-        "button": "Xem trên GitHub"
-      },
-      "supportDevelopment": {
-        "title": "Hỗ trợ phát triển",
-        "description": "Giúp chúng tôi tiếp tục xây dựng Handy",
-        "button": "Quyên góp"
-      },
-      "acknowledgments": {
-        "title": "Lời cảm ơn",
-        "ggml": {
-          "title": "ggml",
-          "description": "Suy luận hiệu suất cao của mô hình nhận dạng giọng nói tự động Whisper của OpenAI",
-          "details": "Handy sử dụng ggml để xử lý chuyển đổi giọng nói thành văn bản nhanh, cục bộ. Cảm ơn công việc tuyệt vời của Georgi Gerganov và các cộng tác viên."
-        }
+        "description": "Vị trí TalkWTF lưu trữ dữ liệu"
       },
       "whatsNewUpdates": {
         "label": "Hiển thị điểm mới",
-        "description": "Hiển thị ghi chú phát hành sau khi Handy cập nhật"
+        "description": "Hiển thị ghi chú phát hành sau khi TalkWTF cập nhật"
       }
     },
     "dictionary": {
@@ -716,6 +703,19 @@
         "activeTitle": "Active language",
         "activeDescription": "The language the next translation will use."
       }
+    },
+    "panes": {
+      "general": "General",
+      "personalization": "Personalization",
+      "models": "Models",
+      "audio": "Audio",
+      "advanced": "Advanced",
+      "about": "About",
+      "debug": "Debug"
+    },
+    "personalization": {
+      "polish": "AI Polish",
+      "translation": "Translate"
     }
   },
   "footer": {
@@ -743,7 +743,7 @@
     "noOptionsFound": "Không tìm thấy tùy chọn"
   },
   "accessibility": {
-    "permissionsDescription": "Handy cần quyền truy cập để gõ văn bản đã chuyển đổi.",
+    "permissionsDescription": "TalkWTF cần quyền truy cập để gõ văn bản đã chuyển đổi.",
     "openSettings": "Mở Cài đặt Hệ thống"
   },
   "errors": {
@@ -766,11 +766,11 @@
   },
   "appLanguage": {
     "title": "Ngôn ngữ ứng dụng",
-    "description": "Thay đổi ngôn ngữ giao diện của Handy"
+    "description": "Thay đổi ngôn ngữ giao diện của TalkWTF"
   },
   "theme": {
     "title": "Giao diện ứng dụng",
-    "description": "Chọn xem Handy theo chủ đề hệ thống hay giữ ở chế độ sáng hoặc tối",
+    "description": "Chọn xem TalkWTF theo chủ đề hệ thống hay giữ ở chế độ sáng hoặc tối",
     "options": {
       "system": "Hệ thống",
       "light": "Sáng",
@@ -794,7 +794,7 @@
     }
   },
   "whatsNew": {
-    "title": "Điểm mới trong Handy v{{version}}"
+    "title": "Điểm mới trong TalkWTF v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} có thể đang chặn 1 phím tắt",
@@ -806,5 +806,80 @@
     "learnMore": "Cách khắc phục",
     "recorderBlocked": "Hiện không thể ghi phím tắt — Secure Input của macOS đang chặn các sự kiện phím. Hãy xử lý cảnh báo Secure Input trước.",
     "dismiss": "Bỏ qua"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "error": "Couldn't load your stats.",
+    "today": {
+      "title": "Today",
+      "recordings": "Recordings",
+      "chars": "Characters",
+      "translations": "Translations",
+      "dictationTime": "Dictation time"
+    },
+    "metrics": {
+      "title": "All time",
+      "totalRecordings": "Total recordings",
+      "dictationTime": "Total dictation time",
+      "chars": "Characters dictated",
+      "speed": "Average speed",
+      "charsPerMin": "{{value}} chars/min",
+      "timeSaved": "Time saved",
+      "translations": "Translations"
+    },
+    "weekly": {
+      "title": "Last 7 days",
+      "recordings": "{{count}} recordings"
+    },
+    "tokens": {
+      "title": "AI tokens",
+      "today": "Today",
+      "week": "Last 7 days",
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "Total",
+      "requests": "Requests",
+      "none": "No usage yet"
+    },
+    "services": {
+      "title": "Services",
+      "asr": "Speech recognition",
+      "llm": "AI polish (LLM)",
+      "polish": "AI polish",
+      "input": "Voice input",
+      "paste": "Text output",
+      "ready": "Ready",
+      "notReady": "Not ready",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "enabled": "On",
+      "disabled": "Off",
+      "none": "Not selected"
+    },
+    "personalization": {
+      "title": "Personalization",
+      "label": "Setup completeness",
+      "items": {
+        "dictionary": "Dictionary words added",
+        "scenes": "Custom scenes",
+        "translation": "Translation languages",
+        "learning": "Learn from edits",
+        "polish": "AI provider configured",
+        "style": "Custom polish style or scene",
+        "filler": "Filler-word removal",
+        "custom_filler": "Custom filler words"
+      }
+    },
+    "recent": {
+      "title": "Recent activity",
+      "empty": "No activity yet.",
+      "chars": "{{count}} chars"
+    },
+    "workflow": {
+      "dictation": "Dictation",
+      "translate": "Translate"
+    }
   }
 }

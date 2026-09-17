@@ -1,6 +1,6 @@
 use crate::settings::PostProcessProvider;
 use log::{debug, error, info};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -123,6 +123,8 @@ struct ChatCompletionRequest {
 #[derive(Debug, Deserialize)]
 struct ChatCompletionResponse {
     choices: Vec<ChatChoice>,
+    #[serde(default)]
+    usage: Option<Usage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,21 +137,34 @@ struct ChatMessageResponse {
     content: Option<String>,
 }
 
+/// Token usage reported by OpenAI-compatible endpoints. Providers that don't
+/// report it simply omit the field.
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct Usage {
+    #[serde(default)]
+    pub prompt_tokens: u64,
+    #[serde(default)]
+    pub completion_tokens: u64,
+    #[serde(default)]
+    pub total_tokens: u64,
+}
+
+/// A chat completion result: the content plus whatever usage the endpoint
+/// reported, so the caller can record token spend.
+#[derive(Debug, Clone)]
+pub struct LlmCompletion {
+    pub content: String,
+    pub usage: Option<Usage>,
+}
+
 /// Build headers for API requests based on provider type
 fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<HeaderMap, String> {
     let mut headers = HeaderMap::new();
 
-    // Common headers
+    // Common headers. X-Title is read by OpenRouter-style routers.
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(
-        REFERER,
-        HeaderValue::from_static("https://github.com/cjpais/Handy"),
-    );
-    headers.insert(
-        USER_AGENT,
-        HeaderValue::from_static("Handy/1.0 (+https://github.com/cjpais/Handy)"),
-    );
-    headers.insert("X-Title", HeaderValue::from_static("Handy"));
+    headers.insert(USER_AGENT, HeaderValue::from_static("TalkWTF/1.0"));
+    headers.insert("X-Title", HeaderValue::from_static("TalkWTF"));
 
     // Provider-specific auth headers
     if !api_key.is_empty() {
@@ -342,7 +357,7 @@ pub async fn send_chat_completion_with_schema(
     system_prompt: Option<String>,
     json_schema: Option<Value>,
     disable_reasoning: bool,
-) -> Result<Option<String>, String> {
+) -> Result<Option<LlmCompletion>, String> {
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
 
@@ -463,10 +478,12 @@ pub async fn send_chat_completion_with_schema(
         .await
         .map_err(|e| report_reqwest_error("Failed to parse API response", &e))?;
 
-    Ok(completion
-        .choices
-        .first()
-        .and_then(|choice| choice.message.content.clone()))
+    let ChatCompletionResponse { choices, usage } = completion;
+    Ok(choices
+        .into_iter()
+        .next()
+        .and_then(|choice| choice.message.content)
+        .map(|content| LlmCompletion { content, usage }))
 }
 
 /// Fetch available models from an OpenAI-compatible API

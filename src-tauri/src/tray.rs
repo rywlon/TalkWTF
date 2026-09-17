@@ -682,6 +682,9 @@ mod tests {
             post_processed_text: post_processed.map(|text| text.to_string()),
             post_process_prompt: None,
             post_process_requested: false,
+            duration_ms: 0,
+            char_count: 0,
+            workflow: "dictation".to_string(),
         }
     }
 

@@ -18,7 +18,10 @@
     "debug": "ניפוי שגיאות",
     "about": "אודות",
     "dictionary": "מילון",
-    "translation": "Translate"
+    "translation": "Translate",
+    "dashboard": "Dashboard",
+    "library": "Library",
+    "settings": "Settings"
   },
   "onboarding": {
     "subtitle": "כדי להתחיל, בחר מודל תמלול",
@@ -103,7 +106,7 @@
     },
     "permissions": {
       "title": "נדרשות הרשאות",
-      "description": "Handy צריך כמה הרשאות כדי לעבוד כמו שצריך.",
+      "description": "TalkWTF צריך כמה הרשאות כדי לעבוד כמו שצריך.",
       "microphone": {
         "title": "גישה למיקרופון",
         "description": "נדרש כדי לשמוע את הקול שלך לצורך תמלול."
@@ -163,7 +166,7 @@
     "general": {
       "title": "כללי",
       "shortcut": {
-        "title": "קיצורי מקשים של Handy",
+        "title": "קיצורי מקשים של TalkWTF",
         "description": "הגדר קיצורי מקשים כדי להפעיל הקלטה ותמלול דיבור",
         "loading": "טוען קיצורי מקשים...",
         "none": "לא הוגדרו קיצורי מקשים",
@@ -213,7 +216,9 @@
           "push_to_talk": "מקליט כל עוד קיצור הדרך לחוץ",
           "toggle": "הקישו על קיצור הדרך כדי להתחיל להקליט, והקישו שוב כדי לעצור"
         }
-      }
+      },
+      "shortcutsGroup": "Shortcuts",
+      "behaviorGroup": "Behavior"
     },
     "models": {
       "title": "מודלי תמלול",
@@ -232,7 +237,7 @@
       "searchPlaceholder": "חיפוש מודלים לפי שם…",
       "rescan": {
         "label": "סריקה מחדש",
-        "tooltip": "סריקה מחדש לאיתור מודלים שנוספו לתיקיית המודלים או למטמון של Hugging Face מחוץ ל-Handy"
+        "tooltip": "סריקה מחדש לאיתור מודלים שנוספו לתיקיית המודלים או למטמון של Hugging Face מחוץ ל-TalkWTF"
       }
     },
     "sound": {
@@ -299,11 +304,11 @@
       },
       "autostart": {
         "label": "הפעל עם עליית המערכת",
-        "description": "הפעל את Handy אוטומטית כשאתה מתחבר למחשב."
+        "description": "הפעל את TalkWTF אוטומטית כשאתה מתחבר למחשב."
       },
       "showTrayIcon": {
         "label": "הצג אייקון במגש",
-        "description": "הצג את האייקון של Handy במגש המערכת."
+        "description": "הצג את האייקון של TalkWTF במגש המערכת."
       },
       "overlay": {
         "style": {
@@ -526,7 +531,7 @@
       },
       "updateChecks": {
         "label": "בדוק עדכונים",
-        "description": "בדוק אוטומטית אם קיימות גרסאות חדשות של Handy",
+        "description": "בדוק אוטומטית אם קיימות גרסאות חדשות של TalkWTF",
         "lockedDescription": "מושבת על ידי תצורת המערכת (HANDY_DISABLE_UPDATER)"
       },
       "soundTheme": {
@@ -600,7 +605,7 @@
       },
       "keyboardDiagnostic": {
         "title": "אבחון מקלדת",
-        "description": "בודק אם אירועי מקלדת מגיעים ל-Handy. נרשם רק מספר האירועים — לעולם לא אילו מקשים הקשת.",
+        "description": "בודק אם אירועי מקלדת מגיעים ל-TalkWTF. נרשם רק מספר האירועים — לעולם לא אילו מקשים הקשת.",
         "run": "הרצת אבחון של 10 שניות",
         "running": "מאזין… הקש על קיצור המקשים שלך כמה פעמים (למשל Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -614,7 +619,7 @@
         "mouse": "עכבר",
         "verdictBlocked": "Secure Input חוסם אירועי מקשים — קיצורים הכוללים מקש רגיל לא יוכלו לפעול עד שהבעיה תיפתר.",
         "verdictSuspicious": "הגיעו אירועים של מקשי החלפה אך לא אירועי מקשים — משהו מדכא מקשים למרות ש-Secure Input מדווח כמושבת. אנא דווח על כך ב-GitHub.",
-        "verdictOk": "אירועי מקשים מגיעים ל-Handy כרגיל.",
+        "verdictOk": "אירועי מקשים מגיעים ל-TalkWTF כרגיל.",
         "verdictNoEvents": "לא נקלטו אירועים — האם הקשת על מקשים במהלך הבדיקה?",
         "failed": "האבחון נכשל: {{error}}"
       },
@@ -637,33 +642,15 @@
       "title": "אודות",
       "version": {
         "title": "גרסה",
-        "description": "הגרסה הנוכחית של Handy"
+        "description": "הגרסה הנוכחית של TalkWTF"
       },
       "appDataDirectory": {
         "title": "תיקיית נתוני אפליקציה",
-        "description": "המיקום שבו Handy שומר את הנתונים שלו"
-      },
-      "sourceCode": {
-        "title": "קוד מקור",
-        "description": "צפה בקוד המקור ותרום",
-        "button": "צפה ב-GitHub"
-      },
-      "supportDevelopment": {
-        "title": "תמיכה בפיתוח",
-        "description": "עזור לנו להמשיך לבנות את Handy",
-        "button": "תרומה"
-      },
-      "acknowledgments": {
-        "title": "תודות",
-        "ggml": {
-          "title": "ggml",
-          "description": "הסקה מהירה לביצועים גבוהים עבור מודל זיהוי הדיבור Whisper של OpenAI",
-          "details": "Handy משתמש ב-ggml לתמלול מהיר ומקומי. תודה לעבודה המדהימה של Georgi Gerganov וכל התורמים."
-        }
+        "description": "המיקום שבו TalkWTF שומר את הנתונים שלו"
       },
       "whatsNewUpdates": {
         "label": "הצג מה חדש",
-        "description": "הצג הערות גרסה לאחר עדכוני Handy"
+        "description": "הצג הערות גרסה לאחר עדכוני TalkWTF"
       }
     },
     "dictionary": {
@@ -716,6 +703,19 @@
         "activeTitle": "Active language",
         "activeDescription": "The language the next translation will use."
       }
+    },
+    "panes": {
+      "general": "General",
+      "personalization": "Personalization",
+      "models": "Models",
+      "audio": "Audio",
+      "advanced": "Advanced",
+      "about": "About",
+      "debug": "Debug"
+    },
+    "personalization": {
+      "polish": "AI Polish",
+      "translation": "Translate"
     }
   },
   "footer": {
@@ -743,7 +743,7 @@
     "noOptionsFound": "לא נמצאו אפשרויות"
   },
   "accessibility": {
-    "permissionsDescription": "Handy צריך הרשאות נגישות כדי להקליד את הטקסט המתומלל.",
+    "permissionsDescription": "TalkWTF צריך הרשאות נגישות כדי להקליד את הטקסט המתומלל.",
     "openSettings": "פתח את הגדרות המערכת"
   },
   "errors": {
@@ -766,11 +766,11 @@
   },
   "appLanguage": {
     "title": "שפת האפליקציה",
-    "description": "שנה את שפת הממשק של Handy"
+    "description": "שנה את שפת הממשק של TalkWTF"
   },
   "theme": {
     "title": "ערכת נושא של האפליקציה",
-    "description": "בחר אם Handy יעקוב אחר ערכת הנושא של המערכת או יישאר בהיר או כהה",
+    "description": "בחר אם TalkWTF יעקוב אחר ערכת הנושא של המערכת או יישאר בהיר או כהה",
     "options": {
       "system": "מערכת",
       "light": "בהיר",
@@ -794,7 +794,7 @@
     }
   },
   "whatsNew": {
-    "title": "חדש ב-Handy v{{version}}"
+    "title": "חדש ב-TalkWTF v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "ייתכן ש-{{name}} חוסם קיצור דרך אחד",
@@ -806,5 +806,80 @@
     "learnMore": "איך לתקן את זה",
     "recorderBlocked": "לא ניתן להקליט קיצורים כרגע — Secure Input של macOS חוסם אירועי מקשים. פתור תחילה את אזהרת Secure Input.",
     "dismiss": "התעלם"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "error": "Couldn't load your stats.",
+    "today": {
+      "title": "Today",
+      "recordings": "Recordings",
+      "chars": "Characters",
+      "translations": "Translations",
+      "dictationTime": "Dictation time"
+    },
+    "metrics": {
+      "title": "All time",
+      "totalRecordings": "Total recordings",
+      "dictationTime": "Total dictation time",
+      "chars": "Characters dictated",
+      "speed": "Average speed",
+      "charsPerMin": "{{value}} chars/min",
+      "timeSaved": "Time saved",
+      "translations": "Translations"
+    },
+    "weekly": {
+      "title": "Last 7 days",
+      "recordings": "{{count}} recordings"
+    },
+    "tokens": {
+      "title": "AI tokens",
+      "today": "Today",
+      "week": "Last 7 days",
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "Total",
+      "requests": "Requests",
+      "none": "No usage yet"
+    },
+    "services": {
+      "title": "Services",
+      "asr": "Speech recognition",
+      "llm": "AI polish (LLM)",
+      "polish": "AI polish",
+      "input": "Voice input",
+      "paste": "Text output",
+      "ready": "Ready",
+      "notReady": "Not ready",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "enabled": "On",
+      "disabled": "Off",
+      "none": "Not selected"
+    },
+    "personalization": {
+      "title": "Personalization",
+      "label": "Setup completeness",
+      "items": {
+        "dictionary": "Dictionary words added",
+        "scenes": "Custom scenes",
+        "translation": "Translation languages",
+        "learning": "Learn from edits",
+        "polish": "AI provider configured",
+        "style": "Custom polish style or scene",
+        "filler": "Filler-word removal",
+        "custom_filler": "Custom filler words"
+      }
+    },
+    "recent": {
+      "title": "Recent activity",
+      "empty": "No activity yet.",
+      "chars": "{{count}} chars"
+    },
+    "workflow": {
+      "dictation": "Dictation",
+      "translate": "Translate"
+    }
   }
 }

@@ -18,7 +18,10 @@
     "debug": "Debugowanie",
     "about": "O programie",
     "dictionary": "Słownik",
-    "translation": "Translate"
+    "translation": "Translate",
+    "dashboard": "Dashboard",
+    "library": "Library",
+    "settings": "Settings"
   },
   "onboarding": {
     "subtitle": "Aby rozpocząć, wybierz model transkrypcji",
@@ -103,7 +106,7 @@
     },
     "permissions": {
       "title": "Wymagane uprawnienia",
-      "description": "Handy potrzebuje kilku uprawnień, aby działać poprawnie.",
+      "description": "TalkWTF potrzebuje kilku uprawnień, aby działać poprawnie.",
       "microphone": {
         "title": "Dostęp do mikrofonu",
         "description": "Wymagany do słyszenia Twojego głosu w celu transkrypcji."
@@ -177,13 +180,13 @@
       "searchPlaceholder": "Szukaj modeli według nazwy…",
       "rescan": {
         "label": "Skanuj ponownie",
-        "tooltip": "Skanuj ponownie w poszukiwaniu modeli dodanych do folderu modeli lub pamięci podręcznej Hugging Face poza Handy"
+        "tooltip": "Skanuj ponownie w poszukiwaniu modeli dodanych do folderu modeli lub pamięci podręcznej Hugging Face poza TalkWTF"
       }
     },
     "general": {
       "title": "Ogólne",
       "shortcut": {
-        "title": "Skróty Handy",
+        "title": "Skróty TalkWTF",
         "description": "Skonfiguruj skróty klawiaturowe do uruchamiania nagrywania mowy",
         "loading": "Wczytywanie skrótów...",
         "none": "Brak skonfigurowanych skrótów",
@@ -233,7 +236,9 @@
           "push_to_talk": "Nagrywa, dopóki trzymasz skrót",
           "toggle": "Dotknij skrótu, aby rozpocząć nagrywanie, dotknij ponownie, aby zatrzymać"
         }
-      }
+      },
+      "shortcutsGroup": "Shortcuts",
+      "behaviorGroup": "Behavior"
     },
     "sound": {
       "title": "Dźwięk",
@@ -299,11 +304,11 @@
       },
       "autostart": {
         "label": "Uruchamiaj przy starcie",
-        "description": "Automatycznie uruchamiaj Handy po zalogowaniu."
+        "description": "Automatycznie uruchamiaj TalkWTF po zalogowaniu."
       },
       "showTrayIcon": {
         "label": "Pokaż ikonę w zasobniku",
-        "description": "Wyświetlaj ikonę Handy w zasobniku systemowym."
+        "description": "Wyświetlaj ikonę TalkWTF w zasobniku systemowym."
       },
       "overlay": {
         "style": {
@@ -526,7 +531,7 @@
       },
       "updateChecks": {
         "label": "Sprawdzaj aktualizacje",
-        "description": "Automatycznie sprawdzaj nowe wersje Handy",
+        "description": "Automatycznie sprawdzaj nowe wersje TalkWTF",
         "lockedDescription": "Wyłączone przez konfigurację systemową (HANDY_DISABLE_UPDATER)"
       },
       "soundTheme": {
@@ -600,7 +605,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Diagnostyka klawiatury",
-        "description": "Sprawdza, czy zdarzenia klawiatury docierają do Handy. Zapisywana jest tylko liczba zdarzeń — nigdy to, które klawisze naciskasz.",
+        "description": "Sprawdza, czy zdarzenia klawiatury docierają do TalkWTF. Zapisywana jest tylko liczba zdarzeń — nigdy to, które klawisze naciskasz.",
         "run": "Uruchom 10-sekundową diagnostykę",
         "running": "Nasłuchiwanie… naciśnij swój skrót kilka razy (np. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -614,7 +619,7 @@
         "mouse": "Mysz",
         "verdictBlocked": "Secure Input blokuje zdarzenia klawiszy — skróty zawierające zwykły klawisz nie zadziałają, dopóki nie zostanie to rozwiązane.",
         "verdictSuspicious": "Dotarły zdarzenia modyfikatorów, ale żadnych zdarzeń klawiszy — coś tłumi klawisze, mimo że Secure Input jest zgłaszany jako wyłączony. Zgłoś to na GitHubie.",
-        "verdictOk": "Zdarzenia klawiszy docierają do Handy normalnie.",
+        "verdictOk": "Zdarzenia klawiszy docierają do TalkWTF normalnie.",
         "verdictNoEvents": "Nie przechwycono żadnych zdarzeń — czy w trakcie testu naciśnięto jakieś klawisze?",
         "failed": "Diagnostyka nie powiodła się: {{error}}"
       },
@@ -637,33 +642,15 @@
       "title": "O programie",
       "version": {
         "title": "Wersja",
-        "description": "Aktualna wersja Handy"
+        "description": "Aktualna wersja TalkWTF"
       },
       "appDataDirectory": {
         "title": "Katalog danych aplikacji",
-        "description": "Miejsce, gdzie Handy przechowuje swoje dane"
-      },
-      "sourceCode": {
-        "title": "Kod źródłowy",
-        "description": "Zobacz kod źródłowy i współtwórz",
-        "button": "Zobacz na GitHub"
-      },
-      "supportDevelopment": {
-        "title": "Wspieraj rozwój",
-        "description": "Pomóż nam dalej rozwijać Handy",
-        "button": "Wesprzyj"
-      },
-      "acknowledgments": {
-        "title": "Podziękowania",
-        "ggml": {
-          "title": "ggml",
-          "description": "Wydajne wykonywanie modelu rozpoznawania mowy Whisper od OpenAI",
-          "details": "Handy używa ggml do szybkiego, lokalnego przetwarzania mowy na tekst. Dzięki niesamowitej pracy Georgi Gerganova i współtwórców."
-        }
+        "description": "Miejsce, gdzie TalkWTF przechowuje swoje dane"
       },
       "whatsNewUpdates": {
         "label": "Pokaż nowości",
-        "description": "Pokazuj informacje o wydaniu po aktualizacjach Handy"
+        "description": "Pokazuj informacje o wydaniu po aktualizacjach TalkWTF"
       }
     },
     "dictionary": {
@@ -716,6 +703,19 @@
         "activeTitle": "Active language",
         "activeDescription": "The language the next translation will use."
       }
+    },
+    "panes": {
+      "general": "General",
+      "personalization": "Personalization",
+      "models": "Models",
+      "audio": "Audio",
+      "advanced": "Advanced",
+      "about": "About",
+      "debug": "Debug"
+    },
+    "personalization": {
+      "polish": "AI Polish",
+      "translation": "Translate"
     }
   },
   "footer": {
@@ -743,7 +743,7 @@
     "noOptionsFound": "Nie znaleziono opcji"
   },
   "accessibility": {
-    "permissionsDescription": "Handy potrzebuje uprawnień dostępności, aby wpisywać transkrybowany tekst.",
+    "permissionsDescription": "TalkWTF potrzebuje uprawnień dostępności, aby wpisywać transkrybowany tekst.",
     "openSettings": "Otwórz ustawienia systemowe"
   },
   "errors": {
@@ -766,11 +766,11 @@
   },
   "appLanguage": {
     "title": "Język aplikacji",
-    "description": "Zmień język interfejsu Handy"
+    "description": "Zmień język interfejsu TalkWTF"
   },
   "theme": {
     "title": "Motyw aplikacji",
-    "description": "Wybierz, czy Handy ma podążać za motywem systemu, czy pozostać jasny lub ciemny",
+    "description": "Wybierz, czy TalkWTF ma podążać za motywem systemu, czy pozostać jasny lub ciemny",
     "options": {
       "system": "System",
       "light": "Jasny",
@@ -794,7 +794,7 @@
     }
   },
   "whatsNew": {
-    "title": "Nowości w Handy v{{version}}"
+    "title": "Nowości w TalkWTF v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} może blokować 1 skrót",
@@ -806,5 +806,80 @@
     "learnMore": "Jak to naprawić",
     "recorderBlocked": "Nie można teraz nagrać skrótu — Secure Input w macOS blokuje zdarzenia klawiszy. Najpierw rozwiąż ostrzeżenie o Secure Input.",
     "dismiss": "Odrzuć"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "error": "Couldn't load your stats.",
+    "today": {
+      "title": "Today",
+      "recordings": "Recordings",
+      "chars": "Characters",
+      "translations": "Translations",
+      "dictationTime": "Dictation time"
+    },
+    "metrics": {
+      "title": "All time",
+      "totalRecordings": "Total recordings",
+      "dictationTime": "Total dictation time",
+      "chars": "Characters dictated",
+      "speed": "Average speed",
+      "charsPerMin": "{{value}} chars/min",
+      "timeSaved": "Time saved",
+      "translations": "Translations"
+    },
+    "weekly": {
+      "title": "Last 7 days",
+      "recordings": "{{count}} recordings"
+    },
+    "tokens": {
+      "title": "AI tokens",
+      "today": "Today",
+      "week": "Last 7 days",
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "Total",
+      "requests": "Requests",
+      "none": "No usage yet"
+    },
+    "services": {
+      "title": "Services",
+      "asr": "Speech recognition",
+      "llm": "AI polish (LLM)",
+      "polish": "AI polish",
+      "input": "Voice input",
+      "paste": "Text output",
+      "ready": "Ready",
+      "notReady": "Not ready",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "enabled": "On",
+      "disabled": "Off",
+      "none": "Not selected"
+    },
+    "personalization": {
+      "title": "Personalization",
+      "label": "Setup completeness",
+      "items": {
+        "dictionary": "Dictionary words added",
+        "scenes": "Custom scenes",
+        "translation": "Translation languages",
+        "learning": "Learn from edits",
+        "polish": "AI provider configured",
+        "style": "Custom polish style or scene",
+        "filler": "Filler-word removal",
+        "custom_filler": "Custom filler words"
+      }
+    },
+    "recent": {
+      "title": "Recent activity",
+      "empty": "No activity yet.",
+      "chars": "{{count}} chars"
+    },
+    "workflow": {
+      "dictation": "Dictation",
+      "translate": "Translate"
+    }
   }
 }

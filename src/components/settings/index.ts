@@ -9,6 +9,10 @@ export { PostProcessingSettings } from "./post-processing/PostProcessingSettings
 export { DictionarySettings } from "./dictionary/DictionarySettings";
 export { ModelsSettings } from "./models/ModelsSettings";
 export { TranslationSettings } from "./translation/TranslationSettings";
+export { AudioSettings } from "./audio/AudioSettings";
+export { PersonalizationSettings } from "./personalization/PersonalizationSettings";
+export { SettingsNav } from "./SettingsNav";
+export type { SettingsPane } from "./SettingsNav";
 
 // Individual setting components
 export { MicrophoneSelector } from "./MicrophoneSelector";

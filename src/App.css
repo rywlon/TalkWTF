@@ -13,10 +13,21 @@
   --color-mid-gray: var(--color-mid-gray);
   --color-warning: var(--color-warning);
   --color-error: var(--color-error);
+  /* Apple semantic tokens */
+  --color-accent: var(--color-accent);
+  --color-secondary-label: var(--color-secondary-label);
+  --color-tertiary-label: var(--color-tertiary-label);
+  --color-separator: var(--color-separator);
+  --color-fill: var(--color-fill);
 }
 
 :root {
-  /* Typography */
+  /* Typography — system font stack (SF Pro on macOS, PingFang SC for Chinese).
+     No third-party font is bundled. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
   font-size: 15px;
   line-height: 24px;
   font-weight: 400;

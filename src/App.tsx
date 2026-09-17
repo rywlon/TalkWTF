@@ -20,11 +20,21 @@ import SecureInputWarning from "./components/SecureInputWarning";
 import Footer from "./components/footer";
 import Onboarding, { AccessibilityOnboarding } from "./components/onboarding";
 import {
+  AboutSettings,
+  AdvancedSettings,
+  AudioSettings,
   DebugSettings,
+  GeneralSettings,
+  ModelsSettings,
+  PersonalizationSettings,
+  SettingsNav,
   type OnboardingPreviewStep,
+  type SettingsPane,
 } from "./components/settings";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
+import { Sidebar, type SidebarSection } from "./components/Sidebar";
+import { Library } from "./components/library/Library";
+import { Dashboard } from "./components/dashboard/Dashboard";
 import { WhatsNewGate } from "./components/whats-new";
 import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
@@ -36,17 +46,28 @@ type OnboardingStep = "accessibility" | "model" | "done";
 // Stable identity so preview effects do not re-run due to callback changes.
 const NOOP = () => {};
 
-const renderSettingsContent = (
-  section: SidebarSection,
+const renderSettingsPane = (
+  pane: SettingsPane,
   onPreviewOnboarding: (step: OnboardingPreviewStep) => void,
 ) => {
-  if (section === "debug") {
-    return <DebugSettings onPreviewOnboarding={onPreviewOnboarding} />;
+  switch (pane) {
+    case "general":
+      return <GeneralSettings />;
+    case "personalization":
+      return <PersonalizationSettings />;
+    case "models":
+      return <ModelsSettings />;
+    case "audio":
+      return <AudioSettings />;
+    case "advanced":
+      return <AdvancedSettings />;
+    case "about":
+      return <AboutSettings />;
+    case "debug":
+      return <DebugSettings onPreviewOnboarding={onPreviewOnboarding} />;
+    default:
+      return <GeneralSettings />;
   }
-
-  const ActiveComponent =
-    SECTIONS_CONFIG[section]?.component || SECTIONS_CONFIG.general.component;
-  return <ActiveComponent />;
 };
 
 function App() {
@@ -60,7 +81,8 @@ function App() {
   // (vs a new user who needs full onboarding including model selection)
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [currentSection, setCurrentSection] =
-    useState<SidebarSection>("general");
+    useState<SidebarSection>("dashboard");
+  const [settingsPane, setSettingsPane] = useState<SettingsPane>("general");
   const { settings, updateSetting } = useSettings();
   const direction = getLanguageDirection(i18n.language);
   const refreshAudioDevices = useSettingsStore(
@@ -358,13 +380,19 @@ function App() {
             activeSection={currentSection}
             onSectionChange={setCurrentSection}
           />
+          {currentSection === "settings" && (
+            <SettingsNav pane={settingsPane} onPaneChange={setSettingsPane} />
+          )}
           {/* Scrollable content area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto">
               <div className="flex flex-col items-center p-4 gap-4">
                 <AccessibilityPermissions />
                 <SecureInputWarning />
-                {renderSettingsContent(currentSection, setOnboardingPreview)}
+                {currentSection === "dashboard" && <Dashboard />}
+                {currentSection === "library" && <Library />}
+                {currentSection === "settings" &&
+                  renderSettingsPane(settingsPane, setOnboardingPreview)}
               </div>
             </div>
           </div>

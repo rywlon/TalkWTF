@@ -37,6 +37,28 @@ pub(crate) enum ProcessingMode {
     Translate,
 }
 
+/// The recording pipeline always feeds 16 kHz mono samples to the engine.
+const RECORDING_SAMPLE_RATE: i64 = 16_000;
+
+/// Recording length in milliseconds from the captured sample count.
+fn samples_duration_ms(sample_count: usize) -> i64 {
+    (sample_count as i64) * 1000 / RECORDING_SAMPLE_RATE
+}
+
+/// Characters in the raw transcription, whitespace trimmed. CJK counts per
+/// character, which is what "字数" means for this app's primary language.
+fn char_count(text: &str) -> i64 {
+    text.trim().chars().count() as i64
+}
+
+/// The workflow id stored in history, matching the binding ids.
+fn workflow_id(mode: ProcessingMode) -> &'static str {
+    match mode {
+        ProcessingMode::Polish => "dictation",
+        ProcessingMode::Translate => "translate",
+    }
+}
+
 /// The transcript + target of the most recent failed translation, kept in a
 /// single slot so the overlay's retry button can re-run it. Only the latest
 /// failure is retryable (same single-slot trade-off as the dictionary undo).
@@ -285,6 +307,7 @@ fn should_use_streaming_overlay(style: OverlayStyle, is_streaming: bool) -> bool
 }
 
 async fn post_process_transcription(
+    app: &AppHandle,
     settings: &AppSettings,
     transcription: &str,
     dictionary: &DictionarySnapshot,
@@ -443,9 +466,10 @@ async fn post_process_transcription(
         )
         .await
         {
-            Ok(Some(content)) => {
+            Ok(Some(completion)) => {
+                record_llm_usage(app, &provider.id, &model, mode, completion.usage);
                 // Parse the JSON response to extract the transcription field
-                let content = strip_think_block(&content);
+                let content = strip_think_block(&completion.content);
                 match serde_json::from_str::<serde_json::Value>(content) {
                     Ok(json) => {
                         if let Some(transcription_value) =
@@ -501,8 +525,9 @@ async fn post_process_transcription(
     )
     .await
     {
-        Ok(Some(content)) => {
-            let content = strip_invisible_chars(strip_think_block(&content));
+        Ok(Some(completion)) => {
+            record_llm_usage(app, &provider.id, &model, mode, completion.usage);
+            let content = strip_invisible_chars(strip_think_block(&completion.content));
             debug!(
                 "LLM post-processing succeeded for provider '{}'. Output length: {} chars",
                 provider.id,
@@ -522,6 +547,26 @@ async fn post_process_transcription(
             );
             None
         }
+    }
+}
+
+/// Persist the token spend reported by an LLM call, for the dashboard. Providers
+/// that don't report usage record nothing.
+fn record_llm_usage(
+    app: &AppHandle,
+    provider_id: &str,
+    model: &str,
+    mode: ProcessingMode,
+    usage: Option<crate::llm_client::Usage>,
+) {
+    let Some(usage) = usage else {
+        return;
+    };
+    let Some(history) = app.try_state::<Arc<HistoryManager>>() else {
+        return;
+    };
+    if let Err(e) = history.record_llm_usage(provider_id, model, workflow_id(mode), usage) {
+        warn!("Failed to record LLM token usage: {e}");
     }
 }
 
@@ -628,7 +673,7 @@ pub(crate) async fn process_transcription_output(
         final_text = converted_text;
     }
 
-    match post_process_transcription(&settings, &final_text, &dictionary, mode).await {
+    match post_process_transcription(app, &settings, &final_text, &dictionary, mode).await {
         Some(processed_text) => {
             post_processed_text = Some(processed_text.clone());
             final_text = processed_text;
@@ -1033,6 +1078,9 @@ impl ShortcutAction for TranscribeAction {
                                     true,
                                     processed.post_processed_text.clone(),
                                     processed.post_process_prompt.clone(),
+                                    samples_duration_ms(sample_count),
+                                    char_count(&transcription),
+                                    workflow_id(mode),
                                 ) {
                                     error!("Failed to save history entry: {}", err);
                                 }
@@ -1110,9 +1158,16 @@ impl ShortcutAction for TranscribeAction {
                             let _ = ah.emit("transcription-error", err.to_string());
                             // Save entry with empty text so user can retry
                             if wav_saved {
-                                if let Err(save_err) =
-                                    hm.save_entry(file_name, String::new(), true, None, None)
-                                {
+                                if let Err(save_err) = hm.save_entry(
+                                    file_name,
+                                    String::new(),
+                                    true,
+                                    None,
+                                    None,
+                                    samples_duration_ms(sample_count),
+                                    0,
+                                    workflow_id(mode),
+                                ) {
                                     error!("Failed to save failed history entry: {}", save_err);
                                 }
                             }

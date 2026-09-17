@@ -1,50 +1,95 @@
-/* Handy Colors */
+/* TalkWTF palette — Apple-native semantic colors.
+ *
+ * Token NAMES are kept from Handy so the existing Tailwind utilities
+ * (`bg-background`, `text-text`, `border-mid-gray/20`, `bg-logo-primary`, …)
+ * keep working; only their values change. `--color-logo-primary` is now the
+ * system accent, not a brand pink.
+ *
+ * `data-theme` (system/light/dark) is set by src/lib/utils/theme.ts; a macOS
+ * window additionally swaps the opaque background for a translucent material so
+ * the native vibrancy set in src-tauri/src/lib.rs shows through.
+ */
 
 :root {
-  /* Palette source of truth. Each themed color is defined once as a
-     light/dark pair; the active tokens below and the `data-theme` overrides
-     in App.css reference these, so a hex value lives in exactly one place. */
-  --light-color-text: #0f0f0f;
-  --light-color-background: #fbfbfb;
-  --light-color-logo-primary: #faa2ca;
-  --light-color-logo-stroke: #382731;
+  /* ---- Light (Apple HIG) ---- */
+  --light-color-text: #1d1d1f; /* label */
+  --light-color-secondary-label: #6e6e73; /* secondaryLabel */
+  --light-color-tertiary-label: #aeaeb2; /* tertiaryLabel */
+  --light-color-background: #f5f5f7; /* windowBackgroundColor */
+  --light-color-background-material: color-mix(
+    in srgb,
+    #f5f5f7 74%,
+    transparent
+  );
+  --light-color-logo-primary: #007aff; /* systemBlue */
+  --light-color-logo-stroke: #1d1d1f;
+  --light-color-separator: color-mix(in srgb, #000000 12%, transparent);
+  --light-color-fill: color-mix(in srgb, #000000 6%, transparent);
+  --light-color-warning: #b25000; /* systemOrange, darkened for contrast */
+  --light-color-error: #d70015; /* systemRed */
 
-  --dark-color-text: #fbfbfb;
-  --dark-color-background: #2c2b29;
-  --dark-color-logo-primary: #f28cbb;
-  --dark-color-logo-stroke: #fad1ed;
+  /* ---- Dark (Apple HIG) ---- */
+  --dark-color-text: #f5f5f7;
+  --dark-color-secondary-label: #aeaeb2;
+  --dark-color-tertiary-label: #636366;
+  --dark-color-background: #1e1e1e;
+  --dark-color-background-material: color-mix(
+    in srgb,
+    #1e1e1e 62%,
+    transparent
+  );
+  --dark-color-logo-primary: #0a84ff;
+  --dark-color-logo-stroke: #f5f5f7;
+  --dark-color-separator: color-mix(in srgb, #ffffff 14%, transparent);
+  --dark-color-fill: color-mix(in srgb, #ffffff 10%, transparent);
+  --dark-color-warning: #ffd60a;
+  --dark-color-error: #ff453a;
 
-  /* Semantic status colors. First used by SecureInputWarning; intended to
-     replace the ad-hoc yellow-500/red-500 usages (e.g. ui/Alert.tsx) over
-     time so status styling is themeable from one place. */
-  --light-color-warning: #d97706;
-  --light-color-error: #dc2626;
-  --dark-color-warning: #fbbf24;
-  --dark-color-error: #f87171;
+  /* ---- Mid gray, themed ---- */
+  --light-color-mid-gray: #8e8e93;
+  --dark-color-mid-gray: #98989d;
 
-  /* Tokens that do not change between light and dark */
-  --color-background-ui: #da5893;
+  /* ---- Theme-independent ---- */
   --color-text-stroke: #f6f6f6;
-  --color-mid-gray: #808080;
 
   /* Active palette — defaults to light, follows the OS via the media query
-     below, or is forced by `data-theme` (see the overrides below). */
+     below, or is forced by `data-theme` (see the overrides). */
   --color-text: var(--light-color-text);
+  --color-secondary-label: var(--light-color-secondary-label);
+  --color-tertiary-label: var(--light-color-tertiary-label);
   --color-background: var(--light-color-background);
+  --color-background-material: var(--light-color-background-material);
   --color-logo-primary: var(--light-color-logo-primary);
   --color-logo-stroke: var(--light-color-logo-stroke);
+  --color-separator: var(--light-color-separator);
+  --color-fill: var(--light-color-fill);
+  --color-mid-gray: var(--light-color-mid-gray);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
+
+  /* The accent follows the OS accent color; JS overrides it at startup with the
+     value read from NSColor.controlAccentColor (see theme.ts). These are the
+     fallbacks (macOS system blue). */
+  --color-accent: var(--light-color-logo-primary);
+  --color-background-ui: var(--light-color-logo-primary);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --color-text: var(--dark-color-text);
+    --color-secondary-label: var(--dark-color-secondary-label);
+    --color-tertiary-label: var(--dark-color-tertiary-label);
     --color-background: var(--dark-color-background);
+    --color-background-material: var(--dark-color-background-material);
     --color-logo-primary: var(--dark-color-logo-primary);
     --color-logo-stroke: var(--dark-color-logo-stroke);
+    --color-separator: var(--dark-color-separator);
+    --color-fill: var(--dark-color-fill);
+    --color-mid-gray: var(--dark-color-mid-gray);
     --color-warning: var(--dark-color-warning);
     --color-error: var(--dark-color-error);
+    --color-accent: var(--dark-color-logo-primary);
+    --color-background-ui: var(--dark-color-logo-primary);
   }
 }
 
@@ -52,26 +97,51 @@
  * Explicit theme override, driven by the `theme` setting via
  * `document.documentElement.dataset.theme`. When set, the higher-specificity
  * attribute selectors win over the `prefers-color-scheme` media query above,
- * so a user can keep Handy light or dark regardless of the OS setting.
+ * so a user can keep TalkWTF light or dark regardless of the OS setting.
  * `system` (or no attribute) leaves the OS in charge.
- *
- * Lives here (not in App.css) so every window that imports the shared palette —
- * the settings window and the recording overlay alike — honours the override.
  */
 :root[data-theme="light"] {
   --color-text: var(--light-color-text);
+  --color-secondary-label: var(--light-color-secondary-label);
+  --color-tertiary-label: var(--light-color-tertiary-label);
   --color-background: var(--light-color-background);
+  --color-background-material: var(--light-color-background-material);
   --color-logo-primary: var(--light-color-logo-primary);
   --color-logo-stroke: var(--light-color-logo-stroke);
+  --color-separator: var(--light-color-separator);
+  --color-fill: var(--light-color-fill);
+  --color-mid-gray: var(--light-color-mid-gray);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
+  --color-accent: var(--light-color-logo-primary);
+  --color-background-ui: var(--light-color-logo-primary);
 }
 
 :root[data-theme="dark"] {
   --color-text: var(--dark-color-text);
+  --color-secondary-label: var(--dark-color-secondary-label);
+  --color-tertiary-label: var(--dark-color-tertiary-label);
   --color-background: var(--dark-color-background);
+  --color-background-material: var(--dark-color-background-material);
   --color-logo-primary: var(--dark-color-logo-primary);
   --color-logo-stroke: var(--dark-color-logo-stroke);
+  --color-separator: var(--dark-color-separator);
+  --color-fill: var(--dark-color-fill);
+  --color-mid-gray: var(--dark-color-mid-gray);
   --color-warning: var(--dark-color-warning);
   --color-error: var(--dark-color-error);
+  --color-accent: var(--dark-color-logo-primary);
+  --color-background-ui: var(--dark-color-logo-primary);
+}
+
+/*
+ * macOS: the main window is a vibrancy material (set in src-tauri/src/lib.rs),
+ * so the webview must leave it visible. Swap the opaque window background for
+ * the translucent material. Other platforms keep the solid color.
+ *
+ * Must come after the `data-theme` overrides: same specificity, later wins, and
+ * `--color-background-material` is itself theme-aware.
+ */
+:root[data-platform="macos"] {
+  --color-background: var(--color-background-material);
 }

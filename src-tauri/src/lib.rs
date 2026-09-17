@@ -738,6 +738,7 @@ pub fn run(cli_args: CliArgs) {
             commands::open_log_dir,
             commands::open_app_data_dir,
             commands::check_apple_intelligence_available,
+            commands::get_system_accent_color,
             commands::initialize_enigo,
             commands::initialize_shortcuts,
             commands::models::get_available_models,
@@ -775,6 +776,7 @@ pub fn run(cli_args: CliArgs) {
             commands::polish_profile::export_polish_profile,
             commands::polish_profile::import_polish_profile,
             commands::translation::retry_last_translation,
+            commands::dashboard::get_dashboard_stats,
             commands::dictionary::get_dictionary,
             commands::dictionary::get_dictionary_limits,
             commands::dictionary::undo_last_dictionary_learning,
@@ -985,12 +987,28 @@ pub fn run(cli_args: CliArgs) {
             // for portable mode (redirects WebView2 cache to portable Data dir)
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
-                    .title("Handy")
+                    .title("TalkWTF")
                     .inner_size(680.0, 570.0)
                     .min_inner_size(680.0, 570.0)
                     .resizable(true)
                     .maximizable(true)
                     .visible(false);
+
+            // macOS: give the window a translucent material behind the webview
+            // so the app reads like a native window. The webview background is
+            // made transparent in CSS (`:root[data-platform="macos"]`). Other
+            // platforms keep the solid background.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::window::{Effect, EffectState};
+                use tauri::utils::config::WindowEffectsConfig;
+                win_builder = win_builder.transparent(true).effects(WindowEffectsConfig {
+                    effects: vec![Effect::UnderWindowBackground],
+                    state: Some(EffectState::FollowsWindowActiveState),
+                    radius: Some(12.0),
+                    color: None,
+                });
+            }
 
             if let Some(data_dir) = portable::data_dir() {
                 win_builder = win_builder.data_directory(data_dir.join("webview"));

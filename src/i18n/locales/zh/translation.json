@@ -18,7 +18,10 @@
     "debug": "调试",
     "about": "关于",
     "dictionary": "词典",
-    "translation": "翻译"
+    "translation": "翻译",
+    "dashboard": "概览",
+    "library": "资料库",
+    "settings": "设置"
   },
   "onboarding": {
     "subtitle": "请选择一个转录模型以开始使用",
@@ -103,7 +106,7 @@
     },
     "permissions": {
       "title": "需要权限",
-      "description": "Handy 需要一些权限才能正常工作。",
+      "description": "TalkWTF 需要一些权限才能正常工作。",
       "microphone": {
         "title": "麦克风访问",
         "description": "需要听取您的语音进行转录。"
@@ -177,13 +180,13 @@
       "searchPlaceholder": "按名称搜索模型…",
       "rescan": {
         "label": "重新扫描",
-        "tooltip": "重新扫描在 Handy 之外添加到模型文件夹或 Hugging Face 缓存中的模型"
+        "tooltip": "重新扫描在 TalkWTF 之外添加到模型文件夹或 Hugging Face 缓存中的模型"
       }
     },
     "general": {
       "title": "通用",
       "shortcut": {
-        "title": "Handy 快捷键",
+        "title": "TalkWTF 快捷键",
         "description": "配置启动语音转文字录制的键盘快捷键",
         "loading": "加载快捷键中...",
         "none": "未配置快捷键",
@@ -233,7 +236,9 @@
           "push_to_talk": "按住快捷键期间录音",
           "toggle": "轻按快捷键开始录音，再次轻按停止"
         }
-      }
+      },
+      "shortcutsGroup": "快捷键",
+      "behaviorGroup": "行为"
     },
     "sound": {
       "title": "声音",
@@ -299,11 +304,11 @@
       },
       "autostart": {
         "label": "开机启动",
-        "description": "登录计算机时自动启动 Handy。"
+        "description": "登录计算机时自动启动 TalkWTF。"
       },
       "showTrayIcon": {
         "label": "显示托盘图标",
-        "description": "在系统托盘中显示 Handy 图标。"
+        "description": "在系统托盘中显示 TalkWTF 图标。"
       },
       "overlay": {
         "style": {
@@ -526,7 +531,7 @@
       },
       "updateChecks": {
         "label": "检查更新",
-        "description": "自动检查 Handy 的新版本",
+        "description": "自动检查 TalkWTF 的新版本",
         "lockedDescription": "已被系统配置禁用 (HANDY_DISABLE_UPDATER)"
       },
       "soundTheme": {
@@ -600,7 +605,7 @@
       },
       "keyboardDiagnostic": {
         "title": "键盘诊断",
-        "description": "检查键盘事件是否能到达 Handy。仅记录事件数量，绝不记录您按了哪些键。",
+        "description": "检查键盘事件是否能到达 TalkWTF。仅记录事件数量，绝不记录您按了哪些键。",
         "run": "运行 10 秒诊断",
         "running": "正在监听… 请按几次您的快捷键（例如 Option+Space）",
         "secureInputLabel": "Secure Input",
@@ -614,7 +619,7 @@
         "mouse": "鼠标",
         "verdictBlocked": "Secure Input 正在阻止按键事件——在问题解决前，包含普通按键的快捷键无法工作。",
         "verdictSuspicious": "收到了修饰键事件，但没有按键事件——尽管 Secure Input 报告为已禁用，仍有程序在抑制按键。请在 GitHub 上反馈此问题。",
-        "verdictOk": "按键事件正常到达 Handy。",
+        "verdictOk": "按键事件正常到达 TalkWTF。",
         "verdictNoEvents": "未捕获到任何事件——测试期间您按过键吗？",
         "failed": "诊断失败：{{error}}"
       },
@@ -637,33 +642,15 @@
       "title": "关于",
       "version": {
         "title": "版本",
-        "description": "Handy 的当前版本"
+        "description": "TalkWTF 的当前版本"
       },
       "appDataDirectory": {
         "title": "应用数据目录",
-        "description": "Handy 存储数据的位置"
-      },
-      "sourceCode": {
-        "title": "源代码",
-        "description": "查看源代码并贡献",
-        "button": "在 GitHub 上查看"
-      },
-      "supportDevelopment": {
-        "title": "支持开发",
-        "description": "帮助我们继续开发 Handy",
-        "button": "捐赠"
-      },
-      "acknowledgments": {
-        "title": "致谢",
-        "ggml": {
-          "title": "ggml",
-          "description": "OpenAI Whisper 自动语音识别模型的高性能推理",
-          "details": "Handy 使用 ggml 进行快速的本地语音转文字处理。感谢 Georgi Gerganov 和贡献者们的出色工作。"
-        }
+        "description": "TalkWTF 存储数据的位置"
       },
       "whatsNewUpdates": {
         "label": "显示新功能",
-        "description": "Handy 更新后显示发行说明"
+        "description": "TalkWTF 更新后显示发行说明"
       }
     },
     "dictionary": {
@@ -716,6 +703,19 @@
         "activeTitle": "当前语言",
         "activeDescription": "下一次翻译使用的语言。"
       }
+    },
+    "panes": {
+      "general": "通用",
+      "personalization": "个性化",
+      "models": "模型",
+      "audio": "声音",
+      "advanced": "高级",
+      "about": "关于",
+      "debug": "调试"
+    },
+    "personalization": {
+      "polish": "AI 润色",
+      "translation": "翻译"
     }
   },
   "footer": {
@@ -743,7 +743,7 @@
     "noOptionsFound": "未找到选项"
   },
   "accessibility": {
-    "permissionsDescription": "Handy 需要辅助功能权限才能输入转录的文字。",
+    "permissionsDescription": "TalkWTF 需要辅助功能权限才能输入转录的文字。",
     "openSettings": "打开系统设置"
   },
   "errors": {
@@ -766,11 +766,11 @@
   },
   "appLanguage": {
     "title": "应用语言",
-    "description": "更改 Handy 界面的语言"
+    "description": "更改 TalkWTF 界面的语言"
   },
   "theme": {
     "title": "应用主题",
-    "description": "选择 Handy 跟随系统主题，还是保持浅色或深色",
+    "description": "选择 TalkWTF 跟随系统主题，还是保持浅色或深色",
     "options": {
       "system": "跟随系统",
       "light": "浅色",
@@ -794,7 +794,7 @@
     }
   },
   "whatsNew": {
-    "title": "Handy v{{version}} 新功能"
+    "title": "TalkWTF v{{version}} 新功能"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} 可能正在阻止 1 个快捷键",
@@ -806,5 +806,80 @@
     "learnMore": "如何解决",
     "recorderBlocked": "当前无法录制快捷键——macOS 的 Secure Input 正在阻止按键事件。请先解决 Secure Input 警告。",
     "dismiss": "关闭"
+  },
+  "dashboard": {
+    "title": "概览",
+    "refresh": "刷新",
+    "loading": "加载中…",
+    "error": "无法加载统计数据。",
+    "today": {
+      "title": "今日",
+      "recordings": "录音次数",
+      "chars": "字数",
+      "translations": "翻译次数",
+      "dictationTime": "口述时长"
+    },
+    "metrics": {
+      "title": "累计",
+      "totalRecordings": "总录音数",
+      "dictationTime": "总口述时间",
+      "chars": "口述字数",
+      "speed": "平均口述速度",
+      "charsPerMin": "{{value}} 字/分",
+      "timeSaved": "节省时间",
+      "translations": "翻译次数"
+    },
+    "weekly": {
+      "title": "近 7 天",
+      "recordings": "{{count}} 次录音"
+    },
+    "tokens": {
+      "title": "AI Token 用量",
+      "today": "今日",
+      "week": "近 7 天",
+      "prompt": "输入",
+      "completion": "输出",
+      "total": "合计",
+      "requests": "请求数",
+      "none": "暂无用量"
+    },
+    "services": {
+      "title": "服务状态",
+      "asr": "语音识别",
+      "llm": "AI 润色（LLM）",
+      "polish": "AI 润色",
+      "input": "语音输入",
+      "paste": "文字写入",
+      "ready": "已就绪",
+      "notReady": "未就绪",
+      "configured": "已配置",
+      "notConfigured": "未配置",
+      "enabled": "已开启",
+      "disabled": "已关闭",
+      "none": "未选择"
+    },
+    "personalization": {
+      "title": "个性化",
+      "label": "个性化程度",
+      "items": {
+        "dictionary": "已添加词典词汇",
+        "scenes": "自定义场景",
+        "translation": "翻译目标语言",
+        "learning": "自动学词",
+        "polish": "已配置 AI 服务商",
+        "style": "自定义润色风格或场景",
+        "filler": "移除语气词",
+        "custom_filler": "自定义语气词"
+      }
+    },
+    "recent": {
+      "title": "最近活动",
+      "empty": "还没有活动。",
+      "chars": "{{count}} 字"
+    },
+    "workflow": {
+      "dictation": "听写",
+      "translate": "翻译"
+    }
   }
 }

@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod dashboard;
 pub mod dictionary;
 pub mod history;
 pub mod models;
@@ -170,6 +171,45 @@ pub fn initialize_enigo(app: AppHandle) -> Result<(), String> {
             Err(format!("Failed to initialize input system: {}", e))
         }
     }
+}
+
+/// The macOS system accent color as `#rrggbb`, so the UI can follow the OS
+/// accent instead of hard-coding a brand color. Returns an empty string when
+/// unavailable (non-macOS); the frontend then keeps its CSS fallback.
+#[tauri::command]
+#[specta::specta]
+pub fn get_system_accent_color() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        macos_accent_hex().unwrap_or_default()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        String::new()
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_accent_hex() -> Option<String> {
+    use objc2_app_kit::{NSColor, NSColorSpace};
+
+    let color = NSColor::controlAccentColor();
+    let srgb = color.colorUsingColorSpace(&NSColorSpace::sRGBColorSpace())?;
+
+    let mut red = 0.0_f64;
+    let mut green = 0.0_f64;
+    let mut blue = 0.0_f64;
+    let mut alpha = 0.0_f64;
+    unsafe {
+        srgb.getRed_green_blue_alpha(&mut red, &mut green, &mut blue, &mut alpha);
+    }
+
+    Some(format!(
+        "#{:02x}{:02x}{:02x}",
+        (red.clamp(0.0, 1.0) * 255.0).round() as u8,
+        (green.clamp(0.0, 1.0) * 255.0).round() as u8,
+        (blue.clamp(0.0, 1.0) * 255.0).round() as u8
+    ))
 }
 
 /// Marker state to track if shortcuts have been initialized.

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local, Utc};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use rusqlite::{params, Connection, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 use serde::{Deserialize, Serialize};
@@ -31,6 +31,35 @@ static MIGRATIONS: &[M] = &[
     M::up("ALTER TABLE transcription_history ADD COLUMN post_processed_text TEXT;"),
     M::up("ALTER TABLE transcription_history ADD COLUMN post_process_prompt TEXT;"),
     M::up("ALTER TABLE transcription_history ADD COLUMN post_process_requested BOOLEAN NOT NULL DEFAULT 0;"),
+    // Dashboard metrics. `duration_ms`/`char_count` are captured at save time
+    // (the WAV is 16 kHz mono, so duration is samples/16); `workflow` records
+    // which pipeline produced the entry ("dictation" | "translate").
+    M::up("ALTER TABLE transcription_history ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0;"),
+    M::up("ALTER TABLE transcription_history ADD COLUMN char_count INTEGER NOT NULL DEFAULT 0;"),
+    M::up("ALTER TABLE transcription_history ADD COLUMN workflow TEXT NOT NULL DEFAULT 'dictation';"),
+    // Per-request LLM token usage, for the dashboard's today / last-7-days view.
+    M::up(
+        "CREATE TABLE IF NOT EXISTS llm_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp INTEGER NOT NULL,
+            provider_id TEXT NOT NULL,
+            model TEXT NOT NULL,
+            workflow TEXT NOT NULL,
+            prompt_tokens INTEGER NOT NULL DEFAULT 0,
+            completion_tokens INTEGER NOT NULL DEFAULT 0,
+            total_tokens INTEGER NOT NULL DEFAULT 0
+        );",
+    ),
+    // Backfill character counts for entries written before the column existed.
+    // `length()` on TEXT counts characters (not bytes), which is what 字数 means.
+    //
+    // NOTE: this is migration #9. An earlier build briefly inserted it before
+    // the `llm_usage` migration, which advanced some databases' `user_version`
+    // past this slot without running it. Those databases get the same backfill
+    // from `HistoryManager::backfill_derived_columns`, which runs at startup and
+    // is idempotent; this migration covers fresh installs. Never insert
+    // migrations anywhere but the end.
+    M::up("UPDATE transcription_history SET char_count = length(trim(transcription_text)) WHERE char_count = 0;"),
 ];
 
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
@@ -63,6 +92,74 @@ pub struct HistoryEntry {
     pub post_processed_text: Option<String>,
     pub post_process_prompt: Option<String>,
     pub post_process_requested: bool,
+    /// Recording length in milliseconds (WAV is 16 kHz mono).
+    #[serde(default)]
+    pub duration_ms: i64,
+    /// Characters in the raw transcription, whitespace trimmed.
+    #[serde(default)]
+    pub char_count: i64,
+    /// Which pipeline produced this entry: "dictation" or "translate".
+    #[serde(default = "default_workflow")]
+    pub workflow: String,
+}
+
+fn default_workflow() -> String {
+    "dictation".to_string()
+}
+
+/// How many recent activities the dashboard lists.
+const RECENT_ACTIVITY_LIMIT: i64 = 10;
+
+/// A one-line preview of an entry for the activity list.
+fn preview_of(text: &str) -> String {
+    let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut preview: String = collapsed.chars().take(80).collect();
+    if collapsed.chars().count() > 80 {
+        preview.push('…');
+    }
+    preview
+}
+
+/// Aggregated dashboard metrics. Plain Rust (the command maps it to the
+/// serialized shape) so the SQL stays in one place.
+#[derive(Debug, Default, Clone)]
+pub struct HistoryStats {
+    pub total_recordings: u64,
+    pub total_dictation_ms: u64,
+    pub total_chars: u64,
+    pub translation_count: u64,
+    pub today_recordings: u64,
+    pub today_translations: u64,
+    pub today_dictation_ms: u64,
+    pub today_chars: u64,
+    pub recent: Vec<RecentActivity>,
+    /// Last 7 local days, oldest first.
+    pub weekly: Vec<DailyCount>,
+    pub tokens_today: TokenUsage,
+    pub tokens_week: TokenUsage,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecentActivity {
+    pub id: i64,
+    pub timestamp: i64,
+    pub workflow: String,
+    pub char_count: i64,
+    pub preview: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DailyCount {
+    pub day: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct TokenUsage {
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub total_tokens: u64,
+    pub requests: u64,
 }
 
 pub struct HistoryManager {
@@ -93,7 +190,66 @@ impl HistoryManager {
         // Initialize database and run migrations synchronously
         manager.init_database()?;
 
+        // Best-effort backfill of the dashboard columns for rows written before
+        // they existed. Idempotent: only rows still at zero are touched.
+        if let Err(e) = manager.backfill_derived_columns() {
+            warn!("Failed to backfill history metrics: {e}");
+        }
+
         Ok(manager)
+    }
+
+    /// Fill `char_count` from the stored text and `duration_ms` from the WAV
+    /// (16 kHz mono). Entries whose WAV is gone keep duration 0. Runs at startup;
+    /// rows already populated are skipped.
+    fn backfill_derived_columns(&self) -> Result<()> {
+        let conn = self.get_connection()?;
+
+        // `length()` on TEXT counts characters (not bytes), matching 字数.
+        let chars_updated = conn.execute(
+            "UPDATE transcription_history
+             SET char_count = length(trim(transcription_text))
+             WHERE char_count = 0 AND trim(transcription_text) != ''",
+            [],
+        )?;
+
+        let rows: Vec<(i64, String)> = {
+            let mut stmt = conn.prepare(
+                "SELECT id, file_name FROM transcription_history
+                 WHERE duration_ms = 0 AND file_name != ''",
+            )?;
+            let mapped = stmt
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            mapped
+        };
+
+        let mut durations_updated = 0;
+        for (id, file_name) in rows {
+            let path = self.recordings_dir.join(&file_name);
+            if !path.exists() {
+                continue;
+            }
+            let Ok(samples) = crate::audio_toolkit::read_wav_samples(&path) else {
+                continue;
+            };
+            if samples.is_empty() {
+                continue;
+            }
+            let duration_ms = (samples.len() as i64) * 1000 / 16_000;
+            conn.execute(
+                "UPDATE transcription_history SET duration_ms = ?1 WHERE id = ?2",
+                params![duration_ms, id],
+            )?;
+            durations_updated += 1;
+        }
+
+        if chars_updated > 0 || durations_updated > 0 {
+            info!(
+                "Backfilled history metrics: {chars_updated} char counts, {durations_updated} durations"
+            );
+        }
+        Ok(())
     }
 
     fn init_database(&self) -> Result<()> {
@@ -207,6 +363,9 @@ impl HistoryManager {
             post_processed_text: row.get("post_processed_text")?,
             post_process_prompt: row.get("post_process_prompt")?,
             post_process_requested: row.get("post_process_requested")?,
+            duration_ms: row.get("duration_ms")?,
+            char_count: row.get("char_count")?,
+            workflow: row.get("workflow")?,
         })
     }
 
@@ -216,6 +375,7 @@ impl HistoryManager {
 
     /// Save a new history entry to the database.
     /// The WAV file should already have been written to the recordings directory.
+    #[allow(clippy::too_many_arguments)]
     pub fn save_entry(
         &self,
         file_name: String,
@@ -223,6 +383,9 @@ impl HistoryManager {
         post_process_requested: bool,
         post_processed_text: Option<String>,
         post_process_prompt: Option<String>,
+        duration_ms: i64,
+        char_count: i64,
+        workflow: &str,
     ) -> Result<HistoryEntry> {
         let timestamp = Utc::now().timestamp();
         let title = self.format_timestamp_title(timestamp);
@@ -237,8 +400,11 @@ impl HistoryManager {
                 transcription_text,
                 post_processed_text,
                 post_process_prompt,
-                post_process_requested
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                post_process_requested,
+                duration_ms,
+                char_count,
+                workflow
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 &file_name,
                 timestamp,
@@ -248,6 +414,9 @@ impl HistoryManager {
                 &post_processed_text,
                 &post_process_prompt,
                 post_process_requested,
+                duration_ms,
+                char_count,
+                workflow,
             ],
         )?;
 
@@ -261,6 +430,9 @@ impl HistoryManager {
             post_processed_text,
             post_process_prompt,
             post_process_requested,
+            duration_ms,
+            char_count,
+            workflow: workflow.to_string(),
         };
 
         debug!("Saved history entry with id {}", entry.id);
@@ -277,6 +449,156 @@ impl HistoryManager {
         }
 
         Ok(entry)
+    }
+
+    /// Record the token spend of one LLM request, for the dashboard.
+    pub fn record_llm_usage(
+        &self,
+        provider_id: &str,
+        model: &str,
+        workflow: &str,
+        usage: crate::llm_client::Usage,
+    ) -> Result<()> {
+        let conn = self.get_connection()?;
+        conn.execute(
+            "INSERT INTO llm_usage (
+                timestamp, provider_id, model, workflow,
+                prompt_tokens, completion_tokens, total_tokens
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                Utc::now().timestamp(),
+                provider_id,
+                model,
+                workflow,
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// All aggregates the dashboard needs, in a few queries. Day boundaries use
+    /// the machine's local timezone (via SQLite's `localtime`).
+    pub fn stats_snapshot(&self) -> Result<HistoryStats> {
+        let conn = self.get_connection()?;
+        let mut stats = HistoryStats::default();
+
+        let (total_recordings, total_dictation_ms, total_chars, translation_count): (
+            i64,
+            i64,
+            i64,
+            i64,
+        ) = conn.query_row(
+            "SELECT COUNT(*),
+                    COALESCE(SUM(duration_ms), 0),
+                    COALESCE(SUM(char_count), 0),
+                    COALESCE(SUM(CASE WHEN workflow = 'translate' THEN 1 ELSE 0 END), 0)
+             FROM transcription_history",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )?;
+        stats.total_recordings = total_recordings.max(0) as u64;
+        stats.total_dictation_ms = total_dictation_ms.max(0) as u64;
+        stats.total_chars = total_chars.max(0) as u64;
+        stats.translation_count = translation_count.max(0) as u64;
+
+        let today_start: i64 = conn.query_row(
+            "SELECT CAST(strftime('%s', 'now', 'localtime', 'start of day') AS INTEGER)",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let (today_recordings, today_dictation_ms, today_chars, today_translations): (
+            i64,
+            i64,
+            i64,
+            i64,
+        ) = conn.query_row(
+            "SELECT COUNT(*),
+                    COALESCE(SUM(duration_ms), 0),
+                    COALESCE(SUM(char_count), 0),
+                    COALESCE(SUM(CASE WHEN workflow = 'translate' THEN 1 ELSE 0 END), 0)
+             FROM transcription_history
+             WHERE timestamp >= ?1",
+            params![today_start],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )?;
+        stats.today_recordings = today_recordings.max(0) as u64;
+        stats.today_dictation_ms = today_dictation_ms.max(0) as u64;
+        stats.today_chars = today_chars.max(0) as u64;
+        stats.today_translations = today_translations.max(0) as u64;
+
+        // Last 7 local days (including empty ones), oldest first.
+        let week_start = today_start - 6 * 86_400;
+        let mut weekly_stmt = conn.prepare(
+            "WITH RECURSIVE days(d) AS (
+                 SELECT date(?1, 'unixepoch', 'localtime')
+                 UNION ALL
+                 SELECT date(d, '+1 day') FROM days WHERE d < date('now', 'localtime')
+             )
+             SELECT strftime('%m-%d', days.d), COALESCE(counts.cnt, 0)
+             FROM days
+             LEFT JOIN (
+                 SELECT date(timestamp, 'unixepoch', 'localtime') AS day, COUNT(*) AS cnt
+                 FROM transcription_history GROUP BY day
+             ) AS counts ON counts.day = days.d
+             ORDER BY days.d",
+        )?;
+        stats.weekly = weekly_stmt
+            .query_map(params![week_start], |row| {
+                Ok(DailyCount {
+                    day: row.get(0)?,
+                    count: row.get::<_, i64>(1)?.max(0) as u64,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let mut recent_stmt = conn.prepare(
+            "SELECT id, timestamp, workflow, char_count,
+                    CASE WHEN post_processed_text IS NOT NULL AND post_processed_text != ''
+                         THEN post_processed_text ELSE transcription_text END
+             FROM transcription_history
+             ORDER BY timestamp DESC
+             LIMIT ?1",
+        )?;
+        stats.recent = recent_stmt
+            .query_map(params![RECENT_ACTIVITY_LIMIT], |row| {
+                let text: String = row.get(4)?;
+                Ok(RecentActivity {
+                    id: row.get(0)?,
+                    timestamp: row.get(1)?,
+                    workflow: row.get(2)?,
+                    char_count: row.get(3)?,
+                    preview: preview_of(&text),
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        stats.tokens_today = Self::token_usage_since(&conn, today_start)?;
+        stats.tokens_week = Self::token_usage_since(&conn, week_start)?;
+
+        Ok(stats)
+    }
+
+    fn token_usage_since(conn: &Connection, since: i64) -> Result<TokenUsage> {
+        let usage = conn.query_row(
+            "SELECT COALESCE(SUM(prompt_tokens), 0),
+                    COALESCE(SUM(completion_tokens), 0),
+                    COALESCE(SUM(total_tokens), 0),
+                    COUNT(*)
+             FROM llm_usage WHERE timestamp >= ?1",
+            params![since],
+            |row| {
+                Ok(TokenUsage {
+                    prompt_tokens: row.get::<_, i64>(0)?.max(0) as u64,
+                    completion_tokens: row.get::<_, i64>(1)?.max(0) as u64,
+                    total_tokens: row.get::<_, i64>(2)?.max(0) as u64,
+                    requests: row.get::<_, i64>(3)?.max(0) as u64,
+                })
+            },
+        )?;
+        Ok(usage)
     }
 
     /// Update an existing history entry with new transcription results (used by retry).
@@ -308,7 +630,7 @@ impl HistoryManager {
 
         let entry = conn
             .query_row(
-                "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested
+                "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested, duration_ms, char_count, workflow
                  FROM transcription_history WHERE id = ?1",
                 params![id],
                 Self::map_history_entry,
@@ -459,7 +781,7 @@ impl HistoryManager {
             (Some(cursor_id), Some(lim)) => {
                 let fetch_count = (lim + 1) as i64;
                 let mut stmt = conn.prepare(
-                    "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested
+                    "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested, duration_ms, char_count, workflow
                      FROM transcription_history
                      WHERE id < ?1
                      ORDER BY id DESC
@@ -473,7 +795,7 @@ impl HistoryManager {
             (None, Some(lim)) => {
                 let fetch_count = (lim + 1) as i64;
                 let mut stmt = conn.prepare(
-                    "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested
+                    "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested, duration_ms, char_count, workflow
                      FROM transcription_history
                      ORDER BY id DESC
                      LIMIT ?1",
@@ -485,7 +807,7 @@ impl HistoryManager {
             }
             (_, None) => {
                 let mut stmt = conn.prepare(
-                    "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested
+                    "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested, duration_ms, char_count, workflow
                      FROM transcription_history
                      ORDER BY id DESC",
                 )?;
@@ -516,7 +838,7 @@ impl HistoryManager {
                 transcription_text,
                 post_processed_text,
                 post_process_prompt,
-                post_process_requested
+                post_process_requested, duration_ms, char_count, workflow
              FROM transcription_history
              ORDER BY timestamp DESC
              LIMIT 1",
@@ -543,7 +865,7 @@ impl HistoryManager {
                 transcription_text,
                 post_processed_text,
                 post_process_prompt,
-                post_process_requested
+                post_process_requested, duration_ms, char_count, workflow
              FROM transcription_history
              WHERE transcription_text != ''
              ORDER BY timestamp DESC
@@ -597,7 +919,7 @@ impl HistoryManager {
                 transcription_text,
                 post_processed_text,
                 post_process_prompt,
-                post_process_requested
+                post_process_requested, duration_ms, char_count, workflow
              FROM transcription_history
              WHERE id = ?1",
         )?;
@@ -666,7 +988,20 @@ mod tests {
                 transcription_text TEXT NOT NULL,
                 post_processed_text TEXT,
                 post_process_prompt TEXT,
-                post_process_requested BOOLEAN NOT NULL DEFAULT 0
+                post_process_requested BOOLEAN NOT NULL DEFAULT 0,
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                char_count INTEGER NOT NULL DEFAULT 0,
+                workflow TEXT NOT NULL DEFAULT 'dictation'
+            );
+            CREATE TABLE llm_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp INTEGER NOT NULL,
+                provider_id TEXT NOT NULL,
+                model TEXT NOT NULL,
+                workflow TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0
             );",
         )
         .expect("create transcription_history table");

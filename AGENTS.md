@@ -115,8 +115,13 @@
 7. 自动翻译：独立 Translate 工作流（单个自绑热键）→ 语音 → 本地转写 → BYOK LLM 翻译成目标语言 →
    粘贴；目标语言最多 3 个、设置里切换当前目标；悬浮窗显示「翻译为 X」；失败不粘贴 + 悬浮窗重试
    — 已实现（2026-09-17，待真机冒烟）。spec：`docs/specs/phase-7-auto-translate.md`。
-6. 视觉重做：改成 Apple 原生风格（见「UI 风格」一节），去掉粉色，统一 UI，light/dark；
-   含状态胶囊（准备/录音/转写/润色/失败）— 未开始（用户 2026-09-17 决定本轮不做）
+6. 视觉重做：改成 Apple 原生风格（见「UI 风格」一节），去掉粉色，统一 UI，light/dark —
+   **已完成**（2026-09-17）：去粉 + 系统语义色 + 系统 accent、Tauri 内置 vibrancy、
+   TalkWTF 图标/产品名、两级导航（概览 / 资料库 / 设置）、去致谢、强制关闭更新检查。
+   spec：`docs/specs/phase-6-native-visual-redesign.md`。
+6b. Dashboard：活动/时长/字数/速度/节省时间/个性化程度/服务状态/LLM token（今日 + 近 7 天）
+   — **已完成**（2026-09-17，同 spec 的 6b 部分；history 加 duration_ms/char_count/workflow 列 +
+   llm_usage 表；旧数据启动时幂等回填）。
 
 ## 验收标准（Definition of Done）
 
@@ -129,7 +134,9 @@
 - 自动翻译：独立 Translate 工作流（单个自绑热键）→ 语音 → 本地转写 → BYOK LLM → 粘贴译文；
   目标语言最多 3 个、设置里切换；未配语言给提示；失败不粘贴 + 悬浮窗重试
   （原「多工作流热键 / Ask / 翻译选中文本」已按 2026-09-17 决定收缩，见阶段计划）
-- UI：Apple 原生风格、无粉色、跟随系统 light/dark、可读
+- UI：Apple 原生风格、无粉色、跟随系统 light/dark、可读；导航为 概览 / 资料库 / 设置
+- Dashboard：活动/时长/字数/速度/节省时间/个性化程度/服务状态/LLM token（今日 + 近 7 天），
+  全部本地统计、无遥测
 - 构建通过、测试通过
 
 ## 环境

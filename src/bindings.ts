@@ -690,6 +690,14 @@ async checkAppleIntelligenceAvailable() : Promise<boolean> {
     return await TAURI_INVOKE("check_apple_intelligence_available");
 },
 /**
+ * The macOS system accent color as `#rrggbb`, so the UI can follow the OS
+ * accent instead of hard-coding a brand color. Returns an empty string when
+ * unavailable (non-macOS); the frontend then keeps its CSS fallback.
+ */
+async getSystemAccentColor() : Promise<string> {
+    return await TAURI_INVOKE("get_system_accent_color");
+},
+/**
  * Try to initialize Enigo (keyboard/mouse simulation).
  * On macOS, this will return an error if accessibility permissions are not granted.
  */
@@ -972,6 +980,14 @@ async importPolishProfile(path: string) : Promise<Result<PolishProfileImportRepo
 async retryLastTranslation() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("retry_last_translation") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getDashboardStats() : Promise<Result<DashboardStats, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_dashboard_stats") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1305,6 +1321,12 @@ export type BindingResponse = { success: boolean; binding: ShortcutBinding | nul
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CorrectionRule = { id: number; pattern: string; replacement: string; enabled: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
+export type DailyCount = { day: string; count: number }
+export type DashboardStats = { total_recordings: number; total_dictation_ms: number; total_chars: number; avg_chars_per_min: number; 
+/**
+ * Estimated typing time saved, clamped at zero.
+ */
+time_saved_ms: number; translation_count: number; today: TodayStats; recent: RecentActivity[]; weekly: DailyCount[]; services: ServiceStatus; personalization: Personalization; tokens_today: TokenUsageSummary; tokens_week: TokenUsageSummary }
 /**
  * Emitted when the dictionary changed behind the settings page's back, so an
  * open page can refresh. The undo runs from the dictation overlay, which the
@@ -1329,7 +1351,19 @@ export type EngineType =
  */
 "TranscribeCpp" | "Parakeet" | "Moonshine" | "MoonshineStreaming" | "SenseVoice" | "GigaAM" | "Canary" | "Cohere"
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
-export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
+export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean; 
+/**
+ * Recording length in milliseconds (WAV is 16 kHz mono).
+ */
+duration_ms?: number; 
+/**
+ * Characters in the raw transcription, whitespace trimmed.
+ */
+char_count?: number; 
+/**
+ * Which pipeline produced this entry: "dictation" or "translate".
+ */
+workflow?: string }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 /**
  * Result of changing keyboard implementation
@@ -1394,12 +1428,19 @@ export type OverlayStyle = "none" | "minimal" | "live"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none" | "shift_insert" | "ctrl_shift_v" | "external_script"
 export type PermissionAccess = "allowed" | "denied" | "unknown"
+export type Personalization = { 
+/**
+ * 0–100 completion score.
+ */
+score: number; items: PersonalizationItem[] }
+export type PersonalizationItem = { id: string; done: boolean }
 export type PolishProfileImportReport = { accepted: number; skipped_duplicates: number; skipped_invalid: number }
 /**
  * A polish style as the settings UI needs it.
  */
 export type PolishStyleOption = { value: string; label: string }
 export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean; requires_api_key?: boolean }
+export type RecentActivity = { id: number; timestamp: number; workflow: string; char_count: number; preview: string }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 /**
  * A polish scene: a named prompt the user can activate instead of the global
@@ -1440,6 +1481,23 @@ uncovered_bindings: string[];
  * warning banner appears and explains why recording refused.
  */
 recorder_blocked: boolean }
+export type ServiceStatus = { 
+/**
+ * Display name of the selected speech-recognition model.
+ */
+asr_model: string; 
+/**
+ * A model is selected and known (downloaded).
+ */
+asr_ready: boolean; llm_provider: string | null; llm_model: string | null; 
+/**
+ * Provider + model (+ key when required) are all configured.
+ */
+polish_ready: boolean; 
+/**
+ * Paste method is not "none".
+ */
+paste_enabled: boolean }
 /**
  * How the transcribe shortcut's key events drive a recording.
  */
@@ -1497,6 +1555,8 @@ export type StreamWorkKind = "transcribing" | "polishing"
  * and `Dark` force one of the two palettes Handy already ships.
  */
 export type Theme = "system" | "light" | "dark"
+export type TodayStats = { recordings: number; translations: number; dictation_ms: number; chars: number }
+export type TokenUsageSummary = { prompt_tokens: number; completion_tokens: number; total_tokens: number; requests: number }
 export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
 /**
  * A translation target as the settings UI needs it.

@@ -61,3 +61,32 @@ export const syncThemeFromSettings = async (): Promise<void> => {
     console.warn("Failed to sync theme from settings:", e);
   }
 };
+
+/**
+ * Apply an explicit accent color (`#rrggbb`) to the document root. macOS uses
+ * one accent for both appearances, so overriding the themed token in both light
+ * and dark is correct. An empty value clears the override, restoring the CSS
+ * fallback (system blue).
+ */
+export const applyAccent = (hex: string): void => {
+  const root = document.documentElement;
+  if (hex) {
+    root.style.setProperty("--color-accent", hex);
+    root.style.setProperty("--color-logo-primary", hex);
+    root.style.setProperty("--color-background-ui", hex);
+  } else {
+    root.style.removeProperty("--color-accent");
+    root.style.removeProperty("--color-logo-primary");
+    root.style.removeProperty("--color-background-ui");
+  }
+};
+
+/** Read the OS accent color and apply it. Falls back to the CSS default. */
+export const syncAccentFromSystem = async (): Promise<void> => {
+  try {
+    const hex = await commands.getSystemAccentColor();
+    applyAccent(hex);
+  } catch (e) {
+    console.warn("Failed to read the system accent color:", e);
+  }
+};

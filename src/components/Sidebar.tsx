@@ -1,103 +1,35 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import {
-  BookOpen,
-  Cog,
-  FlaskConical,
-  History,
-  Info,
-  Languages,
-  Sparkles,
-  Cpu,
-} from "lucide-react";
-import HandyTextLogo from "./icons/HandyTextLogo";
-import HandyHand from "./icons/HandyHand";
-import { useSettings } from "../hooks/useSettings";
-import {
-  GeneralSettings,
-  AdvancedSettings,
-  HistorySettings,
-  DebugSettings,
-  AboutSettings,
-  PostProcessingSettings,
-  DictionarySettings,
-  ModelsSettings,
-  TranslationSettings,
-} from "./settings";
+import { LayoutDashboard, Library, Settings2 } from "lucide-react";
+import TalkWtfLogo from "./icons/TalkWtfLogo";
 
-export type SidebarSection = keyof typeof SECTIONS_CONFIG;
+/** The three top-level destinations. Settings has its own secondary nav. */
+export type SidebarSection = "dashboard" | "library" | "settings";
 
 interface IconProps {
   width?: number | string;
   height?: number | string;
   size?: number | string;
   className?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface SectionConfig {
   labelKey: string;
   icon: React.ComponentType<IconProps>;
-  component: React.ComponentType;
-  enabled: (settings: any) => boolean;
 }
 
 export const SECTIONS_CONFIG = {
-  general: {
-    labelKey: "sidebar.general",
-    icon: HandyHand,
-    component: GeneralSettings,
-    enabled: () => true,
-  },
-  history: {
-    labelKey: "sidebar.history",
-    icon: History,
-    component: HistorySettings,
-    enabled: () => true,
-  },
-  models: {
-    labelKey: "sidebar.models",
-    icon: Cpu,
-    component: ModelsSettings,
-    enabled: () => true,
-  },
-  advanced: {
-    labelKey: "sidebar.advanced",
-    icon: Cog,
-    component: AdvancedSettings,
-    enabled: () => true,
-  },
-  postprocessing: {
-    labelKey: "sidebar.postProcessing",
-    icon: Sparkles,
-    component: PostProcessingSettings,
-    enabled: () => true,
-  },
-  dictionary: {
-    labelKey: "sidebar.dictionary",
-    icon: BookOpen,
-    component: DictionarySettings,
-    enabled: () => true,
-  },
-  translation: {
-    labelKey: "sidebar.translation",
-    icon: Languages,
-    component: TranslationSettings,
-    enabled: () => true,
-  },
-  debug: {
-    labelKey: "sidebar.debug",
-    icon: FlaskConical,
-    component: DebugSettings,
-    enabled: (settings) => settings?.debug_mode ?? false,
-  },
-  about: {
-    labelKey: "sidebar.about",
-    icon: Info,
-    component: AboutSettings,
-    enabled: () => true,
-  },
-} as const satisfies Record<string, SectionConfig>;
+  dashboard: { labelKey: "sidebar.dashboard", icon: LayoutDashboard },
+  library: { labelKey: "sidebar.library", icon: Library },
+  settings: { labelKey: "sidebar.settings", icon: Settings2 },
+} as const satisfies Record<SidebarSection, SectionConfig>;
+
+export const SIDEBAR_SECTIONS: SidebarSection[] = [
+  "dashboard",
+  "library",
+  "settings",
+];
 
 interface SidebarProps {
   activeSection: SidebarSection;
@@ -109,36 +41,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSectionChange,
 }) => {
   const { t } = useTranslation();
-  const { settings } = useSettings();
-
-  const availableSections = Object.entries(SECTIONS_CONFIG)
-    .filter(([_, config]) => config.enabled(settings))
-    .map(([id, config]) => ({ id: id as SidebarSection, ...config }));
 
   return (
-    <div className="flex flex-col w-40 h-full border-e border-mid-gray/20 items-center px-2">
-      <HandyTextLogo width={120} className="m-4" />
-      <div className="flex flex-col w-full items-center gap-1 pt-2 border-t border-mid-gray/20">
-        {availableSections.map((section) => {
-          const Icon = section.icon;
-          const isActive = activeSection === section.id;
+    <div className="flex flex-col w-44 h-full border-e border-separator items-center px-2">
+      <TalkWtfLogo width={128} className="mt-4 mb-2 text-text" />
+      <div className="flex flex-col w-full items-center gap-0.5 pt-2 border-t border-separator">
+        {SIDEBAR_SECTIONS.map((id) => {
+          const { labelKey, icon: Icon } = SECTIONS_CONFIG[id];
+          const isActive = activeSection === id;
 
           return (
             <div
-              key={section.id}
-              className={`flex gap-2 items-center p-2 w-full rounded-lg cursor-pointer transition-colors ${
+              key={id}
+              role="button"
+              tabIndex={0}
+              className={`flex gap-2.5 items-center p-2 w-full rounded-lg cursor-pointer transition-colors ${
                 isActive
-                  ? "bg-logo-primary/80"
-                  : "hover:bg-mid-gray/20 hover:opacity-100 opacity-85"
+                  ? "bg-logo-primary/15 text-text"
+                  : "hover:bg-fill text-secondary-label"
               }`}
-              onClick={() => onSectionChange(section.id)}
+              onClick={() => onSectionChange(id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSectionChange(id);
+                }
+              }}
             >
-              <Icon width={24} height={24} className="shrink-0" />
-              <p
-                className="text-sm font-medium truncate"
-                title={t(section.labelKey)}
-              >
-                {t(section.labelKey)}
+              <Icon
+                width={20}
+                height={20}
+                className={`shrink-0 ${isActive ? "text-logo-primary" : ""}`}
+              />
+              <p className="text-sm font-medium truncate" title={t(labelKey)}>
+                {t(labelKey)}
               </p>
             </div>
           );

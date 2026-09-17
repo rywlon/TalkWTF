@@ -6,6 +6,7 @@ import { installCompatShims } from "./lib/compat";
 import {
   applyTheme,
   getStoredTheme,
+  syncAccentFromSystem,
   syncThemeFromSettings,
 } from "./lib/utils/theme";
 
@@ -18,6 +19,7 @@ document.documentElement.dataset.platform = platform();
 // the wrong palette, then reconcile with the persisted setting once it loads.
 applyTheme(getStoredTheme());
 syncThemeFromSettings();
+syncAccentFromSystem();
 
 // Initialize i18n
 import "./i18n";
