@@ -46,7 +46,7 @@ export const SettingsNav: React.FC<SettingsNavProps> = ({
   );
 
   return (
-    <nav className="w-40 h-full shrink-0 border-e border-separator p-2 space-y-0.5 overflow-y-auto">
+    <nav className="w-48 h-full shrink-0 border-e border-separator p-3 space-y-1 overflow-y-auto">
       {panes.map((config) => {
         const isActive = pane === config.id;
         return (
@@ -54,7 +54,7 @@ export const SettingsNav: React.FC<SettingsNavProps> = ({
             key={config.id}
             type="button"
             onClick={() => onPaneChange(config.id)}
-            className={`w-full text-start rounded-lg px-3 py-1.5 text-sm transition-colors cursor-pointer ${
+            className={`w-full text-start rounded-control px-3 h-8 text-body transition-colors cursor-pointer ${
               isActive
                 ? "bg-logo-primary/15 text-text font-medium"
                 : "text-secondary-label hover:bg-fill hover:text-text"

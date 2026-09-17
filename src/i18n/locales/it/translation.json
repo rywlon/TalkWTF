@@ -506,7 +506,13 @@
       "retranscribe": "Ri-trascrivere",
       "retranscribeError": "Impossibile ri-trascrivere. Riprova.",
       "transcribing": "Trascrizione in corso...",
-      "transcriptionFailed": "Trascrizione fallita. Puoi ri-trascrivere usando l'icona di ripetizione."
+      "transcriptionFailed": "Trascrizione fallita. Puoi ri-trascrivere usando l'icona di ripetizione.",
+      "searchPlaceholder": "Search",
+      "noMatches": "No matches",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      }
     },
     "debug": {
       "title": "Debug",

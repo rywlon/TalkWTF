@@ -2543,6 +2543,7 @@ dependencies = [
  "specta",
  "specta-typescript",
  "strsim",
+ "talkwtf-core",
  "tar",
  "tauri",
  "tauri-build",
@@ -6303,6 +6304,45 @@ dependencies = [
  "pkg-config",
  "toml 0.9.12+spec-1.1.0",
  "version-compare",
+]
+
+[[package]]
+name = "talkwtf-core"
+version = "0.9.6"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cpal",
+ "earshot",
+ "flate2",
+ "futures-util",
+ "hf-hub",
+ "hound",
+ "isolang",
+ "log",
+ "natural",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "once_cell",
+ "regex",
+ "reqwest 0.12.28",
+ "rtrb",
+ "rubato",
+ "rusqlite",
+ "rusqlite_migration",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "sha2",
+ "specta",
+ "strsim",
+ "tar",
+ "tokio",
+ "transcribe-cpp",
+ "transcribe-rs",
+ "vad-rs",
+ "whatlang",
 ]
 
 [[package]]

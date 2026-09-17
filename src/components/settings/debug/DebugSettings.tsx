@@ -28,7 +28,7 @@ export const DebugSettings: React.FC<DebugSettingsProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <div className="max-w-[880px] w-full mx-auto space-y-6">
       <SettingsGroup title={t("settings.debug.title")}>
         <LogLevelSelector grouped={true} />
         <WhatsNewPreview descriptionMode="tooltip" grouped={true} />

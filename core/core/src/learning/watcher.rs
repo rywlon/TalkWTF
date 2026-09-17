@@ -11,11 +11,9 @@ use std::time::{Duration, Instant};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, Manager};
-use tauri_specta::Event;
 
-use crate::managers::dictionary::DictionaryStore;
-use crate::settings::{get_settings, OverlayStyle};
+use crate::dictionary::DictionaryStore;
+use crate::settings::OverlayStyle;
 
 use super::{ax, diff};
 
@@ -40,7 +38,7 @@ const MAX_LEARNED_WORDS: usize = 5;
 static WATCH_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Emitted when a correction was learned, so the overlay can offer an undo.
-#[derive(Debug, Clone, Serialize, Deserialize, Type, tauri_specta::Event)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct LearnedCorrection {
     pub pattern: String,
     pub replacement: String,
@@ -113,8 +111,8 @@ impl LearningState {
 }
 
 /// Start watching, if the feature is on and the platform supports it.
-pub fn watch_for_edit(app: &AppHandle, pasted_text: &str) {
-    let settings = get_settings(app);
+pub fn watch_for_edit(pasted_text: &str) {
+    let settings = crate::settings::current();
     if !settings.learn_from_edits
         // The capsule is the only surface for the undo affordance.
         || settings.overlay_style == OverlayStyle::None
@@ -127,13 +125,12 @@ pub fn watch_for_edit(app: &AppHandle, pasted_text: &str) {
         return;
     }
 
-    let app = app.clone();
     let pasted = pasted_text.to_string();
     // Captured now: if the user switches apps, we stop watching.
     let bundle_id = ax::frontmost_bundle_id();
     let generation = WATCH_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
 
-    if let Some(state) = app.try_state::<LearningState>() {
+    if let Some(state) = crate::learning::learning_state() {
         state.set_report(WatchReport {
             bundle_id: bundle_id.clone(),
             pasted_chars: pasted.chars().count(),
@@ -143,9 +140,9 @@ pub fn watch_for_edit(app: &AppHandle, pasted_text: &str) {
     }
 
     std::thread::spawn(move || {
-        let (candidates, report) = observe(&app, &pasted, bundle_id.as_deref(), generation);
+        let (candidates, report) = observe(&pasted, bundle_id.as_deref(), generation);
 
-        if let Some(state) = app.try_state::<LearningState>() {
+        if let Some(state) = crate::learning::learning_state() {
             state.set_report(report.clone());
         }
 
@@ -162,13 +159,12 @@ pub fn watch_for_edit(app: &AppHandle, pasted_text: &str) {
             // Read the field's position now, while it is still focused, so the
             // notice can appear next to it.
             let frame = ax::focused_element_frame();
-            apply(&app, candidates, frame);
+            apply(candidates, frame);
         }
     });
 }
 
 fn observe(
-    app: &AppHandle,
     pasted: &str,
     bundle_id: Option<&str>,
     generation: u64,
@@ -201,7 +197,7 @@ fn observe(
             report.outcome = "superseded by a newer dictation".to_string();
             return (decide(&observed, pasted, &mut report), report);
         }
-        if !get_settings(app).learn_from_edits {
+        if !crate::settings::current().learn_from_edits {
             report.outcome = "the setting was turned off".to_string();
             return (decide(&observed, pasted, &mut report), report);
         }
@@ -353,12 +349,8 @@ fn describe(candidates: &[diff::EditCandidate]) -> String {
         .join(" | ")
 }
 
-fn apply(
-    app: &AppHandle,
-    candidates: Vec<diff::EditCandidate>,
-    frame: Option<(f64, f64, f64, f64)>,
-) {
-    let Some(store) = app.try_state::<Arc<DictionaryStore>>() else {
+fn apply(candidates: Vec<diff::EditCandidate>, frame: Option<(f64, f64, f64, f64)>) {
+    let Some(store) = crate::state::dictionary_store() else {
         return;
     };
 
@@ -378,24 +370,24 @@ fn apply(
             .join(", ")
     );
 
-    if let Some(state) = app.try_state::<LearningState>() {
+    if let Some(state) = crate::learning::learning_state() {
         state.remember(applied.clone());
     }
 
     let first = &applied[0];
-    // Typed emit: the event name comes from the derive, so it cannot drift from
-    // the name the frontend subscribes to.
     let payload = LearnedCorrection {
         pattern: first.pattern.clone(),
         replacement: first.replacement.clone(),
         count: applied.len() as u32,
     };
     // The settings page listens to this and refreshes its lists.
-    let _ = payload.clone().emit(app);
-    // The overlay gets the same data through `show-overlay` instead — the one
-    // channel it handles reliably while the app is in the background.
-    let notice = serde_json::to_value(&payload).ok();
-    crate::overlay::show_learned_overlay_at(app, frame, notice);
+    crate::events::emit("learned-correction", &payload);
+    // The shell shows the notice itself (the overlay is shell-owned); it gets
+    // the same payload plus the field frame to place it next to.
+    crate::events::emit(
+        "learned-overlay",
+        serde_json::json!({ "notice": payload, "frame": frame }),
+    );
 }
 
 /// Store what the edit taught. The corrected term goes in as a dictionary word —

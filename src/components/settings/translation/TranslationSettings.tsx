@@ -55,7 +55,7 @@ export const TranslationSettings: React.FC = () => {
   const canAddMore = targets.length < 3;
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <div className="max-w-[880px] w-full mx-auto space-y-6">
       <SettingsGroup
         title={t("settings.translation.title")}
         description={t("settings.translation.description")}

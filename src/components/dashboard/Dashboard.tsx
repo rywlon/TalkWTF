@@ -36,15 +36,17 @@ const StatCard: React.FC<{
   value: string;
   hint?: string;
 }> = ({ icon: Icon, label, value, hint }) => (
-  <div className="rounded-xl border border-separator bg-background p-4">
-    <div className="flex items-center gap-1.5 text-xs font-medium text-secondary-label">
-      <Icon className="h-3.5 w-3.5" />
+  <div className="glass-rim rounded-card border border-separator bg-background p-5">
+    <div className="flex items-center gap-1.5 text-callout font-medium text-secondary-label">
+      <Icon className="h-4 w-4" />
       {label}
     </div>
-    <div className="mt-1.5 text-2xl font-semibold tracking-tight text-text">
+    <div className="mt-2 text-[28px] font-semibold leading-none tracking-tight text-text">
       {value}
     </div>
-    {hint && <div className="mt-0.5 text-xs text-tertiary-label">{hint}</div>}
+    {hint && (
+      <div className="mt-1 text-caption text-tertiary-label">{hint}</div>
+    )}
   </div>
 );
 
@@ -104,9 +106,9 @@ export const Dashboard: React.FC = () => {
     : 1;
 
   return (
-    <div className="max-w-4xl w-full mx-auto space-y-6">
+    <div className="max-w-[880px] w-full mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-text">
+        <h1 className="text-large-title font-semibold tracking-tight text-text">
           {t("dashboard.title")}
         </h1>
         <button
@@ -135,7 +137,7 @@ export const Dashboard: React.FC = () => {
         <>
           {/* Today */}
           <section className="space-y-2">
-            <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-secondary-label">
+            <h2 className="px-1 text-callout font-semibold text-secondary-label">
               {t("dashboard.today.title")}
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -164,7 +166,7 @@ export const Dashboard: React.FC = () => {
 
           {/* All time */}
           <section className="space-y-2">
-            <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-secondary-label">
+            <h2 className="px-1 text-callout font-semibold text-secondary-label">
               {t("dashboard.metrics.title")}
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -205,8 +207,8 @@ export const Dashboard: React.FC = () => {
 
           {/* Weekly + tokens */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <section className="rounded-xl border border-separator bg-background p-4">
-              <h2 className="text-xs font-medium uppercase tracking-wide text-secondary-label">
+            <section className="glass-rim rounded-card border border-separator bg-background p-5">
+              <h2 className="text-callout font-semibold text-secondary-label">
                 {t("dashboard.weekly.title")}
               </h2>
               <div className="mt-4 flex items-end justify-between gap-1.5">
@@ -234,8 +236,8 @@ export const Dashboard: React.FC = () => {
               </div>
             </section>
 
-            <section className="rounded-xl border border-separator bg-background p-4">
-              <h2 className="text-xs font-medium uppercase tracking-wide text-secondary-label">
+            <section className="glass-rim rounded-card border border-separator bg-background p-5">
+              <h2 className="text-callout font-semibold text-secondary-label">
                 {t("dashboard.tokens.title")}
               </h2>
               <div className="mt-3 grid grid-cols-2 gap-3">
@@ -298,10 +300,10 @@ export const Dashboard: React.FC = () => {
           {/* Services + personalization */}
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="space-y-2">
-              <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-secondary-label">
+              <h2 className="px-1 text-callout font-semibold text-secondary-label">
                 {t("dashboard.services.title")}
               </h2>
-              <div className="divide-y divide-separator rounded-xl border border-separator bg-background">
+              <div className="divide-y divide-separator glass-rim rounded-card border border-separator bg-background">
                 <StatusRow
                   label={t("dashboard.services.asr")}
                   value={
@@ -353,10 +355,10 @@ export const Dashboard: React.FC = () => {
             </section>
 
             <section className="space-y-2">
-              <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-secondary-label">
+              <h2 className="px-1 text-callout font-semibold text-secondary-label">
                 {t("dashboard.personalization.title")}
               </h2>
-              <div className="rounded-xl border border-separator bg-background p-4">
+              <div className="glass-rim rounded-card border border-separator bg-background p-5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-secondary-label">
                     {t("dashboard.personalization.label")}
@@ -398,15 +400,15 @@ export const Dashboard: React.FC = () => {
 
           {/* Recent activity */}
           <section className="space-y-2">
-            <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-secondary-label">
+            <h2 className="px-1 text-callout font-semibold text-secondary-label">
               {t("dashboard.recent.title")}
             </h2>
             {stats.recent.length === 0 ? (
-              <div className="rounded-xl border border-separator bg-background px-4 py-6 text-center text-sm text-tertiary-label">
+              <div className="glass-rim rounded-card border border-separator bg-background px-5 py-8 text-center text-sm text-tertiary-label">
                 {t("dashboard.recent.empty")}
               </div>
             ) : (
-              <ul className="divide-y divide-separator rounded-xl border border-separator bg-background">
+              <ul className="divide-y divide-separator glass-rim rounded-card border border-separator bg-background">
                 {stats.recent.map((activity) => (
                   <li
                     key={activity.id}

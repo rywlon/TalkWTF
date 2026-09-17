@@ -16,7 +16,7 @@ export const GeneralSettings: React.FC = () => {
   const isLinux = type() === "linux";
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <div className="max-w-[880px] w-full mx-auto space-y-6">
       <SettingsGroup title={t("settings.general.title")}>
         <AppLanguageSelector descriptionMode="tooltip" grouped={true} />
         <ThemeSelector descriptionMode="tooltip" grouped={true} />

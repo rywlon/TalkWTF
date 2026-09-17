@@ -65,7 +65,7 @@ pub fn get_log_dir_path(app: AppHandle) -> Result<String, String> {
 #[specta::specta]
 #[tauri::command]
 pub fn set_log_level(app: AppHandle, level: LogLevel) -> Result<(), String> {
-    let tauri_log_level: tauri_plugin_log::LogLevel = level.into();
+    let tauri_log_level = crate::settings::to_tauri_log_level(level);
     let log_level: log::Level = tauri_log_level.into();
     // Update the file log level atomic so the filter picks up the new level
     crate::FILE_LOG_LEVEL.store(

@@ -506,7 +506,13 @@
       "retranscribe": "תמלל מחדש",
       "retranscribeError": "תמלול מחדש נכשל. נסה שוב.",
       "transcribing": "מתמלל...",
-      "transcriptionFailed": "התמלול נכשל. אפשר לתמלל מחדש באמצעות אייקון הניסיון החוזר."
+      "transcriptionFailed": "התמלול נכשל. אפשר לתמלל מחדש באמצעות אייקון הניסיון החוזר.",
+      "searchPlaceholder": "Search",
+      "noMatches": "No matches",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      }
     },
     "debug": {
       "title": "ניפוי שגיאות",

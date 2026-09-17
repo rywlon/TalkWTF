@@ -506,7 +506,13 @@
       "retranscribe": "Torneu a transcriure",
       "retranscribeError": "No s'ha pogut tornar a transcriure. Torneu-ho a provar.",
       "transcribing": "S'està transcrivint...",
-      "transcriptionFailed": "La transcripció ha fallat. Podeu tornar a transcriure amb la icona de reintent."
+      "transcriptionFailed": "La transcripció ha fallat. Podeu tornar a transcriure amb la icona de reintent.",
+      "searchPlaceholder": "Search",
+      "noMatches": "No matches",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      }
     },
     "debug": {
       "title": "Depuració",

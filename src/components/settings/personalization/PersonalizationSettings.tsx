@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Sparkles, Languages } from "lucide-react";
 import { PostProcessingSettings } from "../post-processing/PostProcessingSettings";
 import { TranslationSettings } from "../translation/TranslationSettings";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 
 type PersonalizationTab = "polish" | "translation";
 
@@ -32,29 +33,17 @@ export const PersonalizationSettings: React.FC = () => {
   ];
 
   return (
-    <div className="w-full flex flex-col items-center gap-4">
-      <div
-        role="tablist"
-        className="flex gap-1 rounded-lg border border-separator bg-fill p-1 w-full max-w-md"
-      >
-        {tabs.map(({ id, labelKey, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
-              tab === id
-                ? "bg-background text-text shadow-sm"
-                : "text-secondary-label hover:text-text"
-            }`}
-          >
-            <Icon width={16} height={16} />
-            {t(labelKey)}
-          </button>
-        ))}
-      </div>
+    <div className="w-full flex flex-col items-start gap-5">
+      <SegmentedControl
+        ariaLabel={t("settings.panes.personalization")}
+        value={tab}
+        onChange={setTab}
+        options={tabs.map(({ id, labelKey, icon }) => ({
+          value: id,
+          label: t(labelKey),
+          icon,
+        }))}
+      />
 
       <div className="w-full">
         {tab === "polish" ? (

@@ -39,84 +39,90 @@ type NonCreatableProps = {
 
 export type SelectProps = BaseProps & (CreatableProps | NonCreatableProps);
 
-const baseBackground =
-  "color-mix(in srgb, var(--color-mid-gray) 10%, transparent)";
+const controlBackground =
+  "color-mix(in srgb, var(--color-text) 6%, transparent)";
 const hoverBackground =
-  "color-mix(in srgb, var(--color-logo-primary) 12%, transparent)";
-const focusBackground =
-  "color-mix(in srgb, var(--color-logo-primary) 20%, transparent)";
-const neutralBorder =
-  "color-mix(in srgb, var(--color-mid-gray) 80%, transparent)";
+  "color-mix(in srgb, var(--color-text) 10%, transparent)";
+const selectedBackground =
+  "color-mix(in srgb, var(--color-logo-primary) 16%, transparent)";
+const neutralBorder = "var(--color-separator)";
+
+/** macOS pop-up button chevron (up + down), replacing react-select's caret. */
+const DropdownIndicator = () => (
+  <svg
+    className="mx-1.5 h-3.5 w-3.5 shrink-0 text-secondary-label"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2.2}
+    aria-hidden="true"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M8 9l4-4 4 4M8 15l4 4 4-4"
+    />
+  </svg>
+);
 
 const selectStyles: StylesConfig<SelectOption, false> = {
   control: (base, state) => ({
     ...base,
-    minHeight: 40,
-    borderRadius: 6,
+    minHeight: 28,
+    height: 28,
+    borderRadius: 8,
     borderColor: state.isFocused ? "var(--color-logo-primary)" : neutralBorder,
     boxShadow: state.isFocused ? "0 0 0 1px var(--color-logo-primary)" : "none",
-    backgroundColor: state.isFocused ? focusBackground : baseBackground,
-    fontSize: "0.875rem",
+    backgroundColor: state.isFocused ? hoverBackground : controlBackground,
+    fontSize: "14px",
     color: "var(--color-text)",
-    transition: "all 150ms ease",
-    ":hover": {
-      borderColor: "var(--color-logo-primary)",
-      backgroundColor: hoverBackground,
-    },
+    transition: "background-color 120ms ease",
+    ":hover": { backgroundColor: hoverBackground },
   }),
   valueContainer: (base) => ({
     ...base,
     paddingInline: 10,
-    paddingBlock: 6,
+    paddingBlock: 0,
   }),
-  input: (base) => ({
-    ...base,
-    color: "var(--color-text)",
-  }),
-  singleValue: (base) => ({
-    ...base,
-    color: "var(--color-text)",
-  }),
-  dropdownIndicator: (base, state) => ({
-    ...base,
-    color: state.isFocused
-      ? "var(--color-logo-primary)"
-      : "color-mix(in srgb, var(--color-mid-gray) 80%, transparent)",
-    ":hover": {
-      color: "var(--color-logo-primary)",
-    },
-  }),
+  indicatorsContainer: (base) => ({ ...base, height: 28 }),
+  input: (base) => ({ ...base, color: "var(--color-text)" }),
+  singleValue: (base) => ({ ...base, color: "var(--color-text)" }),
+  dropdownIndicator: () => ({ display: "flex", padding: 0 }),
   clearIndicator: (base) => ({
     ...base,
-    color: "color-mix(in srgb, var(--color-mid-gray) 80%, transparent)",
-    ":hover": {
-      color: "var(--color-logo-primary)",
-    },
+    color: "var(--color-mid-gray)",
+    padding: 0,
+    ":hover": { color: "var(--color-text)" },
   }),
+  indicatorSeparator: () => ({ display: "none" }),
+  // Opaque: the window background is a translucent material on macOS, and a
+  // translucent menu is unreadable over the content behind it.
   menu: (provided) => ({
     ...provided,
     zIndex: 30,
-    backgroundColor: "var(--color-background)",
+    marginTop: 4,
+    backgroundColor: "var(--color-popover)",
     color: "var(--color-text)",
-    border:
-      "1px solid color-mix(in srgb, var(--color-mid-gray) 30%, transparent)",
-    boxShadow: "0 10px 30px rgba(15, 15, 15, 0.2)",
+    border: "1px solid var(--color-separator)",
+    borderRadius: 10,
+    overflow: "hidden",
+    boxShadow: "0 8px 28px rgba(0, 0, 0, 0.18)",
   }),
+  menuList: (base) => ({ ...base, paddingTop: 4, paddingBottom: 4 }),
   option: (base, state) => ({
     ...base,
+    fontSize: "14px",
+    padding: "6px 10px",
     backgroundColor: state.isSelected
-      ? focusBackground
+      ? selectedBackground
       : state.isFocused
         ? hoverBackground
         : "transparent",
     color: "var(--color-text)",
-    cursor: state.isDisabled ? "not-allowed" : base.cursor,
+    cursor: state.isDisabled ? "not-allowed" : "pointer",
     opacity: state.isDisabled ? 0.5 : 1,
   }),
-  placeholder: (base) => ({
-    ...base,
-    color: "color-mix(in srgb, var(--color-mid-gray) 65%, transparent)",
-  }),
+  placeholder: (base) => ({ ...base, color: "var(--color-secondary-label)" }),
 };
 
 export const Select: React.FC<SelectProps> = React.memo(
@@ -160,6 +166,7 @@ export const Select: React.FC<SelectProps> = React.memo(
       onBlur,
       isClearable,
       styles: selectStyles,
+      components: { DropdownIndicator },
     };
 
     if (isCreatable) {

@@ -2,9 +2,12 @@
 
 :root {
   --s-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  /* Near-opaque app surface (theme.css --color-background at 98%). Auto-flips
-     light/dark with --color-background, so no dark-mode override is needed. */
-  --s-surface: color-mix(in srgb, var(--color-background) 98%, transparent);
+  /* Translucent card surface: the window has a real Liquid Glass backdrop
+     (macOS) or a solid background, so the card lets the material show through.
+     Light/dark pairs, same shape as the neutrals below. */
+  --light-s-surface: color-mix(in srgb, #f5f5f7 58%, transparent);
+  --dark-s-surface: color-mix(in srgb, #1e1e1e 50%, transparent);
+  --s-surface: var(--light-s-surface);
   /* Accent follows the system accent; flips automatically via --color-logo-primary. */
   --s-accent: var(--color-logo-primary);
   /* Light/dark pairs for the tokens that can't flip through a shared palette
@@ -45,24 +48,16 @@
   --s-border: var(--light-s-border);
   --s-hair: var(--light-s-hair);
 
-  /* Card geometry — single source of truth for the visible overlay sizes. The
-     native overlay window (overlay.rs) is sized from these: it must be at least
-     the card's max footprint (--ov-work-w for compact, --ov-open-w for Live),
-     since the card is anchored flush to the screen edge in CSS. Keep overlay.rs
-     in sync when these change. */
-  --ov-rest-w: 172px; /* resting compact pill (minimal, recording) -- roomy enough
-                         for the English working label before the grow starts */
-  --ov-pill-w: 184px; /* base width / Live pill before it opens or collapses */
-  --ov-work-w: 216px; /* working pill (transcribing / polishing) -- wide enough to
-                         center longer labels; shared by Live (collapsed) + minimal */
-  --ov-open-w: 392px; /* Live panel, expanded */
-  --ov-learned-w: 404px; /* "added to dictionary" notice (matches overlay.rs) */
-  --ov-base-h: 40px; /* control-row height (.sbase) */
+  /* Control-row height and the live-text cap. The card fills the native window
+     (overlay.rs owns the per-state window sizes), so these are the only overlay
+     geometry vars the CSS still needs. */
+  --ov-base-h: 52px; /* control-row height (.sbase) */
   --ov-cap-max-h: 64px; /* max height of the scrolling live-text region */
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --s-accent-soft: var(--dark-s-accent-soft);
+    --s-surface: var(--dark-s-surface);
     --s-muted: var(--dark-s-muted);
     --s-faint: var(--dark-s-faint);
     --s-border: var(--dark-s-border);
@@ -72,8 +67,8 @@
 
 /*
  * Explicit theme override, matching the `data-theme` blocks in theme.css.
- * `--s-surface` and `--s-accent` honour the setting for free because they derive
- * from shared palette tokens, but the neutrals above are chosen here, so without
+ * `--s-accent` honours the setting for free because it derives from a shared
+ * palette token, but the surface and neutrals above are chosen here, so without
  * this block a forced theme on a differently-themed OS mixes the two — e.g. dark
  * surface with light-theme secondary text at ~2.8:1 contrast. macOS masks that
  * (setting the app appearance flips the webview's `prefers-color-scheme` to
@@ -81,6 +76,7 @@
  */
 :root[data-theme="light"] {
   --s-accent-soft: var(--light-s-accent-soft);
+  --s-surface: var(--light-s-surface);
   --s-muted: var(--light-s-muted);
   --s-faint: var(--light-s-faint);
   --s-border: var(--light-s-border);
@@ -89,6 +85,7 @@
 
 :root[data-theme="dark"] {
   --s-accent-soft: var(--dark-s-accent-soft);
+  --s-surface: var(--dark-s-surface);
   --s-muted: var(--dark-s-muted);
   --s-faint: var(--dark-s-faint);
   --s-border: var(--dark-s-border);
@@ -159,66 +156,69 @@
   margin: 0;
 }
 
-/* Shared base card. Flat: theme surface + hairline border, no shadow or blur. */
+/* Shared base card. The card fills the native window edge to edge, so the
+   window's Liquid Glass backdrop (macOS) takes exactly the card's shape — a
+   larger window would show the glass as a second rounded rectangle behind it. */
 .scard {
-  width: var(--ov-pill-w);
-  /* Never wider than the window: an unaccounted content zoom degrades to a
-     narrower card instead of clipping. 2px = our border (no border-box reset). */
-  max-width: calc(100vw - 2px);
-  border-radius: 24px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 14px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  flex: none; /* hold our own width; never let the stage flex shrink the card */
+  flex: none;
   transform-origin: bottom center;
   background: var(--s-surface);
   border: 1px solid var(--s-border);
-  /* Flat: no drop shadow, no backdrop blur/saturate (was a glassy gradient look). */
-  /* pop-in plays on mount; morph (width/radius) is a transition */
+  /* Fallback surface for platforms without a native glass backdrop. */
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 10px 30px rgba(0, 0, 0, 0.18);
   animation: scard-pop 460ms cubic-bezier(0.22, 1, 0.36, 1);
-  transition:
-    width 460ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-radius 460ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform, width, opacity;
+  transition: border-radius 460ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
 }
+
+/* macOS: the glass IS the surface. No fill, no border, no drop shadow — just a
+   hairline top highlight. The window's NSGlassEffectView provides the material,
+   so the pill reads cleanly on any background (white, colour, dark). */
+:root[data-platform="macos"] .scard {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: inset 0 0.5px 0 var(--glass-rim-top);
+}
+/* Fade only: the card fills the window, so a scale would briefly reveal the
+   full-size glass backdrop behind a smaller card. */
 @keyframes scard-pop {
   from {
     opacity: 0;
-    /* Scale from the anchored edge (transform-origin) — never translate past it. */
-    transform: scale(0.92);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
 .scard.leaving {
   opacity: 0;
-  transform: scale(0.96);
-  transition:
-    opacity 240ms ease,
-    transform 300ms ease;
+  transition: opacity 240ms ease;
 }
 .scard.open {
-  width: var(--ov-open-w);
-  border-radius: 16px;
+  border-radius: 14px;
 }
+/* Working pill: capsule, matching the glass backdrop's radius (overlay.rs). */
 .scard.working {
-  width: var(--ov-work-w);
-  border-radius: 18px;
+  border-radius: 14px;
 }
 
-/* Compact form: two fixed widths so the recording→working change is an animatable
-   width transition (intrinsic max-content can't be transitioned, and every label
-   is short enough to fit the resting pill, so content-sizing produced no visible
-   grow). The resting pill hugs the waveform; the working pill is roomy enough to
-   center the longest label — the .swork-label ellipsis is only a safety net past it. */
+/* Compact form: the window is sized per state (overlay.rs), so the card just
+   fills it — no width transition (the window resize is the size change). */
 .scard.compact {
   animation: none;
-  width: var(--ov-rest-w);
+  border-radius: 14px;
 }
 .scard.compact.cworking {
-  width: var(--ov-work-w);
+  border-radius: 14px;
 }
 
 /* text region — auto-height open via grid-rows trick; region fades as a whole */
@@ -352,10 +352,14 @@
 }
 /* Translate workflow: the target language shown in the recording pill. */
 .strans-label {
-  font-size: 12px;
-  color: var(--s-muted);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
   white-space: nowrap;
-  max-width: 180px;
+  text-align: center;
+  justify-self: center;
+  min-width: 0;
+  max-width: 170px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -418,8 +422,8 @@
   }
 }
 .sx {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   flex: none;
   padding: 0;
@@ -429,8 +433,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--s-muted);
-  background: var(--s-hair);
+  /* Label-derived so the glyph stays legible on the glass in both themes. */
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
   cursor: pointer;
   transition:
     background-color 150ms ease,
@@ -467,7 +472,7 @@
   }
 }
 .swork-label {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--s-muted);
   white-space: nowrap;
   padding: 0 8px; /* breathing room from the spinner / cancel when content-sized */
@@ -479,7 +484,6 @@
 
 /* ---- learned notice: what we just added to the dictionary, plus undo ---- */
 .scard.learned {
-  width: var(--ov-learned-w);
   padding: 10px 14px;
   border-radius: 14px;
 }

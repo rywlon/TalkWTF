@@ -1,7 +1,22 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { Check, Copy, FolderOpen, RotateCcw, Star, Trash2 } from "lucide-react";
+import {
+  Check,
+  Copy,
+  FolderOpen,
+  Languages,
+  Mic,
+  RotateCcw,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -11,9 +26,48 @@ import {
   type HistoryUpdatePayload,
 } from "@/bindings";
 import { useOsType } from "@/hooks/useOsType";
-import { formatDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
+import { Dropdown } from "../../ui/Dropdown";
+import { SearchField } from "../../ui/SearchField";
+
+/** "3 秒" / "2 分 5 秒" — short duration for the row metadata. */
+function formatDurationShort(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`;
+}
+
+/** "1 小时前" via Intl.RelativeTimeFormat. */
+function formatRelativeTime(
+  timestampSeconds: number,
+  language: string,
+): string {
+  const diffMs = Date.now() - timestampSeconds * 1000;
+  const diffSeconds = Math.round(diffMs / 1000);
+  const formatter = new Intl.RelativeTimeFormat(language, {
+    numeric: "auto",
+  });
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["second", 60],
+    ["minute", 60],
+    ["hour", 24],
+    ["day", 7],
+    ["week", 4.348],
+    ["month", 12],
+    ["year", Number.POSITIVE_INFINITY],
+  ];
+  let value = -diffSeconds;
+  for (const [unit, step] of units) {
+    if (Math.abs(value) < step || unit === "year") {
+      return formatter.format(Math.round(value), unit);
+    }
+    value = value / step;
+  }
+  return formatter.format(Math.round(value), "year");
+}
 
 const IconButton: React.FC<{
   onClick: () => void;
@@ -65,6 +119,8 @@ export const HistorySettings: React.FC = () => {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
+  const [query, setQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const sentinelRef = useRef<HTMLDivElement>(null);
   const entriesRef = useRef<HistoryEntry[]>([]);
   const loadingRef = useRef(false);
@@ -234,26 +290,53 @@ export const HistorySettings: React.FC = () => {
     }
   };
 
+  const visibleEntries = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const filtered = needle
+      ? entries.filter((entry) =>
+          `${entry.transcription_text} ${entry.post_processed_text ?? ""}`
+            .toLowerCase()
+            .includes(needle),
+        )
+      : entries;
+    return [...filtered].sort((a, b) =>
+      sortOrder === "newest"
+        ? b.timestamp - a.timestamp
+        : a.timestamp - b.timestamp,
+    );
+  }, [entries, query, sortOrder]);
+
+  const sortOptions = [
+    { value: "newest", label: t("settings.history.sort.newest") },
+    { value: "oldest", label: t("settings.history.sort.oldest") },
+  ];
+
   let content: React.ReactNode;
 
   if (loading) {
     content = (
-      <div className="px-4 py-3 text-center text-text/60">
+      <div className="px-5 py-10 text-center text-callout text-secondary-label">
         {t("settings.history.loading")}
       </div>
     );
   } else if (entries.length === 0) {
     content = (
-      <div className="px-4 py-3 text-center text-text/60">
+      <div className="px-5 py-10 text-center text-callout text-secondary-label">
         {t("settings.history.empty")}
+      </div>
+    );
+  } else if (visibleEntries.length === 0) {
+    content = (
+      <div className="px-5 py-10 text-center text-callout text-secondary-label">
+        {t("settings.history.noMatches")}
       </div>
     );
   } else {
     content = (
       <>
         <AudioPlayerGroup>
-          <div className="divide-y divide-mid-gray/20">
-            {entries.map((entry) => (
+          <div className="divide-y divide-separator">
+            {visibleEntries.map((entry) => (
               <HistoryEntryComponent
                 key={entry.id}
                 entry={entry}
@@ -273,22 +356,28 @@ export const HistorySettings: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
-      <div className="space-y-2">
-        <div className="px-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xs font-medium text-mid-gray uppercase tracking-wide">
-              {t("settings.history.title")}
-            </h2>
-          </div>
+    <div className="max-w-[880px] w-full mx-auto space-y-5">
+      <div className="flex items-center gap-3">
+        <SearchField
+          className="flex-1 max-w-sm"
+          value={query}
+          onChange={setQuery}
+          placeholder={t("settings.history.searchPlaceholder")}
+        />
+        <Dropdown
+          options={sortOptions}
+          selectedValue={sortOrder}
+          onSelect={(value) => setSortOrder(value as "newest" | "oldest")}
+        />
+        <div className="ms-auto">
           <OpenRecordingsButton
             onClick={openRecordingsFolder}
             label={t("settings.history.openFolder")}
           />
         </div>
-        <div className="bg-background border border-mid-gray/20 rounded-lg overflow-visible">
-          {content}
-        </div>
+      </div>
+      <div className="glass-rim bg-background border border-separator rounded-card overflow-visible">
+        {content}
       </div>
     </div>
   );
@@ -353,13 +442,72 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     }
   };
 
-  const formattedDate = formatDateTime(String(entry.timestamp), i18n.language);
+  const polished = entry.post_processed_text?.trim() ?? "";
+  const raw = entry.transcription_text.trim();
+  const primary = polished || raw;
+  const secondary = polished && raw && polished !== raw ? raw : "";
+
+  const metaParts = [
+    entry.workflow === "translate"
+      ? t("dashboard.workflow.translate")
+      : t("dashboard.workflow.dictation"),
+    formatRelativeTime(entry.timestamp, i18n.language),
+  ];
+  const durationMs = entry.duration_ms ?? 0;
+  if (durationMs > 0) {
+    metaParts.push(formatDurationShort(durationMs));
+  }
 
   return (
-    <div className="px-4 py-2 pb-5 flex flex-col gap-3">
-      <div className="flex justify-between items-center">
-        <p className="text-sm font-medium">{formattedDate}</p>
-        <div className="flex items-center">
+    <div className="px-5 py-3.5 flex flex-col gap-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p
+            className={
+              retrying
+                ? ""
+                : hasTranscription
+                  ? "text-body text-text select-text cursor-text whitespace-pre-wrap break-words"
+                  : "text-body text-tertiary-label"
+            }
+            style={
+              retrying
+                ? { animation: "transcribe-pulse 3s ease-in-out infinite" }
+                : undefined
+            }
+          >
+            {retrying && (
+              <style>{`
+                @keyframes transcribe-pulse {
+                  0%, 100% { color: color-mix(in srgb, var(--color-text) 40%, transparent); }
+                  50% { color: color-mix(in srgb, var(--color-text) 90%, transparent); }
+                }
+              `}</style>
+            )}
+            {retrying
+              ? t("settings.history.transcribing")
+              : hasTranscription
+                ? primary
+                : t("settings.history.transcriptionFailed")}
+          </p>
+
+          {secondary && (
+            <p className="mt-1 line-clamp-2 text-callout text-secondary-label select-text cursor-text">
+              {secondary}
+            </p>
+          )}
+
+          <p className="mt-1.5 flex items-center gap-1.5 text-caption text-tertiary-label">
+            {entry.workflow === "translate" ? (
+              <Languages className="h-3 w-3" />
+            ) : (
+              <Mic className="h-3 w-3" />
+            )}
+            {metaParts.join(" · ")}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center -me-1">
           <IconButton
             onClick={handleCopyText}
             disabled={!hasTranscription || retrying}
@@ -411,35 +559,6 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           </IconButton>
         </div>
       </div>
-
-      <p
-        className={`italic text-sm pb-2 ${
-          retrying
-            ? ""
-            : hasTranscription
-              ? "text-text/90 select-text cursor-text whitespace-pre-wrap break-words"
-              : "text-text/40"
-        }`}
-        style={
-          retrying
-            ? { animation: "transcribe-pulse 3s ease-in-out infinite" }
-            : undefined
-        }
-      >
-        {retrying && (
-          <style>{`
-            @keyframes transcribe-pulse {
-              0%, 100% { color: color-mix(in srgb, var(--color-text) 40%, transparent); }
-              50% { color: color-mix(in srgb, var(--color-text) 90%, transparent); }
-            }
-          `}</style>
-        )}
-        {retrying
-          ? t("settings.history.transcribing")
-          : hasTranscription
-            ? entry.transcription_text
-            : t("settings.history.transcriptionFailed")}
-      </p>
 
       <AudioPlayer onLoadRequest={handleLoadAudio} className="w-full" />
     </div>

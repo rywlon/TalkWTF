@@ -275,17 +275,17 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       disabled={disabled}
       layout="horizontal"
     >
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center gap-1">
         {editingShortcutId === shortcutId ? (
           <div
             ref={(ref) => setShortcutRef(shortcutId, ref)}
-            className="px-2 py-1 text-sm font-semibold border border-logo-primary bg-logo-primary/30 rounded-md"
+            className="inline-flex h-7 items-center rounded-control border border-logo-primary bg-logo-primary/15 px-2.5 text-body font-medium"
           >
             {formatCurrentKeys()}
           </div>
         ) : (
           <div
-            className="px-2 py-1 text-sm font-semibold bg-mid-gray/10 border border-mid-gray/80 hover:bg-logo-primary/10 rounded-md cursor-pointer hover:border-logo-primary"
+            className="inline-flex h-7 items-center rounded-control border border-separator bg-fill px-2.5 text-body font-medium cursor-pointer transition-colors hover:bg-mid-gray/20"
             onClick={() => startRecording(shortcutId)}
           >
             {formatKeyCombination(binding.current_binding, osType)}

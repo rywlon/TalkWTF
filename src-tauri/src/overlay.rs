@@ -33,29 +33,31 @@ tauri_panel! {
     })
 }
 
-// Native overlay window sizes (logical points). One window is reused for every
-// state and resized in `show_overlay_state`; each size need only be at least as
-// large as the card it hosts (the `--ov-*` vars in RecordingOverlay.css). The
-// card is CSS-anchored flush to the screen edge, so window height doesn't move
-// where the card sits — only OVERLAY_TOP_OFFSET / OVERLAY_BOTTOM_OFFSET do. Keep
-// these in sync with the CSS card geometry.
+// Native overlay window sizes (logical points). The window IS the card: the
+// card fills it edge to edge (`width/height: 100%` in RecordingOverlay.css), so
+// the native Liquid Glass backdrop behind the webview takes exactly the card's
+// shape. If the window were larger than the card, the glass would show as a
+// second, bigger rounded rectangle around it.
+//
+// One window is reused for every state and resized in `show_overlay_state`. The
+// window is placed so the card sits at the configured screen-edge offset; see
+// OVERLAY_TOP_OFFSET / OVERLAY_BOTTOM_OFFSET.
 //
 // On Windows these sizes are additionally multiplied by the accessibility text
 // scale (see windows_text_scale_factor), which WebView2 applies as a zoom.
-//
-// Compact overlay (Minimal / transcribing / processing): the 40h pill animates
-// width from 172 (--ov-rest-w) to 216 (--ov-work-w) and expands from center, so
-// the window must fit the widest state plus a little slack.
-const OVERLAY_WIDTH: f64 = 256.0;
-const OVERLAY_HEIGHT: f64 = 50.0;
+const OVERLAY_WIDTH: f64 = 260.0;
+const OVERLAY_HEIGHT: f64 = 52.0;
 
-// Actual is 394x118, just a little extra
-const OVERLAY_STREAM_WIDTH: f64 = 400.0;
-const OVERLAY_STREAM_HEIGHT: f64 = 120.0;
+// The working pill is wider to centre its label.
+const OVERLAY_WORK_WIDTH: f64 = 280.0;
+
+// Streaming panel: the live-text region plus the control row.
+const OVERLAY_STREAM_WIDTH: f64 = 440.0;
+const OVERLAY_STREAM_HEIGHT: f64 = 150.0;
 
 // The "learned a word" notice needs room for a sentence plus one button.
-const OVERLAY_LEARNED_WIDTH: f64 = 420.0;
-const OVERLAY_LEARNED_HEIGHT: f64 = 72.0;
+const OVERLAY_LEARNED_WIDTH: f64 = 460.0;
+const OVERLAY_LEARNED_HEIGHT: f64 = 84.0;
 
 /// Overlay window size (logical) for a given UI state.
 fn overlay_dimensions(state: &str) -> (f64, f64) {
@@ -66,8 +68,16 @@ fn overlay_dimensions(state: &str) -> (f64, f64) {
         "learned" | "translation_failed" | "notice" => {
             (OVERLAY_LEARNED_WIDTH, OVERLAY_LEARNED_HEIGHT)
         }
+        // Working states: the pill is wider so the spinner + label fit centred.
+        "transcribing" | "processing" | "translating" => (OVERLAY_WORK_WIDTH, OVERLAY_HEIGHT),
         _ => (OVERLAY_WIDTH, OVERLAY_HEIGHT),
     }
+}
+
+/// Corner radius of the glass backdrop, matched to the card's own radius.
+/// A rounded rectangle (not a capsule), matching macOS window chrome.
+fn overlay_glass_radius(_state: &str) -> f64 {
+    14.0
 }
 
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
@@ -485,6 +495,11 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         {
             Ok(panel) => {
                 panel.hide();
+                // Liquid Glass backdrop behind the pill. The card itself is
+                // translucent (see RecordingOverlay.css) so this shows through.
+                if let Some(window) = app_handle.get_webview_window("recording_overlay") {
+                    crate::macos_glass::install_glass_backdrop(&window, 20.0);
+                }
             }
             Err(e) => {
                 log::error!("Failed to create recording overlay panel: {}", e);
@@ -627,6 +642,13 @@ fn show_overlay_state_on_main(
                 overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
             #[cfg(target_os = "windows")]
             WINDOWS_OVERLAY_IS_STREAMING.store(state == "streaming", Ordering::Relaxed);
+            // Keep the glass backdrop's rounding in step with the card's, since
+            // the window (and therefore the glass) resizes per state.
+            #[cfg(target_os = "macos")]
+            crate::macos_glass::set_glass_corner_radius(
+                &overlay_window,
+                overlay_glass_radius(state),
+            );
             let size_elapsed = size_started.elapsed();
 
             let pos_started = std::time::Instant::now();

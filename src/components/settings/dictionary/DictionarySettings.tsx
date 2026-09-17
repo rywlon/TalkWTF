@@ -599,7 +599,7 @@ export const DictionarySettings: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <div className="max-w-[880px] w-full mx-auto space-y-6">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-mid-gray" />

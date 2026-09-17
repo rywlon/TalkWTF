@@ -45,3 +45,10 @@ result
 
 # Python bytecode (scripts/)
 __pycache__/
+
+# Rust core build output
+core/*/target
+
+# Xcode build output / user data
+macos/build
+macos/**/xcuserdata

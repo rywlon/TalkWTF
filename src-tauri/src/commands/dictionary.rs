@@ -346,7 +346,7 @@ pub fn undo_last_dictionary_learning(
 #[tauri::command]
 #[specta::specta]
 pub fn diagnose_edit_learning(app: AppHandle) -> Vec<String> {
-    crate::learning::diagnose(&app)
+    crate::learning::diagnose()
 }
 
 /// Hide the overlay window. Used by the overlay's own buttons so the Rust side

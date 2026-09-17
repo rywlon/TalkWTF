@@ -291,9 +291,11 @@ const RecordingOverlay: React.FC = () => {
       <div className="sbase-l">
         <span className={`sdot ${captureReady ? "ready" : "arming"}`} />
       </div>
-      {waveform}
+      {/* The translate target replaces the waveform: showing both in one row
+          overlapped them at pill widths. The pulsing dot still signals that
+          recording is live. */}
+      {label ? <span className="strans-label">{label}</span> : waveform}
       <div className="sbase-r">
-        {label && <span className="strans-label">{label}</span>}
         {showTimer && <span className="stimer">{fmtTime(elapsed)}</span>}
         {showCancel && cancelBtn}
       </div>

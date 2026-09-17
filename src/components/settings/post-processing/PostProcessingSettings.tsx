@@ -189,7 +189,7 @@ export const PostProcessingSettings: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <div className="max-w-[880px] w-full mx-auto space-y-6">
       <div
         role="tablist"
         className="flex gap-1 rounded-lg border border-mid-gray/20 bg-mid-gray/5 p-1"

@@ -8,7 +8,11 @@ import {
   syncThemeFromSettings,
 } from "@/lib/utils/theme";
 import type { Theme } from "@/bindings";
+import { platform } from "@tauri-apps/plugin-os";
 import "@/i18n";
+
+// Scope per-platform CSS (the macOS glass surface vs. the solid fallback).
+document.documentElement.dataset.platform = platform();
 
 // A separate webview from the settings window, so the overlay has to set
 // `data-theme` on its own document: last-known theme before render (shared

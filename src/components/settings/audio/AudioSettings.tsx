@@ -14,7 +14,7 @@ export const AudioSettings: React.FC = () => {
   const { audioFeedbackEnabled } = useSettings();
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <div className="max-w-[880px] w-full mx-auto space-y-6">
       <SettingsGroup title={t("settings.sound.title")}>
         <MicrophoneSelector descriptionMode="tooltip" grouped={true} />
         <ChannelSelector descriptionMode="tooltip" grouped={true} />

@@ -43,9 +43,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="flex flex-col w-44 h-full border-e border-separator items-center px-2">
-      <TalkWtfLogo width={128} className="mt-4 mb-2 text-text" />
-      <div className="flex flex-col w-full items-center gap-0.5 pt-2 border-t border-separator">
+    <div className="flex flex-col w-56 h-full border-e border-separator items-center px-3">
+      {/* mt clears the traffic lights: the title bar is an overlay, so the
+          content runs to the top edge of the window. */}
+      <TalkWtfLogo width={140} className="mt-10 mb-3 text-text" />
+      <div className="flex flex-col w-full items-center gap-1 pt-3 border-t border-separator">
         {SIDEBAR_SECTIONS.map((id) => {
           const { labelKey, icon: Icon } = SECTIONS_CONFIG[id];
           const isActive = activeSection === id;
@@ -55,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={id}
               role="button"
               tabIndex={0}
-              className={`flex gap-2.5 items-center p-2 w-full rounded-lg cursor-pointer transition-colors ${
+              className={`flex gap-3 items-center h-[34px] px-3 w-full rounded-control cursor-pointer transition-colors ${
                 isActive
                   ? "bg-logo-primary/15 text-text"
                   : "hover:bg-fill text-secondary-label"
@@ -69,11 +71,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
             >
               <Icon
-                width={20}
-                height={20}
+                width={18}
+                height={18}
                 className={`shrink-0 ${isActive ? "text-logo-primary" : ""}`}
               />
-              <p className="text-sm font-medium truncate" title={t(labelKey)}>
+              <p className="text-body font-medium truncate" title={t(labelKey)}>
                 {t(labelKey)}
               </p>
             </div>

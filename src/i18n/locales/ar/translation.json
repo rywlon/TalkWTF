@@ -483,7 +483,13 @@
       "retranscribe": "إعادة النسخ",
       "retranscribeError": "فشلت إعادة النسخ. يرجى المحاولة مرة أخرى.",
       "transcribing": "جارٍ النسخ...",
-      "transcriptionFailed": "فشل النسخ. يمكنك إعادة النسخ باستخدام أيقونة إعادة المحاولة."
+      "transcriptionFailed": "فشل النسخ. يمكنك إعادة النسخ باستخدام أيقونة إعادة المحاولة.",
+      "searchPlaceholder": "Search",
+      "noMatches": "No matches",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      }
     },
     "debug": {
       "title": "تصحيح الأخطاء",

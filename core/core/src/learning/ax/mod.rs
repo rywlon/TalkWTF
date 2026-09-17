@@ -82,6 +82,7 @@ extern "C" {
     fn CFRelease(value: CFTypeRef);
     fn CFGetTypeID(value: CFTypeRef) -> usize;
     fn CFStringGetTypeID() -> usize;
+    fn CFArrayGetTypeID() -> usize;
     fn CFArrayGetCount(array: CFArrayRef) -> CFIndex;
     fn CFArrayGetValueAtIndex(array: CFArrayRef, index: CFIndex) -> *const c_void;
 }
@@ -356,10 +357,17 @@ fn supported_names(element: AXUIElementRef, parameterized: bool) -> Vec<String> 
         }
     };
 
+    // Only touch the out-parameter on success. A failed AX call can leave a
+    // non-null, non-CF pointer behind, and wrapping it in `CfOwned` would
+    // release it on drop — which traps in CFRelease (SIGTRAP). Verify the type
+    // too, so a non-array result can't reach CFArrayGetCount either.
+    if status != SUCCESS {
+        return Vec::new();
+    }
     let Some(names) = CfOwned::new(names as CFTypeRef) else {
         return Vec::new();
     };
-    if status != SUCCESS {
+    if unsafe { CFGetTypeID(names.raw()) != CFArrayGetTypeID() } {
         return Vec::new();
     }
 

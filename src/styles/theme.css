@@ -16,15 +16,18 @@
   --light-color-secondary-label: #6e6e73; /* secondaryLabel */
   --light-color-tertiary-label: #aeaeb2; /* tertiaryLabel */
   --light-color-background: #f5f5f7; /* windowBackgroundColor */
+  /* macOS window material. Kept fairly translucent so the native Liquid Glass
+     backdrop (macOS 26+) reads through the webview. */
   --light-color-background-material: color-mix(
     in srgb,
-    #f5f5f7 74%,
+    #f5f5f7 62%,
     transparent
   );
   --light-color-logo-primary: #007aff; /* systemBlue */
   --light-color-logo-stroke: #1d1d1f;
   --light-color-separator: color-mix(in srgb, #000000 12%, transparent);
   --light-color-fill: color-mix(in srgb, #000000 6%, transparent);
+  --light-color-popover: #f5f5f7;
   --light-color-warning: #b25000; /* systemOrange, darkened for contrast */
   --light-color-error: #d70015; /* systemRed */
 
@@ -35,13 +38,14 @@
   --dark-color-background: #1e1e1e;
   --dark-color-background-material: color-mix(
     in srgb,
-    #1e1e1e 62%,
+    #1e1e1e 54%,
     transparent
   );
   --dark-color-logo-primary: #0a84ff;
   --dark-color-logo-stroke: #f5f5f7;
   --dark-color-separator: color-mix(in srgb, #ffffff 14%, transparent);
   --dark-color-fill: color-mix(in srgb, #ffffff 10%, transparent);
+  --dark-color-popover: #2a2a2c;
   --dark-color-warning: #ffd60a;
   --dark-color-error: #ff453a;
 
@@ -51,6 +55,15 @@
 
   /* ---- Theme-independent ---- */
   --color-text-stroke: #f6f6f6;
+
+  /* Liquid-glass rim: a bright inner top edge plus a hairline ring, drawn on
+     cards that sit on the window's glass backdrop. */
+  --light-glass-rim-top: rgba(255, 255, 255, 0.5);
+  --light-glass-rim-ring: rgba(255, 255, 255, 0.14);
+  --dark-glass-rim-top: rgba(255, 255, 255, 0.26);
+  --dark-glass-rim-ring: rgba(255, 255, 255, 0.08);
+  --glass-rim-top: var(--light-glass-rim-top);
+  --glass-rim-ring: var(--light-glass-rim-ring);
 
   /* Active palette — defaults to light, follows the OS via the media query
      below, or is forced by `data-theme` (see the overrides). */
@@ -63,6 +76,7 @@
   --color-logo-stroke: var(--light-color-logo-stroke);
   --color-separator: var(--light-color-separator);
   --color-fill: var(--light-color-fill);
+  --color-popover: var(--light-color-popover);
   --color-mid-gray: var(--light-color-mid-gray);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
@@ -77,6 +91,8 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --color-text: var(--dark-color-text);
+    --glass-rim-top: var(--dark-glass-rim-top);
+    --glass-rim-ring: var(--dark-glass-rim-ring);
     --color-secondary-label: var(--dark-color-secondary-label);
     --color-tertiary-label: var(--dark-color-tertiary-label);
     --color-background: var(--dark-color-background);
@@ -85,6 +101,7 @@
     --color-logo-stroke: var(--dark-color-logo-stroke);
     --color-separator: var(--dark-color-separator);
     --color-fill: var(--dark-color-fill);
+    --color-popover: var(--dark-color-popover);
     --color-mid-gray: var(--dark-color-mid-gray);
     --color-warning: var(--dark-color-warning);
     --color-error: var(--dark-color-error);
@@ -102,6 +119,8 @@
  */
 :root[data-theme="light"] {
   --color-text: var(--light-color-text);
+  --glass-rim-top: var(--light-glass-rim-top);
+  --glass-rim-ring: var(--light-glass-rim-ring);
   --color-secondary-label: var(--light-color-secondary-label);
   --color-tertiary-label: var(--light-color-tertiary-label);
   --color-background: var(--light-color-background);
@@ -110,6 +129,7 @@
   --color-logo-stroke: var(--light-color-logo-stroke);
   --color-separator: var(--light-color-separator);
   --color-fill: var(--light-color-fill);
+  --color-popover: var(--light-color-popover);
   --color-mid-gray: var(--light-color-mid-gray);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
@@ -119,6 +139,8 @@
 
 :root[data-theme="dark"] {
   --color-text: var(--dark-color-text);
+  --glass-rim-top: var(--dark-glass-rim-top);
+  --glass-rim-ring: var(--dark-glass-rim-ring);
   --color-secondary-label: var(--dark-color-secondary-label);
   --color-tertiary-label: var(--dark-color-tertiary-label);
   --color-background: var(--dark-color-background);
@@ -127,6 +149,7 @@
   --color-logo-stroke: var(--dark-color-logo-stroke);
   --color-separator: var(--dark-color-separator);
   --color-fill: var(--dark-color-fill);
+  --color-popover: var(--dark-color-popover);
   --color-mid-gray: var(--dark-color-mid-gray);
   --color-warning: var(--dark-color-warning);
   --color-error: var(--dark-color-error);

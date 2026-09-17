@@ -1,3 +1,6 @@
+//! WAV file IO (16 kHz mono, 16-bit PCM), shared by the recording pipeline
+//! and the history duration backfill.
+
 use anyhow::Result;
 use hound::{WavReader, WavSpec, WavWriter};
 use log::debug;

@@ -12,6 +12,7 @@ mod helpers;
 mod input;
 mod learning;
 mod llm_client;
+mod macos_glass;
 mod managers;
 mod memory;
 mod overlay;
@@ -27,6 +28,20 @@ mod tray_i18n;
 mod utils;
 
 pub use cli::CliArgs;
+
+/// Forwards core events onto Tauri's event bus. The core emits plain JSON (it
+/// has no Tauri dependency); this adapter gives it a home in the Tauri shell.
+struct TauriEventSink {
+    app: AppHandle,
+}
+
+impl talkwtf_core::events::EventSink for TauriEventSink {
+    fn emit(&self, event: &str, payload: serde_json::Value) {
+        if let Err(e) = self.app.emit(event, payload) {
+            log::warn!("Failed to emit core event '{event}': {e}");
+        }
+    }
+}
 #[cfg(debug_assertions)]
 use specta_typescript::{BigIntExportBehavior, Typescript};
 use tauri_specta::{collect_commands, collect_events, Builder};
@@ -194,35 +209,37 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // Initialize the managers. The audio recorder receives the streaming router
     // explicitly, so always-on microphone startup can wire live-preview frames
     // even before Tauri state is populated.
-    let model_manager =
-        Arc::new(ModelManager::new(app_handle).expect("Failed to initialize model manager"));
+    let model_manager = Arc::new(ModelManager::new().expect("Failed to initialize model manager"));
     let transcription_manager = Arc::new(
-        TranscriptionManager::new(app_handle, model_manager.clone())
+        TranscriptionManager::new(model_manager.clone())
             .expect("Failed to initialize transcription manager"),
     );
     let recording_manager = Arc::new(
-        AudioRecordingManager::new(app_handle, transcription_manager.stream_router())
+        AudioRecordingManager::new(transcription_manager.stream_router())
             .expect("Failed to initialize recording manager"),
     );
     let history_manager =
-        Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
+        Arc::new(HistoryManager::new().expect("Failed to initialize history manager"));
     let dictionary_store =
-        Arc::new(DictionaryStore::new(app_handle).expect("Failed to initialize dictionary store"));
+        Arc::new(DictionaryStore::new().expect("Failed to initialize dictionary store"));
 
     // Initialize the transcribe-cpp native backend (logging + backend module
     // registration) once, before any whisper model is loaded.
     managers::transcription::init_transcribe_backend();
 
     // Apply accelerator preferences before any model loads
-    managers::transcription::apply_accelerator_settings(app_handle);
+    managers::transcription::apply_accelerator_settings();
 
     // Add managers to Tauri's managed state
     app_handle.manage(recording_manager.clone());
+    talkwtf_core::state::set_audio_manager(&recording_manager);
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
     app_handle.manage(dictionary_store.clone());
-    app_handle.manage(learning::LearningState::default());
+    // The core (edit watcher) looks the store up through its own registry.
+    talkwtf_core::state::set_dictionary_store(dictionary_store.clone());
+    learning::init_learning_state();
     app_handle.manage(tray::TrayState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -925,6 +942,19 @@ pub fn run(cli_args: CliArgs) {
         ))
         .manage(cli_args.clone())
         .setup(move |app| {
+            // Point the Tauri-free core at the app data directory and locale
+            // before anything reads settings. Both shells share this core.
+            if let Ok(data_dir) = portable::app_data_dir(app.handle()) {
+                talkwtf_core::settings::init(data_dir);
+            }
+            if let Some(locale) = tauri_plugin_os::locale() {
+                talkwtf_core::settings::set_locale(locale);
+            }
+            // Route core events (history updates, …) to Tauri's event bus.
+            talkwtf_core::events::set_sink(Box::new(TauriEventSink {
+                app: app.handle().clone(),
+            }));
+
             #[cfg(target_os = "windows")]
             log::info!(
                 "Vulkan layer policy: VK_LOADER_LAYERS_DISABLE={:?}, HANDY_KEEP_VULKAN_IMPLICIT_LAYERS={}",
@@ -944,23 +974,23 @@ pub fn run(cli_args: CliArgs) {
             if headless_mode {
                 let app_handle = app.handle().clone();
                 let model_manager = Arc::new(
-                    ModelManager::new(&app_handle).expect("Failed to initialize model manager"),
+                    ModelManager::new().expect("Failed to initialize model manager"),
                 );
                 let transcription_manager = Arc::new(
-                    TranscriptionManager::new(&app_handle, model_manager.clone())
+                    TranscriptionManager::new(model_manager.clone())
                         .expect("Failed to initialize transcription manager"),
                 );
                 // Headless transcription still applies dictionary correction, so
                 // the store has to exist here even though nothing manages history.
                 let dictionary_store = Arc::new(
-                    DictionaryStore::new(&app_handle)
+                    DictionaryStore::new()
                         .expect("Failed to initialize dictionary store"),
                 );
                 app_handle.manage(model_manager);
                 app_handle.manage(transcription_manager);
                 app_handle.manage(dictionary_store);
                 managers::transcription::init_transcribe_backend();
-                managers::transcription::apply_accelerator_settings(&app_handle);
+                managers::transcription::apply_accelerator_settings();
 
                 let handle = app_handle.clone();
                 let args = cli_args.clone();
@@ -988,26 +1018,25 @@ pub fn run(cli_args: CliArgs) {
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title("TalkWTF")
-                    .inner_size(680.0, 570.0)
-                    .min_inner_size(680.0, 570.0)
+                    .inner_size(1000.0, 700.0)
+                    .min_inner_size(880.0, 600.0)
                     .resizable(true)
                     .maximizable(true)
                     .visible(false);
 
-            // macOS: give the window a translucent material behind the webview
-            // so the app reads like a native window. The webview background is
-            // made transparent in CSS (`:root[data-platform="macos"]`). Other
-            // platforms keep the solid background.
+            // macOS: the window is non-opaque so a material can show through the
+            // webview (whose background is transparent in CSS). The material is
+            // installed after build: real Liquid Glass where available, classic
+            // vibrancy otherwise.
             #[cfg(target_os = "macos")]
             {
-                use tauri::window::{Effect, EffectState};
-                use tauri::utils::config::WindowEffectsConfig;
-                win_builder = win_builder.transparent(true).effects(WindowEffectsConfig {
-                    effects: vec![Effect::UnderWindowBackground],
-                    state: Some(EffectState::FollowsWindowActiveState),
-                    radius: Some(12.0),
-                    color: None,
-                });
+                // Content runs under an overlay title bar with no title text, so
+                // the glass backdrop (installed below) covers the whole window
+                // like Apple's own apps. The traffic lights float over the top.
+                win_builder = win_builder
+                    .transparent(true)
+                    .title_bar_style(tauri::TitleBarStyle::Overlay)
+                    .hidden_title(true);
             }
 
             if let Some(data_dir) = portable::data_dir() {
@@ -1017,6 +1046,13 @@ pub fn run(cli_args: CliArgs) {
             // Only used on Windows, to disable WebView2 browser accelerators.
             #[cfg_attr(not(target_os = "windows"), allow(unused_variables))]
             let main_window = win_builder.build()?;
+
+            #[cfg(target_os = "macos")]
+            {
+                if !macos_glass::install_glass_backdrop(&main_window, 12.0) {
+                    let _ = main_window.set_effects(Some(macos_glass::fallback_vibrancy()));
+                }
+            }
 
             // Disable WebView2 browser accelerators (F5, F6, Ctrl+F, F12, ...).
             // A settings window has no use for them, and pressing F6 while
@@ -1057,7 +1093,7 @@ pub fn run(cli_args: CliArgs) {
                 settings.log_level = settings::LogLevel::Trace;
             }
 
-            let tauri_log_level: tauri_plugin_log::LogLevel = settings.log_level.into();
+            let tauri_log_level = settings::to_tauri_log_level(settings.log_level);
             let file_log_level: log::Level = tauri_log_level.into();
             // Store the file log level in the atomic for the filter to use
             FILE_LOG_LEVEL.store(file_log_level.to_level_filter() as u8, Ordering::Relaxed);

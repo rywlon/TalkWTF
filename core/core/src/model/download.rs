@@ -14,7 +14,6 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::time::{Duration, Instant};
-use tauri::Emitter;
 
 /// Bound on connection setup for direct HTTP downloads (mirror + URL models).
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -130,7 +129,6 @@ impl ModelManager {
         expected_sha256: Option<&str>,
         cancel_token: &CancellationToken,
     ) -> Result<HttpDownloadOutcome> {
-        let app_handle = self.app_handle.clone();
         let id = model_id.to_string();
         Self::download_http_resumable_with_events(
             model_id,
@@ -139,18 +137,16 @@ impl ModelManager {
             expected_size,
             expected_sha256,
             cancel_token,
-            &move |event| {
-                let _ = match event {
-                    HttpDownloadEvent::Progress(progress) => {
-                        app_handle.emit("model-download-progress", progress)
-                    }
-                    HttpDownloadEvent::VerificationStarted => {
-                        app_handle.emit("model-verification-started", &id)
-                    }
-                    HttpDownloadEvent::VerificationCompleted => {
-                        app_handle.emit("model-verification-completed", &id)
-                    }
-                };
+            &move |event| match event {
+                HttpDownloadEvent::Progress(progress) => {
+                    crate::events::emit("model-download-progress", progress)
+                }
+                HttpDownloadEvent::VerificationStarted => {
+                    crate::events::emit("model-verification-started", &id)
+                }
+                HttpDownloadEvent::VerificationCompleted => {
+                    crate::events::emit("model-verification-completed", &id)
+                }
             },
         )
         .await

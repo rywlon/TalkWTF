@@ -1125,7 +1125,7 @@ impl ShortcutAction for TranscribeAction {
                                             );
                                             // Watch the field we just wrote into, so a
                                             // correction the user makes can be learned.
-                                            crate::learning::watch_for_edit(&ah_clone, &final_text);
+                                            crate::learning::watch_for_edit(&final_text);
                                         }
                                         Err(e) => {
                                             error!("Failed to paste transcription: {}", e);

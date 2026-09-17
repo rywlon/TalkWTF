@@ -1175,10 +1175,8 @@ async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, stri
 }
 },
 /**
- * Checks if the Mac is a laptop by detecting battery presence
- * 
- * This uses pmset to check for battery information.
- * Returns true if a battery is detected (laptop), false otherwise (desktop)
+ * True when the machine has a battery (i.e. a laptop). Exposed to the
+ * frontend as a command.
  */
 async isLaptop() : Promise<Result<boolean, string>> {
     try {
@@ -1364,6 +1362,9 @@ char_count?: number;
  * Which pipeline produced this entry: "dictation" or "translate".
  */
 workflow?: string }
+/**
+ * Specta/Tauri mirror of the core's update payload (type generation only).
+ */
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 /**
  * Result of changing keyboard implementation
@@ -1380,14 +1381,9 @@ export type KeyboardDiagnosticReport = { secure_input_enabled: boolean; culprit_
 key_down: number; key_up: number; flags_changed: number; mouse: number; duration_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"
 /**
- * Emitted when a correction was learned, so the overlay can offer an undo.
+ * Specta/Tauri mirror of the core's correction event (type generation only).
  */
-export type LearnedCorrection = { pattern: string; replacement: string; 
-/**
- * How many rules this dictation taught. The notice shows the pair when it is
- * one, and a count when a single message carried several corrections.
- */
-count: number }
+export type LearnedCorrection = { pattern: string; replacement: string; count: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; is_directory: boolean; engine_type: EngineType; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
@@ -1533,17 +1529,11 @@ export type StreamPhase =
  */
 "working"
 /**
- * Emitted to switch the streaming overlay to a working spinner.
+ * Specta/Tauri mirror of the core's stream-phase event.
  */
-export type StreamPhaseEvent = { phase: StreamPhase; 
+export type StreamPhaseEvent = { phase: StreamPhase; kind: StreamWorkKind | null }
 /**
- * Present only when `phase` is `Working`.
- */
-kind?: StreamWorkKind | null }
-/**
- * Live transcription snapshot emitted to the overlay during a streaming run.
- * `committed` is the append-only, flicker-free prefix; `tentative` is the
- * volatile suffix the model may still rewrite.
+ * Specta/Tauri mirror of the core's stream-text event.
  */
 export type StreamTextEvent = { committed: string; tentative: string }
 /**
