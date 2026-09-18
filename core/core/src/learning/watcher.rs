@@ -21,12 +21,9 @@ use super::{ax, diff};
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 /// How long we keep watching after a paste.
 const WATCH_WINDOW: Duration = Duration::from_secs(45);
-/// The field must stay identical this long before typing counts as finished
-/// *during* the watch. Deliberately generous: a pause while thinking of the next
-/// word ("Hydra" ... "Facial") looks exactly like "finished", and deciding then
-/// learns a half term. The common case — fix and send — is handled by the
-/// end-of-watch decision, which looks at every captured state instead.
-const SETTLE: Duration = Duration::from_millis(5000);
+/// Consecutive polls with no readable focus, after the field was readable, that
+/// mean the user moved on (sent, submitted, or clicked away). 10 * 200ms = 2s.
+const FOCUS_LOST_POLLS: u32 = 10;
 /// How many observed field states we keep. Every distinct value is stored, so the
 /// decision at the end can look back past an incomplete one.
 const MAX_OBSERVED_STATES: usize = 40;
@@ -140,7 +137,19 @@ pub fn watch_for_edit(pasted_text: &str) {
     }
 
     std::thread::spawn(move || {
-        let (candidates, report) = observe(&pasted, bundle_id.as_deref(), generation);
+        let (observed, mut report) = observe(&pasted, bundle_id.as_deref(), generation);
+
+        if let Some(final_text) = choose_final(&observed, &pasted) {
+            let candidates = decide(&observed, &pasted, &mut report);
+
+            if !candidates.is_empty() {
+                report.candidate = Some(describe(&candidates));
+                // Read the field's position now, while it is still focused, so the
+                // notice can be placed next to it (the shell ignores this now).
+                let frame = ax::focused_element_frame();
+                apply(candidates, frame);
+            }
+        }
 
         if let Some(state) = crate::learning::learning_state() {
             state.set_report(report.clone());
@@ -154,31 +163,26 @@ pub fn watch_for_edit(pasted_text: &str) {
             report.last_field_chars.unwrap_or(0),
             report.candidate,
         );
-
-        if !candidates.is_empty() {
-            // Read the field's position now, while it is still focused, so the
-            // notice can appear next to it.
-            let frame = ax::focused_element_frame();
-            apply(candidates, frame);
-        }
     });
 }
 
-fn observe(
-    pasted: &str,
-    bundle_id: Option<&str>,
-    generation: u64,
-) -> (Vec<diff::EditCandidate>, WatchReport) {
-    let started = Instant::now();
-    let mut last_seen: Option<String> = None;
-    let mut last_change = Instant::now();
-    let mut judged: Option<String> = None;
-    let mut unreadable = 0u32;
+/// The newest state the field held that differs from what we pasted. This is what
+/// we compare against when deciding what the edit taught.
+fn choose_final(observed: &[String], pasted: &str) -> Option<String> {
+    observed
+        .iter()
+        .rev()
+        .find(|text| text.as_str() != pasted)
+        .cloned()
+}
 
-    // Every distinct non-empty value the field held, oldest first. The user often
-    // fixes a word and hits send before any single value has been stable long
-    // enough to judge, so the decision at the end looks back through these
-    // instead of trusting the last sample.
+fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<String>, WatchReport) {
+    let started = Instant::now();
+    let mut unreadable = 0u32;
+    let mut ever_readable = false;
+
+    // Every distinct non-empty value the field held, oldest first. The decision
+    // at the end looks back through these instead of trusting the last sample.
     let mut observed: Vec<String> = Vec::new();
 
     let mut report = WatchReport {
@@ -195,42 +199,47 @@ fn observe(
         if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
             debug!("Stopping the edit watch: a newer dictation took over");
             report.outcome = "superseded by a newer dictation".to_string();
-            return (decide(&observed, pasted, &mut report), report);
+            return (Vec::new(), report);
         }
         if !crate::settings::current().learn_from_edits {
             report.outcome = "the setting was turned off".to_string();
-            return (decide(&observed, pasted, &mut report), report);
+            return (Vec::new(), report);
         }
         // Never read anything while the system is in a secure-input context.
         if crate::secure_input::is_enabled_now() {
             debug!("Stopping the edit watch: secure input became active");
             report.outcome = "secure input became active".to_string();
-            return (decide(&observed, pasted, &mut report), report);
+            return (Vec::new(), report);
         }
         if ax::frontmost_bundle_id().as_deref() != bundle_id {
             debug!("Stopping the edit watch: the frontmost app changed");
             report.outcome = "the frontmost app changed".to_string();
-            return (decide(&observed, pasted, &mut report), report);
+            return (observed, report);
         }
 
         // A read can fail transiently — the app is busy, or an input-method
         // composition window briefly owns focus. That is exactly when the user is
         // editing, so a failure must never end the watch; "the user moved on" is
-        // detected by the frontmost-app check instead. Log sparsely.
+        // detected by the frontmost-app check and by a sustained unreadable streak.
         let Some(focused) = ax::read_focused_text(unreadable == 0 || unreadable % 40 == 0) else {
             unreadable = unreadable.saturating_add(1);
+            if ever_readable && unreadable >= FOCUS_LOST_POLLS {
+                debug!("Settling the edit watch: the field lost focus");
+                report.outcome = "the field lost focus".to_string();
+                return (observed, report);
+            }
             continue;
         };
         unreadable = 0;
+        ever_readable = true;
         report.readable_polls += 1;
         report.last_field_chars = Some(focused.text.chars().count());
         report.last_field_preview = Some(focused.text.chars().take(160).collect());
 
-        // The field emptied: the message was sent (or the draft cleared). Decide
-        // from everything we captured.
+        // The field emptied: the message was sent (or the draft cleared).
         if focused.text.trim().is_empty() {
             report.outcome = "the field emptied".to_string();
-            return (decide(&observed, pasted, &mut report), report);
+            return (observed, report);
         }
 
         if observed.last().map(String::as_str) != Some(focused.text.as_str()) {
@@ -239,41 +248,11 @@ fn observe(
                 observed.remove(0);
             }
         }
-
-        // Any change means the user is still editing: reset the settle clock.
-        if last_seen.as_deref() != Some(focused.text.as_str()) {
-            last_seen = Some(focused.text.clone());
-            last_change = Instant::now();
-            continue;
-        }
-
-        if last_change.elapsed() < SETTLE {
-            continue;
-        }
-
-        // The value has been stable for a long time: the user paused, so this is
-        // very likely the finished text.
-        if judged.as_deref() == Some(focused.text.as_str()) {
-            continue;
-        }
-        judged = Some(focused.text.clone());
-
-        if focused.text == pasted {
-            continue;
-        }
-
-        let found = usable_candidates(diff::detect_edits(pasted, &focused.text));
-        if !found.is_empty() {
-            report.outcome = "learned".to_string();
-            report.candidate = Some(describe(&found));
-            return (found, report);
-        }
-        report.outcome = "the field changed, but not like a correction".to_string();
     }
 
-    debug!("Edit watch timed out with no correction");
+    debug!("Edit watch timed out with no send");
     report.outcome = "timeout".to_string();
-    (decide(&observed, pasted, &mut report), report)
+    (Vec::new(), report)
 }
 
 /// Drop candidates that are clearly half-finished.
@@ -581,5 +560,24 @@ mod tests {
 
         let mut report = WatchReport::default();
         assert!(decide(&observed, pasted, &mut report).is_empty());
+    }
+
+    #[test]
+    fn choose_final_prefers_the_newest_differing_state() {
+        let pasted = "hello world";
+        let observed = states(&[pasted, "hello there", "hello world!"]);
+
+        assert_eq!(
+            choose_final(&observed, pasted),
+            Some("hello world!".to_string())
+        );
+    }
+
+    #[test]
+    fn choose_final_is_none_when_nothing_differs() {
+        let pasted = "hello world";
+        let observed = states(&[pasted, pasted]);
+
+        assert_eq!(choose_final(&observed, pasted), None);
     }
 }
