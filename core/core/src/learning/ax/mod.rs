@@ -383,29 +383,33 @@ fn read_child(element: AXUIElementRef) -> Option<FocusedText> {
 /// Hold this for the whole watch session (see `enable_enhanced_user_interface`):
 /// toggling it on every poll makes Chromium rebuild its tree repeatedly.
 pub struct EnhancedUserInterface {
-    window: AxElement,
-    previous: Option<bool>,
+    targets: Vec<(AxElement, Option<bool>)>,
 }
 
-impl EnhancedUserInterface {
-    fn enable(focused: AXUIElementRef) -> Option<Self> {
-        let window = copy_element(focused, "AXWindow")?;
-        set_timeout(window.raw());
+/// Set `AXEnhancedUserInterface = true` on an element and remember its prior
+/// value so it can be restored.
+fn apply_enhancement(element: AxElement) -> (AxElement, Option<bool>) {
+    let previous = copy_value(element.raw(), "AXEnhancedUserInterface")
+        .and_then(|value| cf_boolean(value.raw()));
 
-        let previous = copy_value(window.raw(), "AXEnhancedUserInterface")
-            .and_then(|value| cf_boolean(value.raw()));
-
-        let attribute = attribute("AXEnhancedUserInterface");
-        unsafe {
-            AXUIElementSetAttributeValue(
-                window.raw(),
-                Retained::as_ptr(&attribute) as CFTypeRef,
-                kCFBooleanTrue,
-            );
-        }
-
-        Some(Self { window, previous })
+    let attribute = attribute("AXEnhancedUserInterface");
+    unsafe {
+        AXUIElementSetAttributeValue(
+            element.raw(),
+            Retained::as_ptr(&attribute) as CFTypeRef,
+            kCFBooleanTrue,
+        );
     }
+
+    (element, previous)
+}
+
+/// The frontmost application's focused window.
+fn focused_window() -> Option<AxElement> {
+    let pid = frontmost_pid()?;
+    let application = unsafe { AxElement::new(AXUIElementCreateApplication(pid)) }?;
+    set_timeout(application.raw());
+    copy_element(application.raw(), "AXFocusedWindow")
 }
 
 impl Drop for EnhancedUserInterface {
@@ -414,30 +418,51 @@ impl Drop for EnhancedUserInterface {
         // value is the common case. Restore to false rather than leaving the
         // attribute we set (true) behind; if it is unsupported the set fails
         // harmlessly.
-        let value = match self.previous {
-            Some(true) => unsafe { kCFBooleanTrue },
-            Some(false) | None => unsafe { kCFBooleanFalse },
-        };
         let attribute = attribute("AXEnhancedUserInterface");
-        unsafe {
-            AXUIElementSetAttributeValue(
-                self.window.raw(),
-                Retained::as_ptr(&attribute) as CFTypeRef,
-                value,
-            );
+        for (element, previous) in &self.targets {
+            let value = match previous {
+                Some(true) => unsafe { kCFBooleanTrue },
+                Some(false) | None => unsafe { kCFBooleanFalse },
+            };
+            unsafe {
+                AXUIElementSetAttributeValue(
+                    element.raw(),
+                    Retained::as_ptr(&attribute) as CFTypeRef,
+                    value,
+                );
+            }
         }
     }
 }
 
-/// Enable `AXEnhancedUserInterface` on the currently focused element's window.
+/// Enable `AXEnhancedUserInterface` on the frontmost application and its focused
+/// window.
 ///
-/// The returned guard restores the prior value when dropped, so the caller must
-/// hold it for as long as the accessibility tree is needed (the whole watch),
-/// not just for one read.
+/// Chromium apps report `kAXErrorNoValue` for `AXFocusedUIElement` until their
+/// accessibility tree is requested, and the window cannot be found before that —
+/// so the application element is enhanced first (it is always reachable), which
+/// wakes the tree, then the window is enhanced too. The returned guard restores
+/// every prior value when dropped, so the caller must hold it for the whole watch.
 pub fn enable_enhanced_user_interface() -> Option<EnhancedUserInterface> {
-    let focused = focused_element()?;
-    set_timeout(focused.raw());
-    EnhancedUserInterface::enable(focused.raw())
+    let mut targets = Vec::new();
+
+    if let Some(pid) = frontmost_pid() {
+        if let Some(application) = unsafe { AxElement::new(AXUIElementCreateApplication(pid)) } {
+            set_timeout(application.raw());
+            targets.push(apply_enhancement(application));
+        }
+    }
+
+    if let Some(window) = focused_window() {
+        set_timeout(window.raw());
+        targets.push(apply_enhancement(window));
+    }
+
+    if targets.is_empty() {
+        None
+    } else {
+        Some(EnhancedUserInterface { targets })
+    }
 }
 
 fn cf_boolean(value: CFTypeRef) -> Option<bool> {
