@@ -282,7 +282,12 @@ fn decide(observed: &[String], pasted: &str, report: &mut WatchReport) -> Vec<di
             continue;
         }
 
-        let candidates = diff::detect_edits(pasted, text);
+        let candidates: Vec<diff::EditCandidate> = diff::detect_edits(pasted, text)
+            .into_iter()
+            .filter(|candidate| {
+                diff::is_likely_mishearing(&candidate.pattern, &candidate.replacement)
+            })
+            .collect();
         if candidates.is_empty() {
             continue;
         }
@@ -517,21 +522,18 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_the_best_incomplete_state() {
-        // Only a half-typed value was ever captured; learning it is still better
-        // than learning nothing, and the user can undo it.
+    fn falls_back_to_nothing_when_the_captured_fragment_is_dissimilar() {
         let pasted = "他想做 C3XO，可以吗？";
         let observed = states(&[pasted, "他想做 Cica ，可以吗？"]);
 
         let mut report = WatchReport::default();
-        let decided = decide(&observed, pasted, &mut report);
-
-        assert_eq!(decided.len(), 1);
-        assert_eq!(decided[0].replacement, "Cica");
+        assert!(decide(&observed, pasted, &mut report).is_empty());
     }
 
     #[test]
-    fn learns_every_correction_in_one_state() {
+    fn the_gate_drops_a_dissimilar_correction_in_one_state() {
+        // "QL" -> "KOL" normalizes to 2/3 edits, over the 0.6 mishearing floor, so
+        // the gate drops it. The close "C3XO" -> "Cica Exo" (4/7) is still learned.
         let pasted = "这儿有一个QL，他想做C3XO，请问可以吗？";
         let observed = states(&[pasted, "这儿有一个KOL，他想做Cica Exo，请问可以吗？"]);
 
@@ -544,11 +546,11 @@ mod tests {
             .collect();
 
         assert!(
-            pairs.contains(&("QL".to_string(), "KOL".to_string())),
+            pairs.contains(&("C3XO".to_string(), "Cica Exo".to_string())),
             "{pairs:?}"
         );
         assert!(
-            pairs.contains(&("C3XO".to_string(), "Cica Exo".to_string())),
+            !pairs.contains(&("QL".to_string(), "KOL".to_string())),
             "{pairs:?}"
         );
     }

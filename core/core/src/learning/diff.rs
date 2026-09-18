@@ -42,7 +42,13 @@ const MIN_HUNK_GAP: usize = 4;
 const MAX_ASCII_SPAN_WORDS: usize = 6;
 /// Length floors for the replaced / replacement spans.
 const MIN_ASCII_SPAN_CHARS: usize = 2;
-const MIN_CJK_SPAN_CHARS: usize = 1;
+const MIN_CJK_SPAN_CHARS: usize = 2;
+/// Similarity floors for the "this looks like a mishearing, not a change of mind"
+/// gate. ASCII terms must be close under normalized edit distance; CJK terms must
+/// share enough characters. A dictionary word biases future recognition, so a
+/// semantic edit ("早" -> "晚") must never be learned.
+const LEARN_SIMILARITY_THRESHOLD: f64 = 0.6;
+const LEARN_CJK_OVERLAP: f64 = 0.5;
 
 fn is_cjk(character: char) -> bool {
     let code = character as u32;
@@ -55,6 +61,69 @@ fn is_cjk(character: char) -> bool {
 
 fn has_cjk(text: &str) -> bool {
     text.chars().any(is_cjk)
+}
+
+/// Whether a correction looks like the recognizer misheard the user, rather than
+/// the user changing their mind. Cross-script pairs (the recognizer wrote Chinese
+/// for an English term, or vice versa) are treated as mishearings: local code
+/// cannot score their pronunciation, and they are rarely a deliberate rewrite.
+pub fn is_likely_mishearing(pattern: &str, replacement: &str) -> bool {
+    // Identical text (after the same normalization the distance uses) is not an
+    // edit at all. `detect_edits` never produces one, but the gate stands alone.
+    if match_key(pattern) == match_key(replacement) {
+        return false;
+    }
+
+    let old_has_cjk = has_cjk(pattern);
+    let new_has_cjk = has_cjk(replacement);
+
+    if old_has_cjk != new_has_cjk {
+        return true;
+    }
+
+    if old_has_cjk {
+        cjk_overlap(pattern, replacement) >= LEARN_CJK_OVERLAP
+    } else {
+        normalized_distance(pattern, replacement) <= LEARN_SIMILARITY_THRESHOLD
+    }
+}
+
+/// Normalized Levenshtein distance over alphanumeric, lowercased text.
+fn normalized_distance(left: &str, right: &str) -> f64 {
+    let left = match_key(left);
+    let right = match_key(right);
+    let max = left.chars().count().max(right.chars().count());
+    if max == 0 {
+        return 1.0;
+    }
+    strsim::levenshtein(&left, &right) as f64 / max as f64
+}
+
+fn match_key(text: &str) -> String {
+    text.chars()
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(|character| character.to_lowercase())
+        .collect()
+}
+
+/// Shared-character ratio (multiset intersection over the longer side).
+fn cjk_overlap(left: &str, right: &str) -> f64 {
+    let mut remaining: Vec<char> = right.chars().collect();
+    let mut shared = 0usize;
+    for character in left.chars() {
+        if let Some(index) = remaining
+            .iter()
+            .position(|candidate| *candidate == character)
+        {
+            remaining.remove(index);
+            shared += 1;
+        }
+    }
+    let max = left.chars().count().max(right.chars().count());
+    if max == 0 {
+        return 0.0;
+    }
+    shared as f64 / max as f64
 }
 
 /// Characters that separate one term from the next. CJK counts as a boundary
@@ -104,6 +173,11 @@ fn expand_to_token_bounds(chars: &[char], start: usize, end: usize) -> (usize, u
     }
 
     (start, end)
+}
+
+/// A span that is exactly one CJK character.
+fn is_single_cjk(span: &[char]) -> bool {
+    span.len() == 1 && is_cjk(span[0])
 }
 
 fn span_length_ok(span: &str) -> bool {
@@ -434,6 +508,16 @@ fn edits_in_window(pasted_chars: &[char], window: &[char]) -> Option<Vec<EditCan
         return None;
     }
 
+    // A lone hanzi is not a term, so a change that is exactly one CJK character is
+    // not learnable. Stop the window search here rather than sliding to a worse
+    // alignment: the next alignment would smear the neighbouring characters into a
+    // bogus multi-character span ("今天早" -> "天晚" for a simple 早 -> 晚 fix).
+    if is_single_cjk(&pasted_chars[raw_old_start..raw_old_end])
+        || is_single_cjk(&window[raw_new_start..raw_new_end])
+    {
+        return Some(Vec::new());
+    }
+
     let (old_start, old_end) = expand_to_token_bounds(pasted_chars, raw_old_start, raw_old_end);
     let (new_start, new_end) = expand_to_token_bounds(window, raw_new_start, raw_new_end);
 
@@ -534,11 +618,9 @@ mod tests {
     }
 
     #[test]
-    fn learns_a_single_cjk_character_fix() {
-        assert_eq!(
-            candidate("今天早上我要喝牛奶", "今天晚上我要喝牛奶"),
-            Some(("早".to_string(), "晚".to_string()))
-        );
+    fn a_single_cjk_character_is_not_learned() {
+        // A lone character is not a term; the LLM path handles word-level fixes.
+        assert_eq!(candidate("今天早上我要喝牛奶", "今天晚上我要喝牛奶"), None);
     }
 
     #[test]
@@ -644,14 +726,6 @@ mod tests {
     }
 
     #[test]
-    fn an_edit_near_the_start_still_anchors() {
-        assert_eq!(
-            candidate("今天早上我要喝牛奶", "今天晚上我要喝牛奶"),
-            Some(("早".to_string(), "晚".to_string()))
-        );
-    }
-
-    #[test]
     fn empty_and_whitespace_inputs_are_safe() {
         assert_eq!(candidate("", "anything"), None);
         assert_eq!(candidate("   ", "anything"), None);
@@ -663,5 +737,35 @@ mod tests {
         let pasted = "a".repeat(MAX_PASTED_CHARS + 1);
         let current = format!("{pasted}b");
         assert_eq!(candidate(&pasted, &current), None);
+    }
+
+    #[test]
+    fn gate_accepts_a_close_ascii_mishearing() {
+        assert!(is_likely_mishearing("C3XO", "Cica Exo"));
+    }
+
+    #[test]
+    fn gate_rejects_a_semantic_ascii_change() {
+        assert!(!is_likely_mishearing("ship", "hold"));
+    }
+
+    #[test]
+    fn gate_accepts_cjk_with_shared_characters() {
+        assert!(is_likely_mishearing("浏览起", "浏览器"));
+    }
+
+    #[test]
+    fn gate_rejects_a_semantic_cjk_change() {
+        assert!(!is_likely_mishearing("要喝牛奶", "想喝咖啡"));
+    }
+
+    #[test]
+    fn gate_accepts_a_cross_script_mishearing() {
+        assert!(is_likely_mishearing("嗨桌飞手", "Hydra Facial"));
+    }
+
+    #[test]
+    fn gate_rejects_an_identical_pair() {
+        assert!(!is_likely_mishearing("hello", "hello"));
     }
 }
