@@ -38,7 +38,7 @@
 
 ## 三、范围
 
-- `core/core/src/learning/ax/*`：有界上下文采集 + 元素信息 + CaptureTimeout/CaptureResult +
+- `core/core/src/learning/ax/*`：有界上下文采集 + CaptureTimeout/CaptureResult +
   浏览器白名单 + 可见文本上限。
 - `core/core/src/learning/watcher.rs`：键盘事件驱动 + 去抖重置 + large-modify 结算。
 - `core/core/src/learning/diff.rs`：`analysis_modification`（增/删/改计数 + isLargeModify）。
@@ -50,6 +50,8 @@
   账号、同步、遥测。判定一律本地。
 - 不做 Windows/Linux。
 - 不抄 Typeless 源码（只借鉴技术路线）。
+- **不做元素身份采集**：Typeless 的 `ElementInfo` / `read_focused_element_info` /
+  `getFocusedElementInfoAsync` 不在本阶段范围；`WatchReport.field_id` 不承载 AX 身份。
 - 不保证 TTY（Terminal）——见风险节。
 
 ---
@@ -64,13 +66,6 @@
 pub struct CaptureTimeout { timeout_ms: u32, started: Instant }
 impl CaptureTimeout { pub fn new(ms: u32) -> Self; pub fn has_expired(&self) -> bool; }
 
-pub struct ElementInfo {
-    pub role: Option<String>, pub subrole: Option<String>, pub value: Option<String>,
-    pub identifier: Option<String>, pub dom_identifier: Option<String>,
-    pub dom_class: Option<String>, pub position: Option<(f64,f64)>, pub size: Option<(f64,f64)>,
-    pub enabled: Option<bool>, pub hidden: Option<bool>, pub url: Option<String>,
-}
-
 pub struct RelatedContent {
     pub before: String, pub after: String,
     pub before_length: usize, pub after_length: usize,
@@ -81,13 +76,10 @@ pub struct RelatedContent {
 新增函数：
 
 ```rust
-/// 读聚焦元素信息 + 光标/选区两侧的有界上下文。
+/// 读聚焦元素光标/选区两侧的有界上下文。
 pub fn read_focused_related_content(
     before_chars: usize, after_chars: usize, timeout_ms: u32,
 ) -> Option<RelatedContent>;
-
-/// 聚焦元素信息（诊断/身份）。
-pub fn read_focused_element_info(timeout_ms: u32) -> Option<ElementInfo>;
 
 /// 浏览器判定（白名单）。
 fn is_browser_app(bundle_id: Option<&str>) -> bool;
@@ -112,7 +104,8 @@ fn is_browser_app(bundle_id: Option<&str>) -> bool;
 ### 5.2 触发层（`learning/watcher`）
 
 - `start_track`（粘贴后）：
-  - 读一次 `read_focused_related_content` 作为 `original`（并记 `ElementInfo` 身份 + bundle id）。
+  - 读一次 `read_focused_related_content` 作为 `original`（并记 bundle id）。
+    > 元素身份采集（Typeless 的 `ElementInfo` / `getFocusedElementInfoAsync`）不在本阶段范围。
   - 记 `inserted_text`（我们刚粘贴的文本）。
   - `started_at`。
 - **键盘监听**（复用 `handy-keys::KeyboardListener`）：任一编辑键 keyDown →
@@ -211,7 +204,7 @@ python3 scripts/check_translations.py
 ## 九、任务拆分
 
 1. `diff::analysis_modification` + 单测。
-2. `ax`：`CaptureTimeout` / `ElementInfo` / `RelatedContent` / `read_focused_related_content`
+2. `ax`：`CaptureTimeout` / `RelatedContent` / `read_focused_related_content`
    （原生 value+选区 → 文本标记 → 兄弟遍历 → 可见文本兜底）+ 浏览器白名单 + 30ms 等待 + 单测。
 3. `watcher`：键盘事件驱动 + 去抖重置 + large-modify 结算 + 单测。
 4. `learning_attempts` 诊断字段 + 设置页调试区（如需新 i18n，同步 26 语言）。

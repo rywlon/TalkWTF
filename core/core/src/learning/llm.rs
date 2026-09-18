@@ -124,17 +124,12 @@ pub fn judge(pasted: &str, final_text: &str) -> Judgement {
     } else {
         detect_corrections(pasted, final_text)
     };
-    judge_from(pasted, final_text, llm)
+    judge_from(local, llm)
 }
 
-/// The decision with the provider result supplied, so the logic is testable
-/// without reading settings or making a request.
-fn judge_from(
-    pasted: &str,
-    final_text: &str,
-    llm: Option<(Vec<EditCandidate>, String)>,
-) -> Judgement {
-    let local = local_candidates(pasted, final_text);
+/// The decision with the local candidates and provider result supplied, so the
+/// logic is testable without reading settings or making a request.
+fn judge_from(local: Vec<EditCandidate>, llm: Option<(Vec<EditCandidate>, String)>) -> Judgement {
     if local.is_empty() {
         return Judgement {
             candidates: Vec::new(),
@@ -269,6 +264,16 @@ fn is_valid(pattern: &str, replacement: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// The decision from raw texts, computing the local candidates the way
+    /// `judge` does. Keeps the tests reading like the public entry point.
+    fn judge_from_text(
+        pasted: &str,
+        final_text: &str,
+        llm: Option<(Vec<EditCandidate>, String)>,
+    ) -> Judgement {
+        judge_from(local_candidates(pasted, final_text), llm)
+    }
+
     #[test]
     fn parses_a_structured_answer() {
         let parsed =
@@ -352,7 +357,7 @@ mod tests {
     fn judge_learns_from_the_local_gate_without_a_provider() {
         // No provider result: the local gate's candidate still teaches the word,
         // so a weak model can never suppress a real mishearing.
-        let judgement = judge_from("他想做 C3XO，可以吗？", "他想做 Cica Exo，可以吗？", None);
+        let judgement = judge_from_text("他想做 C3XO，可以吗？", "他想做 Cica Exo，可以吗？", None);
 
         assert_eq!(judgement.source, JudgeSource::Local);
         assert_eq!(judgement.candidates.len(), 1);
@@ -363,7 +368,7 @@ mod tests {
     #[test]
     fn judge_keeps_the_local_candidate_when_the_llm_returns_nothing() {
         // The weak model answered `{"corrections":[]}`: the local candidate stays.
-        let judgement = judge_from(
+        let judgement = judge_from_text(
             "他想做 C3XO，可以吗？",
             "他想做 Cica Exo，可以吗？",
             Some((Vec::new(), r#"{"corrections":[]}"#.to_string())),
@@ -382,7 +387,7 @@ mod tests {
             pattern: "OpenType 设置".to_string(),
             replacement: "OpenTypeless".to_string(),
         }];
-        let judgement = judge_from(
+        let judgement = judge_from_text(
             "他想做 C3XO，可以吗？",
             "他想做 Cica Exo，可以吗？",
             Some((extra, "raw".to_string())),
@@ -397,7 +402,7 @@ mod tests {
     fn judge_never_learns_when_the_local_gate_finds_nothing() {
         // No local candidate means no edit worth teaching; the provider is not
         // even consulted, so it cannot hallucinate a correction into an empty diff.
-        let judgement = judge_from(
+        let judgement = judge_from_text(
             "要喝牛奶",
             "想喝咖啡",
             Some((

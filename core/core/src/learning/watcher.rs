@@ -58,8 +58,8 @@ pub struct LearnedCorrection {
 #[derive(Default, Clone, serde::Serialize)]
 pub struct WatchReport {
     pub bundle_id: Option<String>,
-    /// The AX identity of the watched field. The current capture path has no
-    /// stable identity to report, so this is always `None`.
+    /// Reserved for a watched-field identity. Element identity capture is out of
+    /// scope for this phase, so this is always `None`.
     pub field_id: Option<String>,
     pub pasted_chars: usize,
     pub outcome: String,
@@ -68,9 +68,9 @@ pub struct WatchReport {
     pub last_field_chars: Option<usize>,
     pub last_field_preview: Option<String>,
     pub candidate: Option<String>,
-    /// Which AX read path produced the last readable field (diagnostics). The
-    /// current capture path is fixed, so this is always `"related content"` once
-    /// the field has been read.
+    /// Which capture strategy produced the last readable field (diagnostics).
+    /// The capture path is fixed, so this is always `"related content"` once the
+    /// field has been read.
     pub strategy: Option<String>,
 }
 
@@ -408,13 +408,17 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
     // Enable the enhanced tree once for the whole watch; the guard restores it.
     let _enhance = ax::enable_enhanced_user_interface();
 
+    // The baseline gate needs the read to contain the whole pasted text, so the
+    // window grows with the paste. The constants are the floor for short pastes.
+    let window = pasted.chars().count().max(BEFORE_CHARS).max(AFTER_CHARS) + 200;
+
     // Wait until the paste shows up in the input box. Chromium answers the very
     // first read with no value, so this retries instead of trusting one read.
     let baseline = loop {
         if started.elapsed() >= BASELINE_TIMEOUT {
             break None;
         }
-        match read_related_field() {
+        match read_related_field(window) {
             Some(text) if diff::contains_normalized(&text, pasted) => {
                 debug!(
                     "Edit watch: baseline {} chars of bounded context",
@@ -450,7 +454,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         } else if ax::frontmost_bundle_id().as_deref() != bundle_id {
             Poll::AppChanged
         } else {
-            match read_related_field() {
+            match read_related_field(window) {
                 Some(text) => {
                     record_field(&mut report, &text);
                     if machine.observed.last() != Some(&text) {
@@ -499,13 +503,17 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
 /// accessibility tree, so this is per-call, not the poll cadence.
 const READ_TIMEOUT_MS: u32 = 300;
 
-/// Bounded window captured around the cursor, before and after it.
+/// Floor for the bounded window captured around the cursor, before and after it.
+/// The real window grows with the pasted text (see `observe`).
 const BEFORE_CHARS: usize = 600;
 const AFTER_CHARS: usize = 600;
 
 /// Read the focused field's bounded cursor-relative context as one string.
-fn read_related_field() -> Option<String> {
-    ax::read_focused_related_content(BEFORE_CHARS, AFTER_CHARS, READ_TIMEOUT_MS)
+///
+/// `window` is sized by the caller from the pasted text, so the baseline read can
+/// always contain the whole paste (the baseline gate requires it).
+fn read_related_field(window: usize) -> Option<String> {
+    ax::read_focused_related_content(window, window, READ_TIMEOUT_MS)
         .map(|related| format!("{}{}", related.before, related.after))
 }
 

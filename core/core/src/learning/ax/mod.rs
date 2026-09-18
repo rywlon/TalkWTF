@@ -559,8 +559,22 @@ pub struct RelatedContent {
     pub is_timeout: bool,
 }
 
+/// Whether a UTF-16 unit is the high (leading) half of a surrogate pair.
+fn is_high_surrogate(unit: u16) -> bool {
+    (0xD800..=0xDBFF).contains(&unit)
+}
+
+/// Whether a UTF-16 unit is the low (trailing) half of a surrogate pair.
+fn is_low_surrogate(unit: u16) -> bool {
+    (0xDC00..=0xDFFF).contains(&unit)
+}
+
 /// Split a field's text at a UTF-16 cursor offset, keeping at most `before_chars`
 /// characters before it and `after_chars` after it.
+///
+/// The window edges are aligned to code-point boundaries: a window that starts on
+/// the low half of a surrogate pair (or ends on the high half) would otherwise be
+/// decoded as a lone surrogate and turn into U+FFFD.
 fn slice_before_after(
     text: &str,
     cursor_utf16: usize,
@@ -569,8 +583,18 @@ fn slice_before_after(
 ) -> (String, String) {
     let units: Vec<u16> = text.encode_utf16().collect();
     let cursor = cursor_utf16.min(units.len());
-    let before_start = cursor.saturating_sub(before_chars);
-    let after_end = (cursor + after_chars).min(units.len());
+    let mut before_start = cursor.saturating_sub(before_chars);
+    let mut after_end = (cursor + after_chars).min(units.len());
+
+    // The high half sits just outside the window, so drop the orphaned low half.
+    while before_start < cursor && is_low_surrogate(units[before_start]) {
+        before_start += 1;
+    }
+    // The low half sits just outside the window, so drop the orphaned high half.
+    while after_end > cursor && is_high_surrogate(units[after_end - 1]) {
+        after_end -= 1;
+    }
+
     let before = String::from_utf16_lossy(&units[before_start..cursor]);
     let after = String::from_utf16_lossy(&units[cursor..after_end]);
     (before, after)
@@ -1050,6 +1074,19 @@ mod tests {
         let (before, after) = slice_before_after("abcdefghij", 5, 3, 2);
         assert_eq!(before, "cde");
         assert_eq!(after, "fg");
+    }
+
+    #[test]
+    fn slice_before_after_never_cuts_a_surrogate_pair() {
+        // "😀AB😀CD😀": both window edges land on an emoji. The before window would
+        // start on the low half of the first emoji, the after window would end on
+        // the high half of the last one; both must be nudged inward instead of
+        // decoding to U+FFFD.
+        let (before, after) = slice_before_after("😀AB😀CD😀", 6, 5, 3);
+        assert_eq!(before, "AB😀");
+        assert_eq!(after, "CD");
+        assert!(!before.contains('\u{FFFD}'));
+        assert!(!after.contains('\u{FFFD}'));
     }
 
     #[test]

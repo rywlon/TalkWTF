@@ -4,7 +4,7 @@
 
 **Goal:** 把 Typeless 的学词采集/触发机制干净重写进 TalkWTF：光标/选区相对的有界采集 + 键盘事件驱动的编辑去抖 + large-modify 门槛；判定仍用本地「只听错」门槛。
 
-**Architecture:** `diff` 加 `analysis_modification`（增/删/改计数）；`ax` 加 `CaptureTimeout`/`ElementInfo`/`RelatedContent` 与 `read_focused_related_content`（原生 `AXValue`+`AXSelectedTextRange` 切片 → Web 文本标记 → 可见文本兜底）；`watcher` 用 `KeyboardListener` 驱动编辑去抖，结算前过 large-modify 门槛。**不移植云端。**
+**Architecture:** `diff` 加 `analysis_modification`（增/删/改计数）；`ax` 加 `CaptureTimeout`/`RelatedContent` 与 `read_focused_related_content`（原生 `AXValue`+`AXSelectedTextRange` 切片 → Web 文本标记 → 可见文本兜底）；`watcher` 用 `KeyboardListener` 驱动编辑去抖，结算前过 large-modify 门槛。**不移植云端。** 元素身份采集（`ElementInfo`）不在本阶段范围。
 
 **Tech Stack:** Rust（`core/core`，`objc2` / `handy-keys` / `strsim` 已有）、macOS Accessibility API。
 
@@ -181,12 +181,6 @@ git commit -m "feat(learning): analysis_modification 增删改计数 + large-mod
   pub struct CaptureTimeout { timeout_ms: u32, started: Instant }
   impl CaptureTimeout { pub fn new(ms: u32) -> Self; pub fn has_expired(&self) -> bool; }
 
-  pub struct ElementInfo {
-      pub role: Option<String>, pub subrole: Option<String>, pub value: Option<String>,
-      pub identifier: Option<String>, pub dom_identifier: Option<String>,
-      pub dom_class: Option<String>, pub url: Option<String>,
-  }
-
   pub struct RelatedContent {
       pub before: String, pub after: String,
       pub truncated: bool, pub is_timeout: bool,
@@ -194,7 +188,6 @@ git commit -m "feat(learning): analysis_modification 增删改计数 + large-mod
 
   pub fn read_focused_related_content(before_chars: usize, after_chars: usize, timeout_ms: u32)
       -> Option<RelatedContent>;
-  pub fn read_focused_element_info(timeout_ms: u32) -> Option<ElementInfo>;
   fn is_browser_app(bundle_id: Option<&str>) -> bool;
   ```
 
@@ -294,16 +287,6 @@ impl CaptureTimeout {
     }
 }
 
-pub struct ElementInfo {
-    pub role: Option<String>,
-    pub subrole: Option<String>,
-    pub value: Option<String>,
-    pub identifier: Option<String>,
-    pub dom_identifier: Option<String>,
-    pub dom_class: Option<String>,
-    pub url: Option<String>,
-}
-
 pub struct RelatedContent {
     pub before: String,
     pub after: String,
@@ -364,23 +347,6 @@ fn selected_cursor(element: AXUIElementRef) -> Option<usize> {
         return None;
     }
     Some((range.location + range.length.max(0)) as usize)
-}
-
-pub fn read_focused_element_info(_timeout_ms: u32) -> Option<ElementInfo> {
-    if !is_trusted() || is_blocked_app(frontmost_bundle_id().as_deref()) {
-        return None;
-    }
-    let focused = focused_element()?;
-    set_timeout(focused.raw());
-    Some(ElementInfo {
-        role: copy_string(focused.raw(), ATTR_ROLE),
-        subrole: copy_string(focused.raw(), ATTR_SUBROLE),
-        value: copy_string(focused.raw(), ATTR_VALUE),
-        identifier: copy_string(focused.raw(), "AXIdentifier"),
-        dom_identifier: copy_string(focused.raw(), "AXDOMIdentifier"),
-        dom_class: copy_string(focused.raw(), "AXDOMClassList"),
-        url: copy_string(focused.raw(), "AXURL"),
-    })
 }
 
 /// Read the focused field's text around the cursor: `before_chars` characters
@@ -476,8 +442,8 @@ git commit -m "feat(learning): 光标/选区相对的有界采集（阶段 17 �
 - Modify: `core/core/src/learning/watcher.rs`
 
 **Interfaces:**
-- Consumes: `ax::read_focused_related_content(before_chars, after_chars, timeout_ms)`、
-  `ax::read_focused_element_info`（Task 2）；`diff::analysis_modification`（Task 1）。
+- Consumes: `ax::read_focused_related_content(before_chars, after_chars, timeout_ms)`（Task 2）；
+  `diff::analysis_modification`（Task 1）。
 - Produces: 无对外新接口；`watch_for_edit(pasted)` 行为更新。
 
 - [ ] **Step 1: 写失败测试**
@@ -594,6 +560,6 @@ xcodebuild -project macos/TalkWTF.xcodeproj -target TalkWTF -configuration Debug
 
 - **Spec 覆盖**：5.1→Task 2；5.2→Task 3；5.3→Task 1；5.4 沿用阶段 16；验收→Task 4。
 - **占位符**：Task 3 Step 3/4/5 涉及在现有 `observe`/`WatchMachine` 上的改动，需实现者对照现有代码落位；已给出确切方法签名与常量。
-- **类型一致**：`Modification` / `CaptureTimeout` / `ElementInfo` / `RelatedContent` / `slice_before_after` /
+- **类型一致**：`Modification` / `CaptureTimeout` / `RelatedContent` / `slice_before_after` /
   `read_focused_related_content` / `analysis_modification` 在各任务一致。
 - **风险**：Task 2 的 AX 选区/文本标记是唯一不确定处；实现者需在真机验证 `AXSelectedTextRange` 是否可用，不可用则回退整段文本（Web 路径）。
