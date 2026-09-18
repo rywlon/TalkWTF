@@ -831,7 +831,8 @@
       "noTarget": "Choose a target language in Settings first"
     },
     "discard": "Discard",
-    "finish": "Finish and insert"
+    "finish": "Finish and insert",
+    "recordingHint": "Druk op ⏎ om te verzenden"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blokkeert mogelijk 1 sneltoets",

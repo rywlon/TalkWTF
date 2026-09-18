@@ -828,7 +828,8 @@
       "noTarget": "Choose a target language in Settings first"
     },
     "discard": "丟棄",
-    "finish": "完成並輸入"
+    "finish": "完成並輸入",
+    "recordingHint": "按 ⏎ 傳送"
   },
   "whatsNew": {
     "title": "TalkWTF v{{version}} 新功能"

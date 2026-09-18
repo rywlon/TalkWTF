@@ -30,15 +30,17 @@ enum OverlayState: Equatable {
         }
     }
 
-    /// A pill while recording, a roomier card for text states.
-    var cornerRadius: CGFloat {
+    /// The panel is taller than the recording card so the hint line beneath it
+    /// has room without clipping; every other state fits its card exactly.
+    var panelSize: CGSize {
         switch self {
-        case .recording, .streaming, .transcribing, .processing, .translating:
-            return Theme.Overlay.recordingRadius
-        case .translationFailed, .notice, .learned:
-            return Theme.Overlay.cardRadius
+        case .recording, .streaming: return Theme.Overlay.recordingPanelSize
+        default: return size
         }
     }
+
+    /// One continuous radius for the glass card, shared with the rest of the UI.
+    var cornerRadius: CGFloat { Theme.Radius.overlay }
 }
 
 /// Observable bridge between the core's events and the SwiftUI panel.
@@ -46,6 +48,9 @@ enum OverlayState: Equatable {
 final class OverlayModel: ObservableObject {
     @Published var state: OverlayState = .recording
     @Published var levels: [CGFloat] = Array(repeating: 0.15, count: 18)
+    /// The app the dictation is headed to, captured when recording starts.
+    @Published var targetAppName: String?
+    @Published var targetAppIcon: NSImage?
 
     func setLevels(_ values: [CGFloat]) {
         guard !values.isEmpty else { return }
@@ -84,6 +89,11 @@ final class OverlayController {
 
     /// Show the panel in `state`, optionally next to the field it refers to.
     func show(_ state: OverlayState, near frame: CGRect? = nil) {
+        if case .recording = state {
+            let app = NSWorkspace.shared.frontmostApplication
+            model.targetAppName = app?.localizedName
+            model.targetAppIcon = app?.icon
+        }
         model.state = state
         let panel = panel ?? OverlayPanel(model: model)
         self.panel = panel
@@ -155,7 +165,7 @@ final class OverlayPanel {
     /// placed next to `near` (top-left screen coordinates).
     func show(autoHideAfter seconds: TimeInterval?, near: CGRect? = nil) {
         let panel = existingOrCreate()
-        panel.setContentSize(model.state.size)
+        panel.setContentSize(model.state.panelSize)
         reposition(panel, near: near)
         panel.orderFrontRegardless()
 
@@ -174,7 +184,7 @@ final class OverlayPanel {
         if let panel { return panel }
 
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: Theme.Overlay.recordingSize),
+            contentRect: NSRect(origin: .zero, size: Theme.Overlay.recordingPanelSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -242,11 +252,27 @@ struct OverlayView: View {
     @State private var hovering = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: model.state.cornerRadius)
-        if #available(macOS 26.0, *) {
-            content.glassEffect(.regular, in: .rect(cornerRadius: model.state.cornerRadius))
-        } else {
-            content.background(.ultraThinMaterial, in: shape)
+        VStack(spacing: Theme.Overlay.hintSpacing) {
+            content.glassSurface(
+                cornerRadius: model.state.cornerRadius,
+                glow: glowColor
+            )
+            if isRecordingState {
+                Text(L("overlay.recordingHint"))
+                    .font(Theme.Fonts.caption)
+                    .foregroundStyle(.secondary)
+                    .opacity(hovering ? 0 : 1)
+            }
+        }
+    }
+
+    /// Recording gets a red halo, work in progress an accent one, everything
+    /// else no halo.
+    private var glowColor: Color? {
+        switch model.state {
+        case .recording, .streaming: return Theme.Colors.glowRecording
+        case .transcribing, .processing, .translating: return Theme.Colors.glowWorking
+        case .translationFailed, .notice, .learned: return nil
         }
     }
 
@@ -255,11 +281,16 @@ struct OverlayView: View {
             switch model.state {
             case .recording, .streaming:
                 if hovering {
-                    discardButton
                     finishButton
+                    discardButton
                 } else {
-                    Circle().fill(.tint).frame(width: 8, height: 8)
+                    appBadge
+                    Spacer(minLength: 8)
                     waveform
+                    Spacer(minLength: 8)
+                    Text("TalkWTF")
+                        .font(Theme.Fonts.caption)
+                        .foregroundStyle(.secondary)
                 }
             case .transcribing:
                 spinner
@@ -308,13 +339,34 @@ struct OverlayView: View {
         .onHover { hovering = $0 }
     }
 
-    /// Symmetric bars around a fixed centre line, so growth is visibly centred.
+    /// The app the transcript will land in: its icon and name, omitted entirely
+    /// when the frontmost app can't be identified.
+    private var appBadge: some View {
+        HStack(spacing: 6) {
+            if let icon = model.targetAppIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: Theme.Overlay.iconSize, height: Theme.Overlay.iconSize)
+            }
+            if let name = model.targetAppName {
+                Text(name)
+                    .font(Theme.Fonts.callout)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .layoutPriority(1)
+    }
+
+    /// A dashed resting line that grows into solid bars once audio arrives.
     private var waveform: some View {
-        HStack(spacing: 3) {
+        let hasSignal = (model.levels.max() ?? 0) > 0.22
+        return HStack(spacing: 3) {
             ForEach(model.levels.indices, id: \.self) { index in
                 Capsule()
-                    .fill(.tint)
-                    .frame(width: 3, height: max(4, model.levels[index] * 30))
+                    .fill(hasSignal ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.secondary.opacity(0.5)))
+                    .frame(width: 3, height: hasSignal ? max(4, model.levels[index] * 30) : 2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -331,17 +383,18 @@ struct OverlayView: View {
         ProgressView().controlSize(.small)
     }
 
-    /// Hovering dims the pill and swaps the waveform for the two actions, like
+    /// Hovering dims the card and swaps the waveform for the two actions, like
     /// Spokenly: throw the recording away, or finish and paste it.
     private var discardButton: some View {
         Button {
             DictationController.shared.discard()
         } label: {
             Label(L("overlay.discard"), systemImage: "xmark")
-                .labelStyle(.iconOnly)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 30, height: 30)
-                .background(.quaternary, in: Circle())
+                .font(Theme.Fonts.callout.weight(.semibold))
+                .lineLimit(1)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 32)
+                .background(Color.red, in: Capsule())
         }
         .buttonStyle(.plain)
         .help(L("overlay.discard"))
@@ -353,11 +406,11 @@ struct OverlayView: View {
             DictationController.shared.finish()
         } label: {
             Label(L("overlay.finish"), systemImage: "checkmark")
-                .labelStyle(.iconOnly)
-                .font(.system(size: 13, weight: .semibold))
+                .font(Theme.Fonts.callout.weight(.semibold))
+                .lineLimit(1)
                 .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(.tint, in: Circle())
+                .frame(maxWidth: .infinity, minHeight: 32)
+                .background(.tint, in: Capsule())
         }
         .buttonStyle(.plain)
         .help(L("overlay.finish"))

@@ -828,7 +828,8 @@
       "noTarget": "Choose a target language in Settings first"
     },
     "discard": "Discard",
-    "finish": "Finish and insert"
+    "finish": "Finish and insert",
+    "recordingHint": "⏎ で送信"
   },
   "whatsNew": {
     "title": "TalkWTF v{{version}} の新機能"

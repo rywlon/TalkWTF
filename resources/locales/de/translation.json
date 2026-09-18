@@ -828,7 +828,8 @@
       "noTarget": "Choose a target language in Settings first"
     },
     "discard": "Discard",
-    "finish": "Finish and insert"
+    "finish": "Finish and insert",
+    "recordingHint": "⏎ drücken zum Senden"
   },
   "whatsNew": {
     "title": "Neu in TalkWTF v{{version}}"

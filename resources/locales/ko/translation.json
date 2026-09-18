@@ -828,7 +828,8 @@
       "noTarget": "Choose a target language in Settings first"
     },
     "discard": "Discard",
-    "finish": "Finish and insert"
+    "finish": "Finish and insert",
+    "recordingHint": "⏎ 키로 전송"
   },
   "whatsNew": {
     "title": "TalkWTF v{{version}}의 새 소식"

@@ -828,7 +828,8 @@
       "noTarget": "Choose a target language in Settings first"
     },
     "discard": "Discard",
-    "finish": "Finish and insert"
+    "finish": "Finish and insert",
+    "recordingHint": "Натиснете ⏎ за изпращане"
   },
   "whatsNew": {
     "title": "Ново в TalkWTF v{{version}}"

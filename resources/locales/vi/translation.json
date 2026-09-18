@@ -828,7 +828,8 @@
       "noTarget": "Choose a target language in Settings first"
     },
     "discard": "Discard",
-    "finish": "Finish and insert"
+    "finish": "Finish and insert",
+    "recordingHint": "Nhấn ⏎ để gửi"
   },
   "whatsNew": {
     "title": "Điểm mới trong TalkWTF v{{version}}"

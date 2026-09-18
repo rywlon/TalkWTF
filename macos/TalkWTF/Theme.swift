@@ -86,12 +86,15 @@ enum Theme {
 
     /// The floating overlay's per-state geometry.
     enum Overlay {
-        static let recordingSize = CGSize(width: 260, height: 52)
-        static let workingSize = CGSize(width: 280, height: 52)
+        /// The recording/streaming glass card itself.
+        static let recordingSize = CGSize(width: 320, height: 48)
+        /// The panel is taller than the card to fit the hint line beneath it.
+        static let recordingPanelSize = CGSize(width: 320, height: 70)
+        static let workingSize = CGSize(width: 300, height: 48)
         static let cardSize = CGSize(width: 460, height: 84)
 
-        static let recordingRadius: CGFloat = 14
-        static let cardRadius: CGFloat = 16
+        /// Gap between the card and the hint line under it.
+        static let hintSpacing: CGFloat = 6
         static let iconSize: CGFloat = 18
     }
 }
