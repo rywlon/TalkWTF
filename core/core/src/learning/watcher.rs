@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use handy_keys::{Key, KeyEvent, KeyboardListener};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -57,6 +58,8 @@ pub struct WatchReport {
     pub last_field_chars: Option<usize>,
     pub last_field_preview: Option<String>,
     pub candidate: Option<String>,
+    /// Which AX read path produced the last readable field (diagnostics).
+    pub strategy: Option<String>,
 }
 
 /// The last correction we applied, so undo knows exactly what to take back.
@@ -167,12 +170,13 @@ pub fn watch_for_edit(pasted_text: &str) {
         }
 
         debug!(
-            "Edit watch finished: {} | pasted into {:?} | polls {} ({} readable) | last field {} chars | {:?}",
+            "Edit watch finished: {} | pasted into {:?} | polls {} ({} readable) | last field {} chars via {:?} | {:?}",
             report.outcome,
             report.bundle_id,
             report.polls,
             report.readable_polls,
             report.last_field_chars.unwrap_or(0),
+            report.strategy,
             report.candidate,
         );
     });
@@ -185,6 +189,10 @@ enum Poll {
     Readable(String),
     /// Nothing readable was focused this poll.
     Unreadable,
+    /// The user pressed Enter: the field was (most likely) sent.
+    Enter,
+    /// Focus moved to a different field; never compare against it.
+    IdentityChanged,
     Superseded,
     SettingOff,
     SecureInput,
@@ -200,8 +208,10 @@ enum WatchStep {
 
 #[derive(Debug, PartialEq, Eq)]
 enum StopReason {
+    Enter,
     FieldEmptied,
     FocusLost,
+    IdentityChanged,
     AppChanged,
     Superseded,
     SettingOff,
@@ -231,6 +241,8 @@ impl WatchMachine {
             Poll::SettingOff => (WatchStep::Ignore, Some(StopReason::SettingOff)),
             Poll::SecureInput => (WatchStep::Ignore, Some(StopReason::SecureInput)),
             Poll::AppChanged => (WatchStep::Learn, Some(StopReason::AppChanged)),
+            Poll::Enter => (WatchStep::Learn, Some(StopReason::Enter)),
+            Poll::IdentityChanged => (WatchStep::Ignore, Some(StopReason::IdentityChanged)),
             Poll::Unreadable => {
                 self.unreadable = self.unreadable.saturating_add(1);
                 if self.ever_readable && self.unreadable >= FOCUS_LOST_POLLS {
@@ -262,8 +274,10 @@ impl WatchMachine {
 
 fn stop_outcome(reason: StopReason) -> &'static str {
     match reason {
+        StopReason::Enter => "the enter key was pressed",
         StopReason::FieldEmptied => "the field emptied",
         StopReason::FocusLost => "the field lost focus",
+        StopReason::IdentityChanged => "the focused field changed",
         StopReason::AppChanged => "the frontmost app changed",
         StopReason::Superseded => "superseded by a newer dictation",
         StopReason::SettingOff => "the setting was turned off",
@@ -302,11 +316,37 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         ..Default::default()
     };
 
+    // A second CGEventTap coexists with the app's blocking `HotkeyManager`:
+    // verified on macOS that a `KeyboardListener` created alongside
+    // `HotkeyManager::new_with_blocking()` still receives Return keyDowns. The
+    // listener lives only for this watch, then is torn down. If the tap cannot
+    // be created we still watch; only Enter is unavailable.
+    let listener = KeyboardListener::new().ok();
+    if listener.is_none() {
+        debug!("Enter watch unavailable; falling back to field polling only");
+    }
+
+    // Pin the field identity up front: a later read of a *different* field must
+    // never be compared against what we pasted. The initial read only seeds the
+    // baseline and diagnostics — it is not fed as a settling poll, because right
+    // after a paste a Chromium field can transiently read as empty before its
+    // accessibility tree catches up, and that must not end the watch.
+    let start = ax::read_focused_field(READ_TIMEOUT_MS);
+    let start_identity = start.as_ref().map(|field| field.identity.clone());
+    match &start {
+        Some(field) => record_field(&mut report, field),
+        None => {
+            let _ = machine.on(Poll::Unreadable);
+        }
+    }
+
     while started.elapsed() < WATCH_WINDOW {
-        std::thread::sleep(POLL_INTERVAL);
+        let entered = wait_for_enter(listener.as_ref(), POLL_INTERVAL);
         report.polls += 1;
 
-        let poll = if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
+        let poll = if entered {
+            Poll::Enter
+        } else if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
             Poll::Superseded
         } else if !crate::settings::current().learn_from_edits {
             Poll::SettingOff
@@ -315,12 +355,10 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         } else if ax::frontmost_bundle_id().as_deref() != bundle_id {
             Poll::AppChanged
         } else {
-            match ax::read_focused_text(machine.unreadable == 0 || machine.unreadable % 40 == 0) {
-                Some(focused) => {
-                    report.readable_polls += 1;
-                    report.last_field_chars = Some(focused.text.chars().count());
-                    report.last_field_preview = Some(focused.text.chars().take(160).collect());
-                    Poll::Readable(focused.text)
+            match ax::read_focused_field(READ_TIMEOUT_MS) {
+                Some(field) => {
+                    record_field(&mut report, &field);
+                    field_poll(&field, start_identity.as_ref())
                 }
                 None => Poll::Unreadable,
             }
@@ -342,6 +380,64 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
     debug!("Edit watch timed out with no send");
     report.outcome = "timeout".to_string();
     (Vec::new(), report)
+}
+
+/// The AX budget for one read. Chromium answers slowly while it builds its
+/// accessibility tree, so this is per-call, not the poll cadence.
+const READ_TIMEOUT_MS: u32 = 300;
+
+/// Update the report's field diagnostics from a successful read.
+fn record_field(report: &mut WatchReport, field: &ax::FocusedField) {
+    report.readable_polls += 1;
+    report.last_field_chars = Some(field.text.chars().count());
+    report.last_field_preview = Some(field.text.chars().take(160).collect());
+    report.strategy = Some(field.strategy.to_string());
+}
+
+/// Classify a readable field against the identity we started watching.
+fn field_poll(field: &ax::FocusedField, start_identity: Option<&ax::FieldIdentity>) -> Poll {
+    if start_identity.is_some_and(|start| field.identity != *start) {
+        Poll::IdentityChanged
+    } else if field.text.trim().is_empty() {
+        Poll::Readable(String::new())
+    } else {
+        Poll::Readable(field.text.clone())
+    }
+}
+
+/// Wait up to `budget` for key events and report whether a Return keyDown
+/// arrived. Drains anything queued behind the first event so a burst of typing
+/// cannot hide the Enter.
+fn wait_for_enter(listener: Option<&KeyboardListener>, budget: Duration) -> bool {
+    let Some(listener) = listener else {
+        std::thread::sleep(budget);
+        return false;
+    };
+
+    let deadline = Instant::now() + budget;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return false;
+        }
+        match listener.recv_timeout(remaining) {
+            Ok(event) => {
+                if is_return_keydown(&event) {
+                    return true;
+                }
+                while let Some(queued) = listener.try_recv() {
+                    if is_return_keydown(&queued) {
+                        return true;
+                    }
+                }
+            }
+            Err(_) => return false,
+        }
+    }
+}
+
+fn is_return_keydown(event: &KeyEvent) -> bool {
+    event.is_key_down && event.key == Some(Key::Return)
 }
 
 /// Drop candidates that are clearly half-finished.
@@ -763,5 +859,25 @@ mod tests {
             machine.on(Poll::Readable(format!("value {index}")));
         }
         assert_eq!(machine.observed.len(), MAX_OBSERVED_STATES);
+    }
+
+    #[test]
+    fn machine_learns_on_enter() {
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("hello".into()));
+        assert_eq!(
+            machine.on(Poll::Enter),
+            (WatchStep::Learn, Some(StopReason::Enter))
+        );
+    }
+
+    #[test]
+    fn machine_stops_when_the_field_identity_changes() {
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("hello".into()));
+        assert_eq!(
+            machine.on(Poll::IdentityChanged),
+            (WatchStep::Ignore, Some(StopReason::IdentityChanged))
+        );
     }
 }
