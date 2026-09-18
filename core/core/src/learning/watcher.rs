@@ -146,17 +146,20 @@ pub fn watch_for_edit(pasted_text: &str) {
 
         if let Some(final_text) = choose_final(&observed, &pasted) {
             let judgement = llm::judge(&pasted, &final_text);
-            let source = judge_source_str(judgement.source);
+            let source = judgement.source;
             let llm_raw = judgement.llm_raw.clone();
-            let reason = judgement.reason.clone();
-            let candidates = if judgement.source == llm::JudgeSource::Llm {
+            let (candidates, local_outcome) = if source == llm::JudgeSource::Llm {
                 // The LLM saw the same final text the report describes, so its
                 // reason is the accurate outcome. The local path below decides
                 // from every captured state, so `decide` owns the outcome there.
                 report.outcome = judgement.reason.clone();
-                usable_candidates(judgement.candidates)
+                (
+                    usable_candidates(judgement.candidates),
+                    judgement.reason.clone(),
+                )
             } else {
-                decide(&observed, &pasted, &mut report)
+                let decided = decide(&observed, &pasted, &mut report);
+                (decided, report.outcome.clone())
             };
 
             debug!(
@@ -164,7 +167,8 @@ pub fn watch_for_edit(pasted_text: &str) {
                 judgement.source, judgement.llm_raw
             );
 
-            let applied = if !candidates.is_empty() {
+            let found = !candidates.is_empty();
+            let applied = if found {
                 report.candidate = Some(describe(&candidates));
                 // Read the field's position now, while it is still focused, so the
                 // notice can be placed next to it (the shell ignores this now).
@@ -174,18 +178,19 @@ pub fn watch_for_edit(pasted_text: &str) {
                 Vec::new()
             };
 
+            // Derive the pair from the result that actually produced `applied`,
+            // so the stored row cannot say "skipped" and "learned" at once.
+            let (outcome, reason) =
+                attempt_outcome(!applied.is_empty(), found, source, &local_outcome);
+
             record_attempt(
                 &pasted,
                 &final_text,
                 report.bundle_id.as_deref(),
                 report.field_id.as_deref(),
-                source,
+                judge_source_str(source),
                 llm_raw,
-                if applied.is_empty() {
-                    "skipped"
-                } else {
-                    "learned"
-                },
+                &outcome,
                 &reason,
                 learned_json(&applied),
             );
@@ -193,6 +198,8 @@ pub fn watch_for_edit(pasted_text: &str) {
             // No related edit was observed. Record the settle anyway so a watch
             // that never produced a candidate is still diagnosable.
             let final_text = observed.last().cloned().unwrap_or_else(|| pasted.clone());
+            let (outcome, reason) =
+                attempt_outcome(false, false, llm::JudgeSource::None, &report.outcome);
             record_attempt(
                 &pasted,
                 &final_text,
@@ -200,8 +207,8 @@ pub fn watch_for_edit(pasted_text: &str) {
                 report.field_id.as_deref(),
                 "none",
                 None,
-                "skipped",
-                &report.outcome,
+                &outcome,
+                &reason,
                 None,
             );
         }
@@ -616,6 +623,44 @@ fn apply(
     applied
 }
 
+/// The `(outcome, reason)` stored for one learning attempt.
+///
+/// Pure, and the only place the pair is built, so `outcome` and `reason` can
+/// never contradict: a row that says `skipped` never claims a word was learned,
+/// and a row that says `learned` always names the source.
+///
+/// * `applied` — at least one candidate was written to the dictionary.
+/// * `found` — the active path produced a candidate, whether or not it was
+///   written. Separates "no mishearing" from "already known or rejected".
+/// * `source` — which path judged the edit.
+/// * `local_outcome` — the local gate's own outcome, used when it found nothing.
+fn attempt_outcome(
+    applied: bool,
+    found: bool,
+    source: llm::JudgeSource,
+    local_outcome: &str,
+) -> (String, String) {
+    if applied {
+        let reason = match source {
+            llm::JudgeSource::Llm => "learned from the llm",
+            llm::JudgeSource::Local | llm::JudgeSource::None => "learned from the local gate",
+        };
+        return ("learned".to_string(), reason.to_string());
+    }
+
+    let reason = if found {
+        // The path saw a mishearing but the store already knew the word, the
+        // user rejected this mishearing before, or the store was unavailable.
+        "the correction was already known or rejected".to_string()
+    } else {
+        match source {
+            llm::JudgeSource::Llm => "the llm found no mishearing".to_string(),
+            llm::JudgeSource::Local | llm::JudgeSource::None => local_outcome.to_string(),
+        }
+    };
+    ("skipped".to_string(), reason)
+}
+
 /// The judge source as it is stored in the attempts table.
 fn judge_source_str(source: llm::JudgeSource) -> &'static str {
     match source {
@@ -809,6 +854,85 @@ mod tests {
         assert_eq!(judge_source_str(llm::JudgeSource::Llm), "llm");
         assert_eq!(judge_source_str(llm::JudgeSource::Local), "local");
         assert_eq!(judge_source_str(llm::JudgeSource::None), "none");
+    }
+
+    #[test]
+    fn attempt_outcome_pairs_the_outcome_with_a_matching_reason() {
+        // Applied: the reason names the source that produced the candidates.
+        assert_eq!(
+            attempt_outcome(true, true, llm::JudgeSource::Llm, "ignored"),
+            ("learned".to_string(), "learned from the llm".to_string())
+        );
+        assert_eq!(
+            attempt_outcome(true, true, llm::JudgeSource::Local, "ignored"),
+            (
+                "learned".to_string(),
+                "learned from the local gate".to_string()
+            )
+        );
+
+        // The LLM ran but produced nothing usable (or every candidate was
+        // filtered as half-typed): skipped with a no-mishearing reason, never
+        // "learned from the llm".
+        assert_eq!(
+            attempt_outcome(false, false, llm::JudgeSource::Llm, "ignored"),
+            (
+                "skipped".to_string(),
+                "the llm found no mishearing".to_string()
+            )
+        );
+
+        // The local gate found nothing: the reason is the gate's own outcome.
+        assert_eq!(
+            attempt_outcome(
+                false,
+                false,
+                llm::JudgeSource::Local,
+                "the enter key was pressed"
+            ),
+            (
+                "skipped".to_string(),
+                "the enter key was pressed".to_string()
+            )
+        );
+
+        // A candidate was found but not written: the row must not claim it
+        // learned anything, even though `decide` reported a candidate.
+        assert_eq!(
+            attempt_outcome(
+                false,
+                true,
+                llm::JudgeSource::Local,
+                "learned (decided from the captured states)"
+            ),
+            (
+                "skipped".to_string(),
+                "the correction was already known or rejected".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn attempt_outcome_is_never_self_contradictory() {
+        for source in [
+            llm::JudgeSource::Llm,
+            llm::JudgeSource::Local,
+            llm::JudgeSource::None,
+        ] {
+            for applied in [true, false] {
+                for found in [true, false] {
+                    let (outcome, reason) =
+                        attempt_outcome(applied, found, source, "the local outcome");
+                    assert_eq!(outcome == "learned", applied, "{source:?}");
+                    if !applied {
+                        assert!(
+                            !reason.contains("learned"),
+                            "a skipped row must not claim learning: {reason:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
