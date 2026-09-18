@@ -111,7 +111,6 @@ struct AppShell: View {
                                     )
                                     .listRowSeparator(.hidden)
                                     .listRowBackground(Color.clear)
-                                    .accessibilityAddTraits(section == item ? [.isSelected] : [])
                             }
                         }
                         .listStyle(.plain)
