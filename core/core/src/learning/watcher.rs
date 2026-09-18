@@ -20,19 +20,19 @@ use super::{ax, diff, llm};
 
 /// Poll cadence while watching.
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
+/// How long we wait for the paste to show up in the field before giving up.
+const BASELINE_TIMEOUT: Duration = Duration::from_millis(2000);
+/// How long the field must stop changing before the edit is considered done.
+const EDIT_DEBOUNCE: Duration = Duration::from_millis(1500);
 /// How long we keep watching after a paste.
 const WATCH_WINDOW: Duration = Duration::from_secs(45);
+/// If no edit is made within this window, stop watching.
+const NO_EDIT_WINDOW: Duration = Duration::from_secs(15);
 /// Consecutive polls with no readable focus, after the field was readable, that
-/// mean the user moved on (sent, submitted, or clicked away). 10 * 200ms = 2s.
+/// mean the user moved on. 10 * 200ms = 2s.
 const FOCUS_LOST_POLLS: u32 = 10;
-/// After Enter, how long we wait for the field to clear (or the app to navigate)
-/// to confirm the key really sent. An input-method commit keeps the text and
-/// grows it instead, so it is not a send.
-const SEND_CONFIRM_WINDOW: Duration = Duration::from_millis(2000);
-/// After Enter, the field being unchanged for this long confirms the send even
-/// when the app does not clear the field. An input-method commit changes the
-/// text immediately, so it cancels instead.
-const SEND_SETTLE: Duration = Duration::from_millis(600);
+/// Characters of context around an edit sent to the LLM.
+const LLM_CONTEXT_RADIUS: usize = 80;
 /// How many observed field states we keep. Every distinct value is stored, so the
 /// decision at the end can look back past an incomplete one.
 const MAX_OBSERVED_STATES: usize = 40;
@@ -152,78 +152,71 @@ pub fn watch_for_edit(pasted_text: &str) {
     std::thread::spawn(move || {
         let (observed, mut report) = observe(&pasted, bundle_id.as_deref(), generation);
 
-        if let Some(final_text) = choose_final(&observed, &pasted) {
-            let judgement = llm::judge(&pasted, &final_text);
-            let source = judgement.source;
-            let llm_raw = judgement.llm_raw.clone();
-            let (candidates, local_outcome) = if source == llm::JudgeSource::Llm {
-                // The LLM saw the same final text the report describes, so its
-                // reason feeds the outcome. The local path below decides from
-                // every captured state, so `decide` owns the outcome there.
-                (
-                    usable_candidates(judgement.candidates),
-                    judgement.reason.clone(),
-                )
-            } else {
-                let decided = decide(&observed, &pasted, &mut report);
-                (decided, report.outcome.clone())
+        let baseline = observed.first().cloned();
+        let final_text = settled_text(&observed);
+
+        let (outcome, reason, applied, source, llm_raw) =
+            match (baseline.as_deref(), final_text.as_deref()) {
+                (Some(baseline), Some(final_text)) if final_text != baseline => {
+                    // Whole-box diff first: same source before/after, so the
+                    // localized correction is reliable.
+                    let raw = diff::detect_edits(baseline, final_text);
+                    if raw.is_empty() {
+                        (
+                            "skipped".to_string(),
+                            "the edit was not a local correction".to_string(),
+                            Vec::new(),
+                            llm::JudgeSource::None,
+                            None,
+                        )
+                    } else {
+                        // Only the edit's neighbourhood goes to the provider.
+                        let (pasted_ctx, final_ctx) =
+                            diff::bounded_context(baseline, final_text, LLM_CONTEXT_RADIUS);
+                        let judgement = llm::judge(&pasted_ctx, &final_ctx);
+                        let source = judgement.source;
+                        let llm_raw = judgement.llm_raw.clone();
+                        let candidates = usable_candidates(judgement.candidates);
+                        let found = !candidates.is_empty();
+
+                        let applied = if found {
+                            report.candidate = Some(describe(&candidates));
+                            let frame = ax::focused_element_frame();
+                            apply(candidates, frame)
+                        } else {
+                            Vec::new()
+                        };
+
+                        let (outcome, reason) =
+                            attempt_outcome(!applied.is_empty(), found, source, &judgement.reason);
+                        (outcome, reason, applied, source, llm_raw)
+                    }
+                }
+                _ => {
+                    let (outcome, reason) =
+                        attempt_outcome(false, false, llm::JudgeSource::None, &report.outcome);
+                    (outcome, reason, Vec::new(), llm::JudgeSource::None, None)
+                }
             };
 
-            debug!(
-                "Edit judged: source {:?} | llm raw {:?}",
-                judgement.source, judgement.llm_raw
-            );
+        report.outcome = reason.clone();
 
-            let found = !candidates.is_empty();
-            let applied = if found {
-                report.candidate = Some(describe(&candidates));
-                // Read the field's position now, while it is still focused, so the
-                // notice can be placed next to it (the shell ignores this now).
-                let frame = ax::focused_element_frame();
-                apply(candidates, frame)
-            } else {
-                Vec::new()
-            };
-
-            // Derive the pair from the result that actually produced `applied`,
-            // so the stored row cannot say "skipped" and "learned" at once. The
-            // in-memory report uses the same reason, so a fully-filtered LLM
-            // result cannot leave it claiming a word was learned.
-            let (outcome, reason) =
-                attempt_outcome(!applied.is_empty(), found, source, &local_outcome);
-            report.outcome = reason.clone();
-
-            record_attempt(
-                &pasted,
-                &final_text,
-                report.bundle_id.as_deref(),
-                report.field_id.as_deref(),
-                judge_source_str(source),
-                llm_raw,
-                &outcome,
-                &reason,
-                learned_json(&applied),
-                report.strategy.clone(),
-            );
-        } else {
-            // No related edit was observed. Record the settle anyway so a watch
-            // that never produced a candidate is still diagnosable.
-            let final_text = observed.last().cloned().unwrap_or_else(|| pasted.clone());
-            let (outcome, reason) =
-                attempt_outcome(false, false, llm::JudgeSource::None, &report.outcome);
-            record_attempt(
-                &pasted,
-                &final_text,
-                report.bundle_id.as_deref(),
-                report.field_id.as_deref(),
-                "none",
-                None,
-                &outcome,
-                &reason,
-                None,
-                report.strategy.clone(),
-            );
-        }
+        let recorded_final = final_text
+            .clone()
+            .or_else(|| report.last_field_preview.clone())
+            .unwrap_or_default();
+        record_attempt(
+            &pasted,
+            &recorded_final,
+            report.bundle_id.as_deref(),
+            report.field_id.as_deref(),
+            judge_source_str(source),
+            llm_raw,
+            &outcome,
+            &reason,
+            learned_json(&applied),
+            report.strategy.clone(),
+        );
 
         if let Some(state) = crate::learning::learning_state() {
             state.set_report(report.clone());
@@ -249,7 +242,7 @@ enum Poll {
     Readable(String),
     /// Nothing readable was focused this poll.
     Unreadable,
-    /// The user pressed Enter: the field was (most likely) sent.
+    /// The user pressed Enter (an accelerator, not a requirement).
     Enter,
     Superseded,
     SettingOff,
@@ -266,48 +259,61 @@ enum WatchStep {
 
 #[derive(Debug, PartialEq, Eq)]
 enum StopReason {
+    /// The edit stopped changing for `EDIT_DEBOUNCE`.
+    Settled,
+    /// Enter was pressed and the field cleared.
     Enter,
+    /// The field emptied without Enter.
     FieldEmptied,
     FocusLost,
     AppChanged,
     Superseded,
     SettingOff,
     SecureInput,
+    /// The watch ended without any edit.
+    NoEdit,
 }
 
 /// The watch's settle logic, with the accessibility reads left outside so the
 /// timing rules are unit-testable.
 struct WatchMachine {
+    baseline: String,
+    /// Every distinct field value seen, baseline first.
     observed: Vec<String>,
-    unreadable: u32,
+    /// When the field last changed to a new value.
+    last_edit: Option<Instant>,
     ever_readable: bool,
-    /// Set when Enter arrives; the send is only confirmed once the field clears
-    /// (or the app navigates) within `SEND_CONFIRM_WINDOW`.
-    pending_send: Option<Instant>,
-    /// The field text when Enter arrived, so a growing field can be told apart
-    /// from a send.
-    pending_text: Option<String>,
+    unreadable: u32,
+    /// Set by Enter; cleared by any text change. Lets a cleared field settle
+    /// immediately instead of waiting out the debounce.
+    pending_enter: bool,
 }
 
 impl WatchMachine {
-    fn new() -> Self {
+    fn new(baseline: String) -> Self {
         Self {
-            observed: Vec::new(),
-            unreadable: 0,
+            observed: vec![baseline.clone()],
+            baseline,
+            last_edit: None,
             ever_readable: false,
-            pending_send: None,
-            pending_text: None,
+            unreadable: 0,
+            pending_enter: false,
         }
     }
 
-    fn clear_pending(&mut self) {
-        self.pending_send = None;
-        self.pending_text = None;
+    /// Whether the field ever held something other than the baseline.
+    fn edited(&self) -> bool {
+        self.observed
+            .iter()
+            .any(|text| text != &self.baseline && !text.trim().is_empty())
     }
 
-    fn pending_expired(&self) -> bool {
-        self.pending_send
-            .is_some_and(|at| at.elapsed() >= SEND_CONFIRM_WINDOW)
+    fn settle(&self, reason: StopReason) -> (WatchStep, Option<StopReason>) {
+        if self.edited() {
+            (WatchStep::Learn, Some(reason))
+        } else {
+            (WatchStep::Ignore, Some(reason))
+        }
     }
 
     fn on(&mut self, poll: Poll) -> (WatchStep, Option<StopReason>) {
@@ -315,84 +321,69 @@ impl WatchMachine {
             Poll::Superseded => (WatchStep::Ignore, Some(StopReason::Superseded)),
             Poll::SettingOff => (WatchStep::Ignore, Some(StopReason::SettingOff)),
             Poll::SecureInput => (WatchStep::Ignore, Some(StopReason::SecureInput)),
-            // An app switch only counts as a send if Enter preceded it; otherwise
-            // the user just moved on.
-            Poll::AppChanged => {
-                if self.pending_send.is_some() {
-                    (WatchStep::Learn, Some(StopReason::AppChanged))
-                } else {
-                    (WatchStep::Ignore, Some(StopReason::AppChanged))
-                }
-            }
-            // Enter is a candidate send, not a send: an input-method commit also
-            // presses Enter. Confirmation happens on a later poll.
+            Poll::AppChanged => self.settle(StopReason::AppChanged),
             Poll::Enter => {
-                self.pending_send = Some(Instant::now());
-                self.pending_text = self.observed.last().cloned();
-                debug!("Edit watch: enter pressed, awaiting send confirmation");
+                self.pending_enter = true;
                 (WatchStep::Continue, None)
             }
-            // Chromium re-renders its contenteditable and the identifier changes
-            // without the user leaving the field, so the identity is not compared;
-            // `choose_final` already rejects an unrelated final text.
             Poll::Unreadable => {
-                if self.pending_expired() {
-                    self.clear_pending();
-                }
                 self.unreadable = self.unreadable.saturating_add(1);
                 if self.ever_readable && self.unreadable >= FOCUS_LOST_POLLS {
-                    (WatchStep::Ignore, Some(StopReason::FocusLost))
+                    self.settle(StopReason::FocusLost)
                 } else {
                     (WatchStep::Continue, None)
                 }
             }
-            Poll::Readable(text) => {
-                self.unreadable = 0;
-                self.ever_readable = true;
-
-                if text.trim().is_empty() {
-                    // The field cleared: a send if Enter just preceded it.
-                    return if self.pending_send.is_some() {
-                        (WatchStep::Learn, Some(StopReason::Enter))
-                    } else {
-                        (WatchStep::Ignore, Some(StopReason::FieldEmptied))
-                    };
-                }
-
-                // A field that keeps changing after Enter was an input-method
-                // commit, not a send. A field that stops changing is a send even
-                // when the app does not clear it.
-                if self.pending_send.is_some() {
-                    if self.pending_text.as_deref() != Some(&text) {
-                        debug!(
-                            "Edit watch: pending send cancelled (text changed {:?} -> {:?})",
-                            self.pending_text, text
-                        );
-                        self.clear_pending();
-                    } else if self
-                        .pending_send
-                        .is_some_and(|at| at.elapsed() >= SEND_SETTLE)
-                    {
-                        debug!("Edit watch: pending send confirmed (the field stopped changing)");
-                        return (WatchStep::Learn, Some(StopReason::Enter));
-                    }
-                }
-
-                if self.observed.last() != Some(&text) {
-                    self.observed.push(text);
-                    if self.observed.len() > MAX_OBSERVED_STATES {
-                        self.observed.remove(0);
-                    }
-                }
-
-                (WatchStep::Continue, None)
-            }
+            Poll::Readable(text) => self.on_readable(text),
         }
+    }
+
+    fn on_readable(&mut self, text: String) -> (WatchStep, Option<StopReason>) {
+        self.unreadable = 0;
+        self.ever_readable = true;
+
+        if self.observed.last() != Some(&text) {
+            let pending = self.pending_enter;
+            let emptied = text.trim().is_empty();
+            self.pending_enter = false;
+            self.observed.push(text);
+            if self.observed.len() > MAX_OBSERVED_STATES {
+                self.observed.remove(0);
+            }
+
+            if emptied {
+                return if self.edited() {
+                    let reason = if pending {
+                        StopReason::Enter
+                    } else {
+                        StopReason::FieldEmptied
+                    };
+                    (WatchStep::Learn, Some(reason))
+                } else {
+                    (WatchStep::Ignore, Some(StopReason::NoEdit))
+                };
+            }
+
+            if self.edited() {
+                self.last_edit = Some(Instant::now());
+            }
+            return (WatchStep::Continue, None);
+        }
+
+        if self.edited()
+            && self
+                .last_edit
+                .is_some_and(|at| at.elapsed() >= EDIT_DEBOUNCE)
+        {
+            return (WatchStep::Learn, Some(StopReason::Settled));
+        }
+        (WatchStep::Continue, None)
     }
 }
 
 fn stop_outcome(reason: StopReason) -> &'static str {
     match reason {
+        StopReason::Settled => "the edit settled",
         StopReason::Enter => "the enter key was pressed and the field cleared",
         StopReason::FieldEmptied => "the field emptied",
         StopReason::FocusLost => "the field lost focus",
@@ -400,97 +391,64 @@ fn stop_outcome(reason: StopReason) -> &'static str {
         StopReason::Superseded => "superseded by a newer dictation",
         StopReason::SettingOff => "the setting was turned off",
         StopReason::SecureInput => "secure input became active",
+        StopReason::NoEdit => "no edit was made",
     }
 }
 
-/// The newest state the field held that is still an edit of what we pasted.
-/// Prefers a complete value (no trailing whitespace) over a half-typed one.
-fn choose_final(observed: &[String], pasted: &str) -> Option<String> {
-    let related = observed
+/// The newest non-empty state the field held. When the field clears on send, the
+/// last empty state is skipped so the text that was actually sent is recovered.
+fn settled_text(observed: &[String]) -> Option<String> {
+    observed
         .iter()
         .rev()
-        .filter(|text| text.as_str() != pasted && diff::is_related(pasted, text));
-
-    let mut fallback: Option<String> = None;
-    for text in related {
-        if fallback.is_none() {
-            fallback = Some(text.trim_end().to_string());
-        }
-        if !text.ends_with(char::is_whitespace) {
-            return Some(text.clone());
-        }
-    }
-    fallback
+        .find(|text| !text.trim().is_empty())
+        .cloned()
 }
 
 fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<String>, WatchReport) {
     let started = Instant::now();
-    let mut machine = WatchMachine::new();
 
     let mut report = WatchReport {
         bundle_id: bundle_id.map(str::to_string),
         pasted_chars: pasted.chars().count(),
-        outcome: "timeout".to_string(),
+        outcome: "watching".to_string(),
         ..Default::default()
     };
 
-    // A second CGEventTap coexists with the app's blocking `HotkeyManager`:
-    // verified on macOS that a `KeyboardListener` created alongside
-    // `HotkeyManager::new_with_blocking()` still receives Return keyDowns. The
-    // listener lives only for this watch, then is torn down. If the tap cannot
-    // be created we still watch; only Enter is unavailable.
+    // A second CGEventTap coexists with the app's blocking `HotkeyManager`; the
+    // listener lives only for this watch. Enter is only an accelerator now.
     let listener = KeyboardListener::new().ok();
     if listener.is_none() {
         debug!("Enter watch unavailable; falling back to field polling only");
     }
 
-    // Turn on the enhanced accessibility tree once for the whole watch. Doing it
-    // per read (as `read_focused_field` used to) makes Chromium rebuild its tree
-    // on every 200ms poll; the guard restores the prior value when it drops.
+    // Enable the enhanced tree once for the whole watch; the guard restores it.
     let _enhance = ax::enable_enhanced_user_interface();
 
-    // Pin the field identity up front: a later read of a *different* field must
-    // never be compared against what we pasted. The initial read only seeds the
-    // baseline and diagnostics — it is not fed as a settling poll, because right
-    // after a paste a Chromium field can transiently read as empty before its
-    // accessibility tree catches up, and that must not end the watch.
-    //
-    // Chromium often answers the very first read with no value, so the baseline
-    // is also adopted from the first non-empty identity seen in the loop.
-    let start = ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS);
-    match &start {
-        Some(field) => record_field(&mut report, field),
-        None => {
-            let _ = machine.on(Poll::Unreadable);
+    // Wait until the paste shows up in the input box. Chromium answers the very
+    // first read with no value, so this retries instead of trusting one read.
+    let baseline = loop {
+        if started.elapsed() >= BASELINE_TIMEOUT {
+            break None;
         }
-    }
+        match ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
+            Some(field) if diff::contains_normalized(&field.text, pasted) => break Some(field),
+            _ => std::thread::sleep(POLL_INTERVAL),
+        }
+    };
+
+    let Some(baseline) = baseline else {
+        report.outcome = "the input box could not be read".to_string();
+        return (Vec::new(), report);
+    };
+    record_field(&mut report, &baseline);
+    let mut machine = WatchMachine::new(baseline.text.clone());
 
     while started.elapsed() < WATCH_WINDOW {
-        let entered = wait_for_enter(listener.as_ref(), POLL_INTERVAL);
         report.polls += 1;
-
-        // Enter arms a pending send. Read the field just after the key: a real
-        // send clears it (or the app navigates), while an input-method commit
-        // grows it and cancels the pending send on the next poll.
+        let entered = wait_for_enter(listener.as_ref(), POLL_INTERVAL);
         if entered {
             let _ = machine.on(Poll::Enter);
-            std::thread::sleep(Duration::from_millis(150));
-            if let Some(field) = ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
-                record_field(&mut report, &field);
-                if let Poll::Readable(text) = field_poll(&field) {
-                    if let (step, reason) = machine.on(Poll::Readable(text)) {
-                        if step != WatchStep::Continue {
-                            let reason = reason.expect("settling poll has a reason");
-                            report.outcome = stop_outcome(reason).to_string();
-                            return if step == WatchStep::Learn {
-                                (machine.observed, report)
-                            } else {
-                                (Vec::new(), report)
-                            };
-                        }
-                    }
-                }
-            }
         }
 
         let poll = if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
@@ -512,7 +470,12 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         };
 
         match machine.on(poll) {
-            (WatchStep::Continue, _) => {}
+            (WatchStep::Continue, _) => {
+                if !machine.edited() && started.elapsed() >= NO_EDIT_WINDOW {
+                    report.outcome = "no edit was made".to_string();
+                    return (Vec::new(), report);
+                }
+            }
             (WatchStep::Learn, reason) => {
                 report.outcome = stop_outcome(reason.expect("learn has a reason")).to_string();
                 return (machine.observed, report);
@@ -524,7 +487,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         }
     }
 
-    debug!("Edit watch timed out with no send");
+    debug!("Edit watch timed out with no settle");
     report.outcome = "timeout".to_string();
     (Vec::new(), report)
 }
@@ -546,7 +509,7 @@ fn record_field(report: &mut WatchReport, field: &ax::FocusedField) {
 
 /// Classify a readable field. The field identity is intentionally not compared:
 /// Chromium re-renders its contenteditable and the identifier changes while the
-/// user is still in the same field, and `choose_final` already rejects an
+/// user is still in the same field, and the whole-box diff already rejects an
 /// unrelated final text.
 fn field_poll(field: &ax::FocusedField) -> Poll {
     if field.text.trim().is_empty() {
@@ -602,63 +565,6 @@ fn usable_candidates(candidates: Vec<diff::EditCandidate>) -> Vec<diff::EditCand
         .filter(|candidate| !candidate.replacement.ends_with(char::is_whitespace))
         .take(MAX_LEARNED_WORDS)
         .collect()
-}
-
-/// Pick what to learn from every state the field was seen in.
-///
-/// Scans newest first: the last thing the field held before it was sent is the
-/// most complete version of what the user wrote. A state whose replacement looks
-/// unfinished is skipped in favour of an earlier, complete one; if nothing is
-/// complete, the newest usable candidate is still better than nothing.
-fn decide(observed: &[String], pasted: &str, report: &mut WatchReport) -> Vec<diff::EditCandidate> {
-    let mut fallback: Option<Vec<diff::EditCandidate>> = None;
-
-    for text in observed.iter().rev() {
-        if text == pasted {
-            continue;
-        }
-
-        let candidates: Vec<diff::EditCandidate> = diff::detect_edits(pasted, text)
-            .into_iter()
-            .filter(|candidate| {
-                diff::is_likely_mishearing(&candidate.pattern, &candidate.replacement)
-            })
-            .collect();
-        if candidates.is_empty() {
-            continue;
-        }
-
-        let usable = usable_candidates(candidates.clone());
-        if !usable.is_empty() {
-            report.outcome = "learned (decided from the captured states)".to_string();
-            report.candidate = Some(describe(&usable));
-            return usable;
-        }
-
-        if fallback.is_none() {
-            // Last resort: the newest state still beats learning nothing, but trim
-            // the half-typed tail so the stored rule is a clean term.
-            fallback = Some(
-                candidates
-                    .into_iter()
-                    .map(|mut candidate| {
-                        candidate.replacement = candidate.replacement.trim_end().to_string();
-                        candidate
-                    })
-                    .take(MAX_LEARNED_WORDS)
-                    .collect(),
-            );
-        }
-    }
-
-    match fallback {
-        Some(candidates) => {
-            report.outcome = "learned (best of the captured states)".to_string();
-            report.candidate = Some(describe(&candidates));
-            candidates
-        }
-        None => Vec::new(),
-    }
 }
 
 fn describe(candidates: &[diff::EditCandidate]) -> String {
@@ -915,8 +821,8 @@ mod tests {
         assert_eq!(store.list_words().unwrap()[0].word, "乒乓球");
     }
 
-    /// The `MAX_LEARNED_WORDS` cap lives in `decide()`; `learn()` stores whatever
-    /// the decision handed it.
+    /// The `MAX_LEARNED_WORDS` cap lives in `usable_candidates()`; `learn()`
+    /// stores whatever the decision handed it.
     #[test]
     fn learning_adds_every_candidate_it_is_given() {
         let (store, _dir) = store();
@@ -1030,233 +936,104 @@ mod tests {
     }
 
     #[test]
-    fn learns_when_the_field_was_cleared_by_sending() {
-        // The user fixed the term and hit send: the corrected value was only in
-        // the field briefly, but it was captured.
-        let pasted = "这儿有一个 KOL他想做 C3XO，可以吗？";
-        let observed = states(&[
-            "这儿有一个 KOL",
-            pasted,
-            "这儿有一个 KOL他想做 Cica Exo，可以吗？",
-        ]);
-
-        let mut report = WatchReport::default();
-        let decided = decide(&observed, pasted, &mut report);
-
-        assert_eq!(decided.len(), 1);
-        assert_eq!(decided[0].pattern, "C3XO");
-        assert_eq!(decided[0].replacement, "Cica Exo");
-    }
-
-    #[test]
-    fn prefers_a_complete_replacement_over_a_half_typed_one() {
-        let pasted = "他想做 C3XO，可以吗？";
-        let observed = states(&[
-            pasted,
-            "他想做 Cica ，可以吗？",
-            "他想做 Cica Exo，可以吗？",
-        ]);
-
-        let mut report = WatchReport::default();
-        let decided = decide(&observed, pasted, &mut report);
-
-        assert_eq!(decided.len(), 1);
-        assert_eq!(decided[0].replacement, "Cica Exo");
-    }
-
-    #[test]
-    fn falls_back_to_nothing_when_the_captured_fragment_is_dissimilar() {
-        let pasted = "他想做 C3XO，可以吗？";
-        let observed = states(&[pasted, "他想做 Cica ，可以吗？"]);
-
-        let mut report = WatchReport::default();
-        assert!(decide(&observed, pasted, &mut report).is_empty());
-    }
-
-    #[test]
-    fn the_gate_drops_a_dissimilar_correction_in_one_state() {
-        // "QL" -> "KOL" normalizes to 2/3 edits, over the 0.6 mishearing floor, so
-        // the gate drops it. The close "C3XO" -> "Cica Exo" (4/7) is still learned.
-        let pasted = "这儿有一个QL，他想做C3XO，请问可以吗？";
-        let observed = states(&[pasted, "这儿有一个KOL，他想做Cica Exo，请问可以吗？"]);
-
-        let mut report = WatchReport::default();
-        let decided = decide(&observed, pasted, &mut report);
-
-        let pairs: Vec<(String, String)> = decided
-            .into_iter()
-            .map(|candidate| (candidate.pattern, candidate.replacement))
-            .collect();
-
-        assert!(
-            pairs.contains(&("C3XO".to_string(), "Cica Exo".to_string())),
-            "{pairs:?}"
-        );
-        assert!(
-            !pairs.contains(&("QL".to_string(), "KOL".to_string())),
-            "{pairs:?}"
-        );
-    }
-
-    #[test]
-    fn a_state_with_no_edit_learns_nothing() {
-        let pasted = "hello world";
-        let observed = states(&["hello", pasted, pasted]);
-
-        let mut report = WatchReport::default();
-        assert!(decide(&observed, pasted, &mut report).is_empty());
-    }
-
-    #[test]
-    fn choose_final_prefers_the_newest_differing_state() {
-        let pasted = "hello world";
-        let observed = states(&[pasted, "hello there", "hello world!"]);
-
+    fn machine_learns_after_the_edit_settles() {
+        let mut machine = WatchMachine::new("hello world".to_string());
         assert_eq!(
-            choose_final(&observed, pasted),
-            Some("hello world!".to_string())
+            machine.on(Poll::Readable("hello there".into())),
+            (WatchStep::Continue, None)
         );
-    }
-
-    #[test]
-    fn choose_final_is_none_when_nothing_differs() {
-        let pasted = "hello world";
-        let observed = states(&[pasted, pasted]);
-
-        assert_eq!(choose_final(&observed, pasted), None);
-    }
-
-    #[test]
-    fn choose_final_prefers_a_complete_state_over_a_trailing_space() {
-        // The field was sampled mid-word after the correction: "hello world! "
-        // has the term plus a trailing space. The complete earlier state wins.
-        let pasted = "hello world";
-        let observed = states(&[pasted, "hello world!", "hello world! "]);
-
+        std::thread::sleep(EDIT_DEBOUNCE + Duration::from_millis(50));
         assert_eq!(
-            choose_final(&observed, pasted),
-            Some("hello world!".to_string())
+            machine.on(Poll::Readable("hello there".into())),
+            (WatchStep::Learn, Some(StopReason::Settled))
         );
     }
 
     #[test]
-    fn choose_final_is_none_when_the_newest_state_is_unrelated() {
-        // Focus moved to a different field in the same app: the text is not an
-        // edit of what we pasted, so the LLM must never see it.
-        let pasted = "hello world";
-        let observed = states(&[pasted, "completely different text"]);
-
-        assert_eq!(choose_final(&observed, pasted), None);
-    }
-
-    #[test]
-    fn machine_ignores_an_emptied_field() {
-        // Only Enter means "sent"; a field that clears while the user is still
-        // editing must not settle a half-typed correction.
-        let mut machine = WatchMachine::new();
+    fn machine_does_not_settle_while_the_edit_keeps_changing() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        machine.on(Poll::Readable("hello the".into()));
+        machine.on(Poll::Readable("hello there".into()));
+        std::thread::sleep(EDIT_DEBOUNCE + Duration::from_millis(50));
+        // A newer change resets the timer, so this is still not settled.
+        machine.on(Poll::Readable("hello there!".into()));
         assert_eq!(
-            machine.on(Poll::Readable("hello".into())).0,
-            WatchStep::Continue
+            machine.on(Poll::Readable("hello there!".into())),
+            (WatchStep::Continue, None)
         );
-        assert_eq!(
-            machine.on(Poll::Readable(String::new())).0,
-            WatchStep::Ignore
-        );
-        assert_eq!(machine.observed, vec!["hello".to_string()]);
     }
 
     #[test]
-    fn machine_ignores_focus_loss() {
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("hello".into()));
-
-        for _ in 0..(FOCUS_LOST_POLLS - 1) {
-            assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
-        }
-        assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Ignore);
-    }
-
-    #[test]
-    fn machine_keeps_waiting_while_the_field_is_stable() {
-        let mut machine = WatchMachine::new();
+    fn machine_never_learns_without_an_edit() {
+        let mut machine = WatchMachine::new("hello world".to_string());
         for _ in 0..200 {
             assert_eq!(
-                machine.on(Poll::Readable("hello".into())).0,
-                WatchStep::Continue
+                machine.on(Poll::Readable("hello world".into())),
+                (WatchStep::Continue, None)
             );
         }
-        assert_eq!(machine.observed, vec!["hello".to_string()]);
     }
 
     #[test]
-    fn machine_ignores_supersede_setting_and_secure_input() {
-        for poll in [Poll::Superseded, Poll::SettingOff, Poll::SecureInput] {
-            let mut machine = WatchMachine::new();
-            machine.on(Poll::Readable("hello".into()));
-            assert_eq!(machine.on(poll).0, WatchStep::Ignore);
-        }
+    fn machine_learns_when_an_edited_field_clears() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        machine.on(Poll::Readable("hello there".into()));
+        assert_eq!(
+            machine.on(Poll::Readable(String::new())),
+            (WatchStep::Learn, Some(StopReason::FieldEmptied))
+        );
     }
 
     #[test]
-    fn machine_never_settles_on_unreadable_before_reading_once() {
-        let mut machine = WatchMachine::new();
-        for _ in 0..100 {
-            assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
-        }
+    fn machine_ignores_a_cleared_field_without_an_edit() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        assert_eq!(
+            machine.on(Poll::Readable(String::new())),
+            (WatchStep::Ignore, Some(StopReason::NoEdit))
+        );
     }
 
     #[test]
-    fn machine_ignores_an_app_change() {
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("hello".into()));
-        assert_eq!(machine.on(Poll::AppChanged).0, WatchStep::Ignore);
-    }
-
-    #[test]
-    fn machine_caps_the_observed_states() {
-        let mut machine = WatchMachine::new();
-        for index in 0..(MAX_OBSERVED_STATES + 5) {
-            machine.on(Poll::Readable(format!("value {index}")));
-        }
-        assert_eq!(machine.observed.len(), MAX_OBSERVED_STATES);
-    }
-
-    #[test]
-    fn machine_learns_when_enter_is_confirmed_by_clearing() {
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("hello".into()));
-        // Enter alone is not a send.
-        assert_eq!(machine.on(Poll::Enter), (WatchStep::Continue, None));
-        // The field clearing right after confirms it.
+    fn machine_settles_on_enter_cleared() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        machine.on(Poll::Readable("hello there".into()));
+        machine.on(Poll::Enter);
         assert_eq!(
             machine.on(Poll::Readable(String::new())),
             (WatchStep::Learn, Some(StopReason::Enter))
         );
-        assert_eq!(machine.observed, vec!["hello".to_string()]);
     }
 
     #[test]
-    fn machine_ignores_an_input_method_commit() {
-        // Enter followed by more text is an input-method commit, not a send.
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("Cic".into()));
-        assert_eq!(machine.on(Poll::Enter), (WatchStep::Continue, None));
+    fn machine_ignores_focus_loss_without_an_edit() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        machine.on(Poll::Readable("hello world".into()));
+        for _ in 0..(FOCUS_LOST_POLLS - 1) {
+            assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
+        }
         assert_eq!(
-            machine.on(Poll::Readable("Cica".into())),
-            (WatchStep::Continue, None)
-        );
-        // A later clear must not learn now that the pending send was cancelled.
-        assert_eq!(
-            machine.on(Poll::Readable(String::new())),
-            (WatchStep::Ignore, Some(StopReason::FieldEmptied))
+            machine.on(Poll::Unreadable),
+            (WatchStep::Ignore, Some(StopReason::FocusLost))
         );
     }
 
     #[test]
-    fn machine_learns_when_enter_is_confirmed_by_an_app_change() {
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("hello".into()));
-        machine.on(Poll::Enter);
+    fn machine_learns_on_focus_loss_after_an_edit() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        machine.on(Poll::Readable("hello there".into()));
+        for _ in 0..(FOCUS_LOST_POLLS - 1) {
+            assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
+        }
+        assert_eq!(
+            machine.on(Poll::Unreadable),
+            (WatchStep::Learn, Some(StopReason::FocusLost))
+        );
+    }
+
+    #[test]
+    fn machine_learns_on_app_change_after_an_edit() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        machine.on(Poll::Readable("hello there".into()));
         assert_eq!(
             machine.on(Poll::AppChanged),
             (WatchStep::Learn, Some(StopReason::AppChanged))
@@ -1264,9 +1041,9 @@ mod tests {
     }
 
     #[test]
-    fn machine_ignores_an_app_change_without_enter() {
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("hello".into()));
+    fn machine_ignores_an_app_change_without_an_edit() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        machine.on(Poll::Readable("hello world".into()));
         assert_eq!(
             machine.on(Poll::AppChanged),
             (WatchStep::Ignore, Some(StopReason::AppChanged))
@@ -1274,17 +1051,35 @@ mod tests {
     }
 
     #[test]
-    fn machine_learns_when_the_field_stops_changing_after_enter() {
-        // An app that does not clear the field still sent: the text stopping
-        // changing after Enter confirms it.
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("hello".into()));
-        machine.on(Poll::Enter);
-        std::thread::sleep(SEND_SETTLE + Duration::from_millis(50));
-        assert_eq!(
-            machine.on(Poll::Readable("hello".into())),
-            (WatchStep::Learn, Some(StopReason::Enter))
-        );
+    fn machine_ignores_supersede_setting_and_secure_input() {
+        for poll in [Poll::Superseded, Poll::SettingOff, Poll::SecureInput] {
+            let mut machine = WatchMachine::new("hello world".to_string());
+            machine.on(Poll::Readable("hello there".into()));
+            assert_eq!(machine.on(poll).0, WatchStep::Ignore);
+        }
+    }
+
+    #[test]
+    fn machine_never_settles_on_unreadable_before_reading_once() {
+        let mut machine = WatchMachine::new("hello world".to_string());
+        for _ in 0..100 {
+            assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
+        }
+    }
+
+    #[test]
+    fn machine_caps_the_observed_states() {
+        let mut machine = WatchMachine::new("baseline".to_string());
+        for index in 0..(MAX_OBSERVED_STATES + 5) {
+            machine.on(Poll::Readable(format!("value {index}")));
+        }
+        assert_eq!(machine.observed.len(), MAX_OBSERVED_STATES);
+    }
+
+    #[test]
+    fn settled_text_skips_a_trailing_empty_state() {
+        let observed = states(&["hello world", "hello there", ""]);
+        assert_eq!(settled_text(&observed), Some("hello there".to_string()));
     }
 
     /// Recorded evidence for the dual-tap assumption in `observe`: a second
