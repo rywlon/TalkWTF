@@ -71,12 +71,14 @@ pub struct FocusedField {
     pub strategy: &'static str,
 }
 
-/// Pick the most stable identifier we have for a field.
-fn identity_key(identifier: Option<String>, dom: Option<String>, frame: Option<String>) -> String {
+/// Pick the most stable identifier we have for a field. Geometry is
+/// deliberately not a fallback: a chat input that moves, scrolls, or auto-grows
+/// as text is typed would change its frame and look like a different field.
+/// An empty key means "unknown", which the watcher never treats as a change.
+fn identity_key(identifier: Option<String>, dom: Option<String>) -> String {
     identifier
         .filter(|value| !value.is_empty())
         .or_else(|| dom.filter(|value| !value.is_empty()))
-        .or(frame)
         .unwrap_or_default()
 }
 
@@ -490,13 +492,9 @@ fn field_identity(element: AXUIElementRef) -> FieldIdentity {
     let mut pid: i32 = 0;
     unsafe { AXUIElementGetPid(element, &mut pid) };
 
-    let frame = focused_element_frame()
-        .map(|(x, y, width, height)| format!("{x:.0},{y:.0},{width:.0},{height:.0}"));
-
     let key = identity_key(
         copy_string(element, "AXIdentifier"),
         copy_string(element, "AXDOMIdentifier"),
-        frame,
     );
 
     FieldIdentity { pid, key }
@@ -884,19 +882,12 @@ mod tests {
     }
 
     #[test]
-    fn identity_key_prefers_identifier_over_frame() {
+    fn identity_key_prefers_identifier_over_dom() {
         assert_eq!(
-            identity_key(
-                Some("field-1".into()),
-                Some("dom-9".into()),
-                Some("1,2,3,4".into())
-            ),
+            identity_key(Some("field-1".into()), Some("dom-9".into())),
             "field-1"
         );
-        assert_eq!(
-            identity_key(None, Some("dom-9".into()), Some("1,2,3,4".into())),
-            "dom-9"
-        );
-        assert_eq!(identity_key(None, None, Some("1,2,3,4".into())), "1,2,3,4");
+        assert_eq!(identity_key(None, Some("dom-9".into())), "dom-9");
+        assert_eq!(identity_key(None, None), "");
     }
 }

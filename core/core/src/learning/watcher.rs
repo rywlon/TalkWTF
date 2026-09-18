@@ -396,13 +396,21 @@ fn record_field(report: &mut WatchReport, field: &ax::FocusedField) {
 
 /// Classify a readable field against the identity we started watching.
 fn field_poll(field: &ax::FocusedField, start_identity: Option<&ax::FieldIdentity>) -> Poll {
-    if start_identity.is_some_and(|start| field.identity != *start) {
+    if start_identity.is_some_and(|start| identity_changed(&start.key, &field.identity.key)) {
         Poll::IdentityChanged
     } else if field.text.trim().is_empty() {
         Poll::Readable(String::new())
     } else {
         Poll::Readable(field.text.clone())
     }
+}
+
+/// Whether the current field is definitely a different one. Both keys must be
+/// non-empty: an unknown identity (no AXIdentifier/AXDOMIdentifier) must never
+/// look like a switch, or a field that simply has no stable identifier would
+/// end the watch on its first poll.
+fn identity_changed(start: &str, current: &str) -> bool {
+    !start.is_empty() && !current.is_empty() && start != current
 }
 
 /// Wait up to `budget` for key events and report whether a Return keyDown
@@ -879,5 +887,21 @@ mod tests {
             machine.on(Poll::IdentityChanged),
             (WatchStep::Ignore, Some(StopReason::IdentityChanged))
         );
+    }
+
+    #[test]
+    fn identity_change_needs_two_known_differing_keys() {
+        // A differing, known pair is a real switch.
+        assert!(identity_changed("field-1", "field-2"));
+
+        // An unknown key on either side can never prove a switch: this is the
+        // common chat-input case, where neither AXIdentifier nor AXDOMIdentifier
+        // exists and the field may move or auto-grow as text is typed.
+        assert!(!identity_changed("", ""));
+        assert!(!identity_changed("", "field-2"));
+        assert!(!identity_changed("field-1", ""));
+
+        // The same known key is the same field.
+        assert!(!identity_changed("field-1", "field-1"));
     }
 }
