@@ -29,6 +29,10 @@ const FOCUS_LOST_POLLS: u32 = 10;
 /// to confirm the key really sent. An input-method commit keeps the text and
 /// grows it instead, so it is not a send.
 const SEND_CONFIRM_WINDOW: Duration = Duration::from_millis(2000);
+/// After Enter, the field being unchanged for this long confirms the send even
+/// when the app does not clear the field. An input-method commit changes the
+/// text immediately, so it cancels instead.
+const SEND_SETTLE: Duration = Duration::from_millis(600);
 /// How many observed field states we keep. Every distinct value is stored, so the
 /// decision at the end can look back past an incomplete one.
 const MAX_OBSERVED_STATES: usize = 40;
@@ -356,13 +360,22 @@ impl WatchMachine {
                 }
 
                 // A field that keeps changing after Enter was an input-method
-                // commit, not a send.
-                if self.pending_send.is_some() && self.pending_text.as_deref() != Some(&text) {
-                    self.clear_pending();
-                    debug!("Edit watch: pending send cancelled (the field kept changing)");
-                } else if self.pending_expired() {
-                    self.clear_pending();
-                    debug!("Edit watch: pending send expired");
+                // commit, not a send. A field that stops changing is a send even
+                // when the app does not clear it.
+                if self.pending_send.is_some() {
+                    if self.pending_text.as_deref() != Some(&text) {
+                        debug!(
+                            "Edit watch: pending send cancelled (text changed {:?} -> {:?})",
+                            self.pending_text, text
+                        );
+                        self.clear_pending();
+                    } else if self
+                        .pending_send
+                        .is_some_and(|at| at.elapsed() >= SEND_SETTLE)
+                    {
+                        debug!("Edit watch: pending send confirmed (the field stopped changing)");
+                        return (WatchStep::Learn, Some(StopReason::Enter));
+                    }
                 }
 
                 if self.observed.last() != Some(&text) {
@@ -1261,20 +1274,16 @@ mod tests {
     }
 
     #[test]
-    fn machine_cancels_a_pending_send_on_timeout() {
+    fn machine_learns_when_the_field_stops_changing_after_enter() {
+        // An app that does not clear the field still sent: the text stopping
+        // changing after Enter confirms it.
         let mut machine = WatchMachine::new();
         machine.on(Poll::Readable("hello".into()));
         machine.on(Poll::Enter);
-        std::thread::sleep(SEND_CONFIRM_WINDOW + Duration::from_millis(50));
-        // Same text, window elapsed: the pending send is dropped.
+        std::thread::sleep(SEND_SETTLE + Duration::from_millis(50));
         assert_eq!(
             machine.on(Poll::Readable("hello".into())),
-            (WatchStep::Continue, None)
-        );
-        assert!(machine.pending_send.is_none());
-        assert_eq!(
-            machine.on(Poll::Readable(String::new())),
-            (WatchStep::Ignore, Some(StopReason::FieldEmptied))
+            (WatchStep::Learn, Some(StopReason::Enter))
         );
     }
 
