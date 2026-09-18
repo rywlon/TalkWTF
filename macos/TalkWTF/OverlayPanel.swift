@@ -165,6 +165,7 @@ final class OverlayController {
 final class OverlayPanel {
     private let model: OverlayModel
     private var panel: NSPanel?
+    private var hosting: NSHostingView<OverlayView>?
 
     init(model: OverlayModel) {
         self.model = model
@@ -175,7 +176,7 @@ final class OverlayPanel {
     /// top/bottom of the pointer's screen.
     func show(autoHideAfter seconds: TimeInterval?, near: CGRect? = nil, anchor: OverlayAnchor) {
         let panel = existingOrCreate()
-        panel.setContentSize(model.state.panelSize)
+        panel.setContentSize(fittedSize())
         reposition(panel, near: near, anchor: anchor)
         panel.orderFrontRegardless()
 
@@ -184,6 +185,17 @@ final class OverlayPanel {
                 self?.hide()
             }
         }
+    }
+
+    /// The content's intrinsic size, clamped so a long app name grows the pill
+    /// instead of clipping the wordmark, but never past a sane width.
+    private func fittedSize() -> NSSize {
+        guard let hosting else { return model.state.panelSize }
+        hosting.layoutSubtreeIfNeeded()
+        let fitting = hosting.fittingSize
+        let width = min(max(fitting.width, 200), 460)
+        let height = max(fitting.height, model.state.size.height)
+        return NSSize(width: width, height: height)
     }
 
     func hide() {
@@ -211,6 +223,7 @@ final class OverlayPanel {
         let hosting = NSHostingView(rootView: OverlayView(model: model))
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
+        self.hosting = hosting
 
         self.panel = panel
         return panel
@@ -341,7 +354,8 @@ struct OverlayView: View {
             }
         }
         .padding(.horizontal, 16)
-        .frame(width: model.state.size.width, height: model.state.size.height)
+        .frame(height: model.state.size.height)
+        .fixedSize(horizontal: true, vertical: false)
         .opacity(hovering && isRecordingState ? 0.92 : 1)
         .onHover { hovering = $0 }
     }
