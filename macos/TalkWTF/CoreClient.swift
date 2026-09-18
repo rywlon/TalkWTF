@@ -56,7 +56,7 @@ enum Core {
         let appSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first?
-            .appendingPathComponent("com.pais.handy")
+            .appendingPathComponent("com.talkwtf.app")
         let payload: [String: Any] = [
             "dataDir": appSupport?.path ?? NSHomeDirectory(),
             "resourceDir": Bundle.main.resourceURL?.path ?? "",

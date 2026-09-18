@@ -340,7 +340,7 @@
 				OTHER_LDFLAGS = (
 					"-ltalkwtf_ffi",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.pais.handy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.talkwtf.app;
 				PRODUCT_NAME = TalkWTF;
 				SWIFT_OBJC_BRIDGING_HEADER = "TalkWTF/TalkWTF-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -369,7 +369,7 @@
 				OTHER_LDFLAGS = (
 					"-ltalkwtf_ffi",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.pais.handy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.talkwtf.app;
 				PRODUCT_NAME = TalkWTF;
 				SWIFT_OBJC_BRIDGING_HEADER = "TalkWTF/TalkWTF-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;

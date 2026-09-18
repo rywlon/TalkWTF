@@ -725,7 +725,7 @@ enum AppPaths {
         FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first?
-            .appendingPathComponent("com.pais.handy")
+            .appendingPathComponent("com.talkwtf.app")
             ?? URL(fileURLWithPath: NSHomeDirectory())
     }
 
@@ -737,7 +737,7 @@ enum AppPaths {
         FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)
             .first?
-            .appendingPathComponent("Logs/com.pais.handy")
+            .appendingPathComponent("Logs/com.talkwtf.app")
             ?? dataDirectory
     }
 }
