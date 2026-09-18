@@ -143,18 +143,18 @@ pub fn watch_for_edit(pasted_text: &str) {
         let (observed, mut report) = observe(&pasted, bundle_id.as_deref(), generation);
 
         if let Some(final_text) = choose_final(&observed, &pasted) {
-            let candidates = match llm::detect_corrections(&pasted, &final_text) {
-                Some(candidates) => {
-                    let usable = usable_candidates(candidates);
-                    report.outcome = if usable.is_empty() {
-                        "the llm found no mishearing".to_string()
-                    } else {
-                        "learned (llm)".to_string()
-                    };
-                    usable
-                }
-                None => decide(&observed, &pasted, &mut report),
+            let judgement = llm::judge(&pasted, &final_text);
+            let candidates = if judgement.source == llm::JudgeSource::Llm {
+                usable_candidates(judgement.candidates)
+            } else {
+                decide(&observed, &pasted, &mut report)
             };
+            report.outcome = judgement.reason.clone();
+
+            debug!(
+                "Edit judged: source {:?} | llm raw {:?}",
+                judgement.source, judgement.llm_raw
+            );
 
             if !candidates.is_empty() {
                 report.candidate = Some(describe(&candidates));

@@ -1,6 +1,8 @@
 //! Ask the configured provider which corrections in an edit were mishearings.
 
 use log::debug;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use super::diff::EditCandidate;
 use crate::settings::{AppSettings, APPLE_INTELLIGENCE_PROVIDER_ID};
@@ -14,10 +16,11 @@ const MAX_FIELD_CHARS: usize = 40;
 /// request (or leak an unbounded field read) to a third party.
 const MAX_INPUT_CHARS: usize = 600;
 
-/// Ask the active provider what the user misheard. `None` means the LLM is
-/// unavailable or failed, so the caller falls back to the local diff. `Some` with
-/// an empty vector means the LLM ran and found nothing worth learning — trust it.
-pub fn detect_corrections(pasted: &str, final_text: &str) -> Option<Vec<EditCandidate>> {
+/// Ask the active provider what the user misheard, returning the parsed
+/// candidates alongside the raw answer. `None` means the LLM is unavailable or
+/// failed, so the caller falls back to the local diff. `Some` with an empty
+/// vector means the LLM ran and found nothing worth learning — trust it.
+pub fn detect_corrections(pasted: &str, final_text: &str) -> Option<(Vec<EditCandidate>, String)> {
     if pasted.chars().count() > MAX_INPUT_CHARS || final_text.chars().count() > MAX_INPUT_CHARS {
         return None;
     }
@@ -70,11 +73,83 @@ pub fn detect_corrections(pasted: &str, final_text: &str) -> Option<Vec<EditCand
         ));
 
     match completion {
-        Ok(Some(completion)) => parse_corrections(&completion.content),
+        Ok(Some(completion)) => parse_corrections(&completion.content)
+            .map(|candidates| (candidates, completion.content)),
         Ok(None) => None,
         Err(error) => {
             debug!("Edit-learning LLM request failed: {error}");
             None
+        }
+    }
+}
+
+/// Where a judgement came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum JudgeSource {
+    Llm,
+    Local,
+    None,
+}
+
+/// What the edit taught, and how we know.
+#[derive(Debug, Clone)]
+pub struct Judgement {
+    pub candidates: Vec<EditCandidate>,
+    pub source: JudgeSource,
+    pub llm_raw: Option<String>,
+    pub reason: String,
+}
+
+/// Decide what (if anything) the edit taught, preferring the LLM and falling
+/// back to the local gate. Always returns a human-readable reason.
+pub fn judge(pasted: &str, final_text: &str) -> Judgement {
+    judge_from(pasted, final_text, detect_corrections(pasted, final_text))
+}
+
+/// The decision with the LLM result supplied, so the fallback logic is testable
+/// without reading settings or making a request.
+fn judge_from(
+    pasted: &str,
+    final_text: &str,
+    llm: Option<(Vec<EditCandidate>, String)>,
+) -> Judgement {
+    match llm {
+        Some((candidates, raw)) => {
+            let usable = candidates;
+            if usable.is_empty() {
+                Judgement {
+                    candidates: Vec::new(),
+                    source: JudgeSource::Llm,
+                    llm_raw: Some(raw),
+                    reason: "the llm found no mishearing".to_string(),
+                }
+            } else {
+                Judgement {
+                    candidates: usable,
+                    source: JudgeSource::Llm,
+                    llm_raw: Some(raw),
+                    reason: "learned from the llm".to_string(),
+                }
+            }
+        }
+        None => {
+            let candidates: Vec<EditCandidate> = super::diff::detect_edits(pasted, final_text)
+                .into_iter()
+                .filter(|candidate| {
+                    super::diff::is_likely_mishearing(&candidate.pattern, &candidate.replacement)
+                })
+                .collect();
+            let reason = if candidates.is_empty() {
+                "the local gate found no mishearing".to_string()
+            } else {
+                "learned from the local gate".to_string()
+            };
+            Judgement {
+                candidates,
+                source: JudgeSource::Local,
+                llm_raw: None,
+                reason,
+            }
         }
     }
 }
@@ -241,6 +316,15 @@ mod tests {
         assert_eq!(provider.id, "deepseek");
         assert_eq!(model, "deepseek-chat");
         assert_eq!(api_key, "sk-test");
+    }
+
+    #[test]
+    fn judge_falls_back_to_local_and_records_the_source() {
+        // No provider configured in tests → LLM unavailable → local path.
+        let judgement = judge_from("他想做 C3XO，可以吗？", "他想做 Cica Exo，可以吗？", None);
+        assert_eq!(judgement.source, JudgeSource::Local);
+        assert_eq!(judgement.candidates.len(), 1);
+        assert!(!judgement.reason.is_empty());
     }
 
     #[test]
