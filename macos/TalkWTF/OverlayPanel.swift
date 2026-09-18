@@ -117,8 +117,7 @@ final class OverlayController {
                     pattern: notice["pattern"] as? String ?? "",
                     replacement: notice["replacement"] as? String ?? "",
                     count: (notice["count"] as? NSNumber)?.intValue ?? 1
-                ),
-                near: Self.rect(from: payload["frame"])
+                )
             )
         default:
             break
@@ -136,17 +135,6 @@ final class OverlayController {
         case "notice": return .notice(kind: kind ?? "")
         default: return .recording
         }
-    }
-
-    /// AX frames are `[x, y, width, height]` in top-left screen coordinates.
-    private static func rect(from value: Any?) -> CGRect? {
-        guard let values = value as? [NSNumber], values.count == 4 else { return nil }
-        return CGRect(
-            x: values[0].doubleValue,
-            y: values[1].doubleValue,
-            width: values[2].doubleValue,
-            height: values[3].doubleValue
-        )
     }
 }
 
