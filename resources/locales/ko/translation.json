@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "학습 기록",
+        "empty": "아직 학습 기록이 없습니다.",
+        "clear": "지우기"
+      },
       "title": "디버그",
       "logDirectory": {
         "title": "로그 디렉토리",

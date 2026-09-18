@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "Learning Attempts",
+        "empty": "No learning attempts yet.",
+        "clear": "Clear"
+      },
       "title": "डिबग",
       "logDirectory": {
         "title": "लग डाइरेक्टरी",

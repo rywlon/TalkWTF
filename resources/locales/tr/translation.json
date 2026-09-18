@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "Öğrenme denemeleri",
+        "empty": "Henüz öğrenme denemesi yok.",
+        "clear": "Temizle"
+      },
       "title": "Hata Ayıklama",
       "logDirectory": {
         "title": "Log Dizini",

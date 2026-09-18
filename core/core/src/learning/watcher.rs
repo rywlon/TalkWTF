@@ -51,6 +51,8 @@ pub struct LearnedCorrection {
 #[derive(Default, Clone, serde::Serialize)]
 pub struct WatchReport {
     pub bundle_id: Option<String>,
+    /// The AX identity of the watched field, when it has a stable one.
+    pub field_id: Option<String>,
     pub pasted_chars: usize,
     pub outcome: String,
     pub polls: u32,
@@ -144,6 +146,9 @@ pub fn watch_for_edit(pasted_text: &str) {
 
         if let Some(final_text) = choose_final(&observed, &pasted) {
             let judgement = llm::judge(&pasted, &final_text);
+            let source = judge_source_str(judgement.source);
+            let llm_raw = judgement.llm_raw.clone();
+            let reason = judgement.reason.clone();
             let candidates = if judgement.source == llm::JudgeSource::Llm {
                 // The LLM saw the same final text the report describes, so its
                 // reason is the accurate outcome. The local path below decides
@@ -159,13 +164,46 @@ pub fn watch_for_edit(pasted_text: &str) {
                 judgement.source, judgement.llm_raw
             );
 
-            if !candidates.is_empty() {
+            let applied = if !candidates.is_empty() {
                 report.candidate = Some(describe(&candidates));
                 // Read the field's position now, while it is still focused, so the
                 // notice can be placed next to it (the shell ignores this now).
                 let frame = ax::focused_element_frame();
-                apply(candidates, frame);
-            }
+                apply(candidates, frame)
+            } else {
+                Vec::new()
+            };
+
+            record_attempt(
+                &pasted,
+                &final_text,
+                report.bundle_id.as_deref(),
+                report.field_id.as_deref(),
+                source,
+                llm_raw,
+                if applied.is_empty() {
+                    "skipped"
+                } else {
+                    "learned"
+                },
+                &reason,
+                learned_json(&applied),
+            );
+        } else {
+            // No related edit was observed. Record the settle anyway so a watch
+            // that never produced a candidate is still diagnosable.
+            let final_text = observed.last().cloned().unwrap_or_else(|| pasted.clone());
+            record_attempt(
+                &pasted,
+                &final_text,
+                report.bundle_id.as_deref(),
+                report.field_id.as_deref(),
+                "none",
+                None,
+                "skipped",
+                &report.outcome,
+                None,
+            );
         }
 
         if let Some(state) = crate::learning::learning_state() {
@@ -395,6 +433,9 @@ fn record_field(report: &mut WatchReport, field: &ax::FocusedField) {
     report.last_field_chars = Some(field.text.chars().count());
     report.last_field_preview = Some(field.text.chars().take(160).collect());
     report.strategy = Some(field.strategy.to_string());
+    if !field.identity.key.is_empty() {
+        report.field_id = Some(field.identity.key.clone());
+    }
 }
 
 /// Classify a readable field against the identity we started watching.
@@ -529,15 +570,18 @@ fn describe(candidates: &[diff::EditCandidate]) -> String {
         .join(" | ")
 }
 
-fn apply(candidates: Vec<diff::EditCandidate>, frame: Option<(f64, f64, f64, f64)>) {
+fn apply(
+    candidates: Vec<diff::EditCandidate>,
+    frame: Option<(f64, f64, f64, f64)>,
+) -> Vec<AppliedLearning> {
     let Some(store) = crate::state::dictionary_store() else {
-        return;
+        return Vec::new();
     };
 
     let applied = learn(&store, candidates);
 
     if applied.is_empty() {
-        return;
+        return applied;
     }
 
     info!(
@@ -568,6 +612,70 @@ fn apply(candidates: Vec<diff::EditCandidate>, frame: Option<(f64, f64, f64, f64
         "learned-overlay",
         serde_json::json!({ "notice": payload, "frame": frame }),
     );
+
+    applied
+}
+
+/// The judge source as it is stored in the attempts table.
+fn judge_source_str(source: llm::JudgeSource) -> &'static str {
+    match source {
+        llm::JudgeSource::Llm => "llm",
+        llm::JudgeSource::Local => "local",
+        llm::JudgeSource::None => "none",
+    }
+}
+
+/// Serialize what was actually learned as `[{pattern, replacement}]`, or `None`
+/// when nothing was added.
+fn learned_json(applied: &[AppliedLearning]) -> Option<String> {
+    if applied.is_empty() {
+        return None;
+    }
+    let pairs: Vec<serde_json::Value> = applied
+        .iter()
+        .map(|entry| {
+            serde_json::json!({
+                "pattern": entry.pattern,
+                "replacement": entry.replacement,
+            })
+        })
+        .collect();
+    serde_json::to_string(&pairs).ok()
+}
+
+/// Persist one learning attempt. Best-effort: a write failure is logged and
+/// never interrupts the watch.
+#[allow(clippy::too_many_arguments)]
+fn record_attempt(
+    pasted: &str,
+    final_text: &str,
+    bundle_id: Option<&str>,
+    field_id: Option<&str>,
+    source: &str,
+    llm_raw: Option<String>,
+    outcome: &str,
+    reason: &str,
+    learned_json: Option<String>,
+) {
+    let Some(store) = crate::state::dictionary_store() else {
+        return;
+    };
+
+    let attempt = crate::dictionary::NewLearningAttempt {
+        bundle_id: bundle_id.map(str::to_string),
+        field_id: field_id.map(str::to_string),
+        pasted: pasted.to_string(),
+        final_text: final_text.to_string(),
+        source: source.to_string(),
+        llm_raw,
+        outcome: outcome.to_string(),
+        reason: reason.to_string(),
+        learned_json,
+    };
+
+    if let Err(error) = store.add_learning_attempt(&attempt) {
+        debug!("Failed to record learning attempt: {error}");
+    }
 }
 
 /// Store what the edit taught. The corrected term goes in as a dictionary word —
@@ -680,6 +788,27 @@ mod tests {
         let applied = learn(&store, candidates);
 
         assert_eq!(applied.len(), MAX_LEARNED_WORDS + 3);
+    }
+
+    #[test]
+    fn learned_json_is_none_until_something_was_added() {
+        assert_eq!(learned_json(&[]), None);
+
+        let applied = vec![AppliedLearning {
+            word: "Cica Exo".to_string(),
+            pattern: "C3XO".to_string(),
+            replacement: "Cica Exo".to_string(),
+        }];
+        let json = learned_json(&applied).expect("non-empty applied serializes");
+        assert!(json.contains("\"pattern\":\"C3XO\""), "{json}");
+        assert!(json.contains("\"replacement\":\"Cica Exo\""), "{json}");
+    }
+
+    #[test]
+    fn judge_source_strings_match_the_stored_values() {
+        assert_eq!(judge_source_str(llm::JudgeSource::Llm), "llm");
+        assert_eq!(judge_source_str(llm::JudgeSource::Local), "local");
+        assert_eq!(judge_source_str(llm::JudgeSource::None), "none");
     }
 
     #[test]

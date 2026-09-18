@@ -29,8 +29,13 @@ const LEGACY_IMPORT_FLAG: &str = "legacy_custom_words_imported";
 const REJECTED_LEARNING_KEY: &str = "rejected_learning";
 const REJECTED_LEARNING_LIMIT: usize = 50;
 
-static MIGRATIONS: &[M] = &[M::up(
-    "CREATE TABLE dictionary (
+/// How many learning attempts are kept. The debug pane only ever shows the most
+/// recent few, and this is diagnostics, not data worth growing without bound.
+pub const LEARNING_ATTEMPT_LIMIT: usize = 200;
+
+static MIGRATIONS: &[M] = &[
+    M::up(
+        "CREATE TABLE dictionary (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         word TEXT NOT NULL
     );
@@ -44,7 +49,23 @@ static MIGRATIONS: &[M] = &[M::up(
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );",
-)];
+    ),
+    M::up(
+        "CREATE TABLE learning_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            bundle_id TEXT,
+            field_id TEXT,
+            pasted TEXT NOT NULL,
+            final_text TEXT NOT NULL,
+            source TEXT NOT NULL,
+            llm_raw TEXT,
+            outcome TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            learned_json TEXT
+        );",
+    ),
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct DictionaryWord {
@@ -58,6 +79,37 @@ pub struct CorrectionRule {
     pub pattern: String,
     pub replacement: String,
     pub enabled: bool,
+}
+
+/// A learning attempt to record. Written once per settle, whether it learned
+/// something or not, so a failed learn can be diagnosed after the fact.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct NewLearningAttempt {
+    pub bundle_id: Option<String>,
+    pub field_id: Option<String>,
+    pub pasted: String,
+    pub final_text: String,
+    pub source: String,
+    pub llm_raw: Option<String>,
+    pub outcome: String,
+    pub reason: String,
+    pub learned_json: Option<String>,
+}
+
+/// A recorded learning attempt, as read back for the debug pane.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct LearningAttempt {
+    pub id: i64,
+    pub created_at: String,
+    pub bundle_id: Option<String>,
+    pub field_id: Option<String>,
+    pub pasted: String,
+    pub final_text: String,
+    pub source: String,
+    pub llm_raw: Option<String>,
+    pub outcome: String,
+    pub reason: String,
+    pub learned_json: Option<String>,
 }
 
 /// Everything the transcription and polish paths need, read once per dictation
@@ -661,6 +713,71 @@ impl DictionaryStore {
 
         Ok(())
     }
+
+    // ---- learning attempts (diagnostics) --------------------------------
+
+    /// Record one learning attempt and trim the table to the newest
+    /// [`LEARNING_ATTEMPT_LIMIT`] rows.
+    pub fn add_learning_attempt(&self, attempt: &NewLearningAttempt) -> Result<()> {
+        let conn = self.get_connection()?;
+        let created_at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO learning_attempts
+                (created_at, bundle_id, field_id, pasted, final_text, source, llm_raw, outcome, reason, learned_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                created_at,
+                attempt.bundle_id,
+                attempt.field_id,
+                attempt.pasted,
+                attempt.final_text,
+                attempt.source,
+                attempt.llm_raw,
+                attempt.outcome,
+                attempt.reason,
+                attempt.learned_json,
+            ],
+        )?;
+        conn.execute(
+            "DELETE FROM learning_attempts WHERE id NOT IN (
+                SELECT id FROM learning_attempts ORDER BY id DESC LIMIT ?1
+             )",
+            params![LEARNING_ATTEMPT_LIMIT as i64],
+        )?;
+        Ok(())
+    }
+
+    /// The newest `limit` attempts, newest first.
+    pub fn list_learning_attempts(&self, limit: usize) -> Result<Vec<LearningAttempt>> {
+        let conn = self.get_connection()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, created_at, bundle_id, field_id, pasted, final_text, source,
+                    llm_raw, outcome, reason, learned_json
+             FROM learning_attempts ORDER BY id DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |row| {
+            Ok(LearningAttempt {
+                id: row.get(0)?,
+                created_at: row.get(1)?,
+                bundle_id: row.get(2)?,
+                field_id: row.get(3)?,
+                pasted: row.get(4)?,
+                final_text: row.get(5)?,
+                source: row.get(6)?,
+                llm_raw: row.get(7)?,
+                outcome: row.get(8)?,
+                reason: row.get(9)?,
+                learned_json: row.get(10)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn clear_learning_attempts(&self) -> Result<()> {
+        let conn = self.get_connection()?;
+        conn.execute("DELETE FROM learning_attempts", [])?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -672,6 +789,35 @@ mod tests {
         let store =
             DictionaryStore::at_for_tests(dir.path().join("dictionary.db")).expect("open store");
         (store, dir)
+    }
+
+    #[test]
+    fn learning_attempts_round_trip_and_trim() {
+        let (store, _dir) = store();
+        for index in 0..205 {
+            store
+                .add_learning_attempt(&NewLearningAttempt {
+                    bundle_id: Some("com.test".into()),
+                    field_id: Some("field-1".into()),
+                    pasted: format!("wrong {index}"),
+                    final_text: format!("right {index}"),
+                    source: "local".into(),
+                    llm_raw: None,
+                    outcome: "learned".into(),
+                    reason: "learned from the local gate".into(),
+                    learned_json: Some("[]".into()),
+                })
+                .unwrap();
+        }
+        let attempts = store.list_learning_attempts(500).unwrap();
+        assert_eq!(attempts.len(), 200);
+        // Newest first; the five oldest were trimmed away, so "wrong 5" is the
+        // oldest surviving row.
+        assert_eq!(attempts[0].pasted, "wrong 204");
+        assert_eq!(attempts.last().unwrap().pasted, "wrong 5");
+
+        store.clear_learning_attempts().unwrap();
+        assert!(store.list_learning_attempts(10).unwrap().is_empty());
     }
 
     #[test]

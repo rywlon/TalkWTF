@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "Læringsforsøg",
+        "empty": "Ingen læringsforsøg endnu.",
+        "clear": "Ryd"
+      },
       "title": "Fejlfinding",
       "logDirectory": {
         "title": "Logmappe",

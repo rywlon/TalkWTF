@@ -11,6 +11,7 @@ struct SettingsView: View {
     @ObservedObject private var recorder = ShortcutRecorder.shared
     @State private var inputDevices: [[String: Any]] = []
     @State private var outputDevices: [[String: Any]] = []
+    @State private var learningAttempts: [Core.LearningAttempt] = []
     @State private var error: String?
 
     var body: some View {
@@ -466,6 +467,44 @@ struct SettingsView: View {
                     Text(error).font(.callout).foregroundStyle(.red)
                 }
             }
+            Section(L("settings.debug.learningAttempts.title")) {
+                if learningAttempts.isEmpty {
+                    Text(L("settings.debug.learningAttempts.empty"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(learningAttempts) { attempt in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(attempt.pasted) → \(attempt.finalText)")
+                                .font(.callout)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                            HStack(spacing: 6) {
+                                Text(attempt.outcome)
+                                    .font(.caption2)
+                                    .foregroundStyle(attempt.outcome == "learned" ? Color.green : Color.secondary)
+                                Text(attempt.source)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(Self.attemptTime(attempt.createdAt))
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Text(attempt.reason)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Button(L("settings.debug.learningAttempts.clear")) {
+                        do {
+                            try Core.clearLearningAttempts()
+                            learningAttempts = []
+                        } catch {
+                            self.error = error.localizedDescription
+                        }
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
     }
@@ -497,10 +536,32 @@ struct SettingsView: View {
             secureInput = try Core.invoke("get_secure_input_status") as? [String: Any] ?? [:]
             inputDevices = try Core.invoke("list_input_devices") as? [[String: Any]] ?? []
             outputDevices = try Core.invoke("list_output_devices") as? [[String: Any]] ?? []
+            learningAttempts = (try? Core.learningAttempts()) ?? []
             error = nil
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private static let attemptDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let attemptDateFormatterNoFraction: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    /// A short local time for a stored RFC 3339 timestamp, falling back to the
+    /// raw value when it cannot be parsed.
+    private static func attemptTime(_ value: String) -> String {
+        let date = attemptDateFormatter.date(from: value)
+            ?? attemptDateFormatterNoFraction.date(from: value)
+        guard let date else { return value }
+        return date.formatted(date: .omitted, time: .shortened)
     }
 
     private var acceleratorOptions: [String] {

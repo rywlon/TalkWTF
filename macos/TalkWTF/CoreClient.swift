@@ -283,6 +283,43 @@ enum Core {
         try Dictionary(invoke("get_dictionary"))
     }
 
+    /// One recorded learning attempt, for the debug pane.
+    struct LearningAttempt: Identifiable {
+        let id: Int
+        let createdAt: String
+        let bundleId: String?
+        let fieldId: String?
+        let pasted: String
+        let finalText: String
+        let source: String
+        let llmRaw: String?
+        let outcome: String
+        let reason: String
+
+        init(_ dict: [String: Any]) {
+            id = (dict["id"] as? NSNumber)?.intValue ?? 0
+            createdAt = dict["created_at"] as? String ?? ""
+            bundleId = dict["bundle_id"] as? String
+            fieldId = dict["field_id"] as? String
+            pasted = dict["pasted"] as? String ?? ""
+            finalText = dict["final_text"] as? String ?? ""
+            source = dict["source"] as? String ?? ""
+            llmRaw = dict["llm_raw"] as? String
+            outcome = dict["outcome"] as? String ?? ""
+            reason = dict["reason"] as? String ?? ""
+        }
+    }
+
+    static func learningAttempts(limit: Int = 50) throws -> [LearningAttempt] {
+        let value = try invoke("list_learning_attempts", ["limit": limit])
+        let rows = value as? [[String: Any]] ?? []
+        return rows.map(LearningAttempt.init)
+    }
+
+    static func clearLearningAttempts() throws {
+        try invoke("clear_learning_attempts")
+    }
+
     static func appSettings() throws -> [String: Any] {
         try invoke("get_app_settings") as? [String: Any] ?? [:]
     }

@@ -520,6 +520,11 @@
       "playError": "這條記錄的錄音檔案已不在磁碟上。"
     },
     "debug": {
+      "learningAttempts": {
+        "title": "學詞記錄",
+        "empty": "尚無學詞記錄。",
+        "clear": "清除"
+      },
       "title": "偵錯",
       "logDirectory": {
         "title": "日誌目錄",

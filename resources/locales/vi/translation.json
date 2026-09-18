@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "Lần học",
+        "empty": "Chưa có lần học nào.",
+        "clear": "Xóa"
+      },
       "title": "Gỡ lỗi",
       "logDirectory": {
         "title": "Thư mục nhật ký",

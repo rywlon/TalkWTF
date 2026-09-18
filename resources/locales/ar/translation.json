@@ -497,6 +497,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "Learning Attempts",
+        "empty": "No learning attempts yet.",
+        "clear": "Clear"
+      },
       "title": "تصحيح الأخطاء",
       "logDirectory": {
         "title": "مجلد السجلات",

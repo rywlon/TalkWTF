@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "Опити за обучение",
+        "empty": "Още няма опити за обучение.",
+        "clear": "Изчисти"
+      },
       "title": "Отстраняване",
       "logDirectory": {
         "title": "Папка с логове",

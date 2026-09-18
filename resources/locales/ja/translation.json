@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "学習履歴",
+        "empty": "学習履歴はまだありません。",
+        "clear": "クリア"
+      },
       "title": "デバッグ",
       "logDirectory": {
         "title": "ログディレクトリ",

@@ -573,6 +573,17 @@ fn run(command: &str, payload: &Value) -> CmdResult {
                 .map_err(|e| e.to_string())?;
             Ok(Value::Null)
         }
+        "list_learning_attempts" => {
+            let limit = payload.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+            let store = dictionary_store()?;
+            json_of(store.list_learning_attempts(limit).map_err(|e| e.to_string())?)
+        }
+        "clear_learning_attempts" => {
+            dictionary_store()?
+                .clear_learning_attempts()
+                .map_err(|e| e.to_string())?;
+            json_of(serde_json::json!({ "ok": true }))
+        }
 
         "export_dictionary" => {
             let path: String = arg(payload, "path")?;

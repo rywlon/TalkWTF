@@ -520,6 +520,11 @@
       "playError": "The recording for this entry is no longer on disk."
     },
     "debug": {
+      "learningAttempts": {
+        "title": "Tentativas de aprendizado",
+        "empty": "Ainda não há tentativas de aprendizado.",
+        "clear": "Limpar"
+      },
       "title": "Depuração",
       "logDirectory": {
         "title": "Diretório de Logs",
