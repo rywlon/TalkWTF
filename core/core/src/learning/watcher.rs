@@ -348,7 +348,10 @@ impl WatchMachine {
             self.pending_enter = false;
             self.observed.push(text);
             if self.observed.len() > MAX_OBSERVED_STATES {
-                self.observed.remove(0);
+                // Index 0 is the baseline (the paste) and must be kept: the diff
+                // baseline is `observed.first()`. Drop the oldest intermediate
+                // state instead. `len > MAX_OBSERVED_STATES` means index 1 exists.
+                self.observed.remove(1);
             }
 
             if emptied {
@@ -1074,6 +1077,10 @@ mod tests {
             machine.on(Poll::Readable(format!("value {index}")));
         }
         assert_eq!(machine.observed.len(), MAX_OBSERVED_STATES);
+        assert_eq!(
+            machine.observed.first().map(String::as_str),
+            Some("baseline")
+        );
     }
 
     #[test]
