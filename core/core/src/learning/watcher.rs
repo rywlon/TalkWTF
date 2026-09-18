@@ -397,9 +397,22 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
             break None;
         }
         match ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
-            Some(field) if diff::contains_normalized(&field.text, pasted) => break Some(field),
-            _ => std::thread::sleep(POLL_INTERVAL),
+            Some(field) if diff::contains_normalized(&field.text, pasted) => {
+                debug!(
+                    "Edit watch: baseline {} chars via {}",
+                    field.text.chars().count(),
+                    field.strategy
+                );
+                break Some(field);
+            }
+            Some(field) => debug!(
+                "Edit watch: candidate {} chars via {} does not contain the paste",
+                field.text.chars().count(),
+                field.strategy
+            ),
+            None => debug!("Edit watch: baseline read unreadable"),
         }
+        std::thread::sleep(POLL_INTERVAL);
     };
 
     let Some(baseline) = baseline else {
@@ -424,9 +437,20 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
             match ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
                 Some(field) => {
                     record_field(&mut report, &field);
+                    if machine.observed.last() != Some(&field.text) {
+                        debug!(
+                            "Edit watch: field now {} chars via {}: {:?}",
+                            field.text.chars().count(),
+                            field.strategy,
+                            field.text.chars().take(120).collect::<String>()
+                        );
+                    }
                     field_poll(&field)
                 }
-                None => Poll::Unreadable,
+                None => {
+                    debug!("Edit watch: field unreadable");
+                    Poll::Unreadable
+                }
             }
         };
 
@@ -436,6 +460,9 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
                     report.outcome = stop_outcome(StopReason::NoEdit).to_string();
                     return (Vec::new(), report);
                 }
+                // Without the Enter listener there is no other sleep in the loop;
+                // without this the watch spins and hammers the AX API.
+                std::thread::sleep(POLL_INTERVAL);
             }
             (WatchStep::Learn, reason) => {
                 report.outcome = stop_outcome(reason.expect("learn has a reason")).to_string();

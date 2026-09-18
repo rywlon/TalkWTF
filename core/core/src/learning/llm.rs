@@ -1,4 +1,8 @@
 //! Ask the configured provider which corrections in an edit were mishearings.
+//!
+//! The local gate is authoritative: it proposes the candidates and the provider
+//! may only ADD to them. A provider that returns nothing — or a weak model that
+//! misses a mishearing — can no longer suppress a locally-detected correction.
 
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -16,11 +20,10 @@ const MAX_FIELD_CHARS: usize = 40;
 /// request (or leak an unbounded field read) to a third party.
 const MAX_INPUT_CHARS: usize = 600;
 
-/// Ask the active provider what the user misheard, returning the parsed
-/// candidates alongside the raw answer. `None` means the LLM is unavailable or
-/// failed, so the caller falls back to the local diff. `Some` with an empty
-/// vector means the LLM ran and found nothing worth learning — trust it.
-pub fn detect_corrections(pasted: &str, final_text: &str) -> Option<(Vec<EditCandidate>, String)> {
+/// Ask the active provider which terms it thinks were misheard, returning the
+/// parsed candidates alongside the raw answer. `None` means the provider is
+/// unavailable or failed. The caller only ADDS these to the local gate's list.
+fn detect_corrections(pasted: &str, final_text: &str) -> Option<(Vec<EditCandidate>, String)> {
     if pasted.chars().count() > MAX_INPUT_CHARS || final_text.chars().count() > MAX_INPUT_CHARS {
         return None;
     }
@@ -100,57 +103,84 @@ pub struct Judgement {
     pub reason: String,
 }
 
-/// Decide what (if anything) the edit taught, preferring the LLM and falling
-/// back to the local gate. Always returns a human-readable reason.
-pub fn judge(pasted: &str, final_text: &str) -> Judgement {
-    judge_from(pasted, final_text, detect_corrections(pasted, final_text))
+/// The mishearing candidates the local gate can justify on its own. This is the
+/// recall floor: the provider can only add to it, never remove from it.
+fn local_candidates(pasted: &str, final_text: &str) -> Vec<EditCandidate> {
+    super::diff::detect_edits(pasted, final_text)
+        .into_iter()
+        .filter(|candidate| {
+            super::diff::is_likely_mishearing(&candidate.pattern, &candidate.replacement)
+        })
+        .collect()
 }
 
-/// The decision with the LLM result supplied, so the fallback logic is testable
+/// Decide what (if anything) the edit taught. The local gate proposes the
+/// candidates; the configured provider may add more (it is asked only when the
+/// local gate found something). Without a provider, the local candidates stand.
+pub fn judge(pasted: &str, final_text: &str) -> Judgement {
+    let local = local_candidates(pasted, final_text);
+    let llm = if local.is_empty() {
+        None
+    } else {
+        detect_corrections(pasted, final_text)
+    };
+    judge_from(pasted, final_text, llm)
+}
+
+/// The decision with the provider result supplied, so the logic is testable
 /// without reading settings or making a request.
 fn judge_from(
     pasted: &str,
     final_text: &str,
     llm: Option<(Vec<EditCandidate>, String)>,
 ) -> Judgement {
-    match llm {
-        Some((candidates, raw)) => {
-            let usable = candidates;
-            if usable.is_empty() {
-                Judgement {
-                    candidates: Vec::new(),
-                    source: JudgeSource::Llm,
-                    llm_raw: Some(raw),
-                    reason: "the llm found no mishearing".to_string(),
-                }
-            } else {
-                Judgement {
-                    candidates: usable,
-                    source: JudgeSource::Llm,
-                    llm_raw: Some(raw),
-                    reason: "learned from the llm".to_string(),
-                }
+    let local = local_candidates(pasted, final_text);
+    if local.is_empty() {
+        return Judgement {
+            candidates: Vec::new(),
+            source: JudgeSource::Local,
+            llm_raw: None,
+            reason: "the local gate found no mishearing".to_string(),
+        };
+    }
+
+    let mut candidates = local;
+    let mut llm_raw = None;
+    let mut from_llm = false;
+
+    if let Some((extra, raw)) = llm {
+        llm_raw = Some(raw);
+        for candidate in extra {
+            if !is_valid(&candidate.pattern, &candidate.replacement) {
+                continue;
+            }
+            let already = candidates.iter().any(|existing| {
+                existing.pattern == candidate.pattern
+                    && existing.replacement == candidate.replacement
+            });
+            if !already {
+                candidates.push(candidate);
+                from_llm = true;
             }
         }
-        None => {
-            let candidates: Vec<EditCandidate> = super::diff::detect_edits(pasted, final_text)
-                .into_iter()
-                .filter(|candidate| {
-                    super::diff::is_likely_mishearing(&candidate.pattern, &candidate.replacement)
-                })
-                .collect();
-            let reason = if candidates.is_empty() {
-                "the local gate found no mishearing".to_string()
-            } else {
-                "learned from the local gate".to_string()
-            };
-            Judgement {
-                candidates,
-                source: JudgeSource::Local,
-                llm_raw: None,
-                reason,
-            }
-        }
+    }
+
+    let source = if from_llm {
+        JudgeSource::Llm
+    } else {
+        JudgeSource::Local
+    };
+    let reason = if from_llm {
+        "learned from the llm"
+    } else {
+        "learned from the local gate"
+    };
+
+    Judgement {
+        candidates,
+        source,
+        llm_raw,
+        reason: reason.to_string(),
     }
 }
 
@@ -183,7 +213,7 @@ fn provider_config(
 
 /// Parse the model's answer. Accepts the structured object or a bare array, so a
 /// provider that ignored the schema still works. `None` means the answer was
-/// unusable (fall back to the local diff).
+/// unusable.
 fn parse_corrections(content: &str) -> Option<Vec<EditCandidate>> {
     let content = crate::pipeline::strip_think_block(content);
     let value: serde_json::Value = serde_json::from_str(content.trim()).ok()?;
@@ -319,30 +349,69 @@ mod tests {
     }
 
     #[test]
-    fn judge_falls_back_to_local_and_records_the_source() {
-        // The LLM result is supplied as `None` directly: no request is made and
-        // the local diff gate decides.
+    fn judge_learns_from_the_local_gate_without_a_provider() {
+        // No provider result: the local gate's candidate still teaches the word,
+        // so a weak model can never suppress a real mishearing.
         let judgement = judge_from("他想做 C3XO，可以吗？", "他想做 Cica Exo，可以吗？", None);
+
         assert_eq!(judgement.source, JudgeSource::Local);
         assert_eq!(judgement.candidates.len(), 1);
-        assert!(!judgement.reason.is_empty());
+        assert_eq!(judgement.reason, "learned from the local gate");
+        assert!(judgement.llm_raw.is_none());
     }
 
     #[test]
-    fn judge_trusts_an_empty_llm_answer_over_the_local_gate() {
-        // The LLM ran and found nothing. Even though the local diff would see the
-        // "C3XO" -> "Cica Exo" edit, the empty LLM answer wins: source stays Llm,
-        // candidates stay empty, and the reason records the empty answer.
+    fn judge_keeps_the_local_candidate_when_the_llm_returns_nothing() {
+        // The weak model answered `{"corrections":[]}`: the local candidate stays.
         let judgement = judge_from(
             "他想做 C3XO，可以吗？",
             "他想做 Cica Exo，可以吗？",
-            Some((Vec::new(), "raw".to_string())),
+            Some((Vec::new(), r#"{"corrections":[]}"#.to_string())),
+        );
+
+        assert_eq!(judgement.source, JudgeSource::Local);
+        assert_eq!(judgement.candidates.len(), 1);
+        assert_eq!(judgement.reason, "learned from the local gate");
+        assert_eq!(judgement.llm_raw.as_deref(), Some(r#"{"corrections":[]}"#));
+    }
+
+    #[test]
+    fn judge_adds_a_candidate_the_llm_found() {
+        // The provider adds a correction the local gate's similarity floor missed.
+        let extra = vec![EditCandidate {
+            pattern: "OpenType 设置".to_string(),
+            replacement: "OpenTypeless".to_string(),
+        }];
+        let judgement = judge_from(
+            "他想做 C3XO，可以吗？",
+            "他想做 Cica Exo，可以吗？",
+            Some((extra, "raw".to_string())),
         );
 
         assert_eq!(judgement.source, JudgeSource::Llm);
+        assert_eq!(judgement.candidates.len(), 2);
+        assert_eq!(judgement.reason, "learned from the llm");
+    }
+
+    #[test]
+    fn judge_never_learns_when_the_local_gate_finds_nothing() {
+        // No local candidate means no edit worth teaching; the provider is not
+        // even consulted, so it cannot hallucinate a correction into an empty diff.
+        let judgement = judge_from(
+            "要喝牛奶",
+            "想喝咖啡",
+            Some((
+                vec![EditCandidate {
+                    pattern: "x".to_string(),
+                    replacement: "y".to_string(),
+                }],
+                "raw".to_string(),
+            )),
+        );
+
         assert!(judgement.candidates.is_empty());
-        assert_eq!(judgement.reason, "the llm found no mishearing");
-        assert_eq!(judgement.llm_raw.as_deref(), Some("raw"));
+        assert_eq!(judgement.source, JudgeSource::Local);
+        assert!(judgement.llm_raw.is_none());
     }
 
     #[test]
