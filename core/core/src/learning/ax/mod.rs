@@ -39,6 +39,20 @@ const ATTR_PARENT: &str = "AXParent";
 pub(crate) const PARAM_TEXT_MARKER_RANGE_FOR_ELEMENT: &str = "AXTextMarkerRangeForUIElement";
 pub(crate) const PARAM_STRING_FOR_TEXT_MARKER_RANGE: &str = "AXStringForTextMarkerRange";
 
+/// `kAXValueCFRangeType`.
+const AX_VALUE_CFRANGE: u32 = 4;
+const ATTR_SELECTED_TEXT_RANGE: &str = "AXSelectedTextRange";
+const PARAM_STRING_FOR_RANGE: &str = "AXStringForRange";
+/// How long to wait after enabling the enhanced tree so Chromium can build it.
+const ENHANCE_SETTLE: Duration = Duration::from_millis(30);
+
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+struct CFRange {
+    location: isize,
+    length: isize,
+}
+
 const SUBROLE_SECURE_TEXT_FIELD: &str = "AXSecureTextField";
 /// Apps whose text fields are never worth reading.
 const BLOCKED_BUNDLE_IDS: [&str; 6] = [
@@ -156,6 +170,7 @@ extern "C" {
 extern "C" {
     fn CFRelease(value: CFTypeRef);
     fn CFGetTypeID(value: CFTypeRef) -> usize;
+    fn AXValueGetType(value: CFTypeRef) -> u32;
     fn CFStringGetTypeID() -> usize;
     fn CFArrayGetTypeID() -> usize;
     fn CFArrayGetCount(array: CFArrayRef) -> CFIndex;
@@ -461,6 +476,8 @@ pub fn enable_enhanced_user_interface() -> Option<EnhancedUserInterface> {
         targets.push(apply_enhancement(window));
     }
 
+    std::thread::sleep(ENHANCE_SETTLE);
+
     if targets.is_empty() {
         None
     } else {
@@ -628,6 +645,179 @@ pub fn read_focused_field(pasted: Option<&str>, timeout_ms: u32) -> Option<Focus
         identity,
         strategy: read.strategy,
     })
+}
+
+/// A per-capture deadline. Typeless's `CaptureTimeout`.
+pub struct CaptureTimeout {
+    timeout_ms: u32,
+    started: Instant,
+}
+
+impl CaptureTimeout {
+    pub fn new(timeout_ms: u32) -> Self {
+        Self {
+            timeout_ms,
+            started: Instant::now(),
+        }
+    }
+
+    pub fn has_expired(&self) -> bool {
+        self.started.elapsed() >= Duration::from_millis(self.timeout_ms as u64)
+    }
+}
+
+pub struct ElementInfo {
+    pub role: Option<String>,
+    pub subrole: Option<String>,
+    pub value: Option<String>,
+    pub identifier: Option<String>,
+    pub dom_identifier: Option<String>,
+    pub dom_class: Option<String>,
+    pub url: Option<String>,
+}
+
+pub struct RelatedContent {
+    pub before: String,
+    pub after: String,
+    pub truncated: bool,
+    pub is_timeout: bool,
+}
+
+/// Split a field's text at a UTF-16 cursor offset, keeping at most `before_chars`
+/// characters before it and `after_chars` after it.
+fn slice_before_after(
+    text: &str,
+    cursor_utf16: usize,
+    before_chars: usize,
+    after_chars: usize,
+) -> (String, String) {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let cursor = cursor_utf16.min(units.len());
+    let before_start = cursor.saturating_sub(before_chars);
+    let after_end = (cursor + after_chars).min(units.len());
+    let before = String::from_utf16_lossy(&units[before_start..cursor]);
+    let after = String::from_utf16_lossy(&units[cursor..after_end]);
+    (before, after)
+}
+
+/// Browsers whose editable content needs the web (text-marker) path.
+fn is_browser_app(bundle_id: Option<&str>) -> bool {
+    const BROWSERS: [&str; 10] = [
+        "com.google.Chrome",
+        "com.apple.Safari",
+        "com.microsoft.edgemac",
+        "com.brave.Browser",
+        "company.thebrowser.Browser",
+        "com.operasoftware.Opera",
+        "com.vivaldi.Vivaldi",
+        "com.kagi.kagimacOS",
+        "com.duckduckgo.macos.browser",
+        "com.openai.atlas",
+    ];
+    bundle_id.is_some_and(|id| BROWSERS.contains(&id))
+}
+
+/// The element's selected text range as a UTF-16 cursor offset, when it has one.
+fn selected_cursor(element: AXUIElementRef) -> Option<usize> {
+    let value = copy_value(element, ATTR_SELECTED_TEXT_RANGE)?;
+    if unsafe { AXValueGetType(value.raw()) } != AX_VALUE_CFRANGE {
+        return None;
+    }
+    let mut range = CFRange::default();
+    let ok = unsafe {
+        AXValueGetValue(
+            value.raw(),
+            AX_VALUE_CFRANGE,
+            &mut range as *mut CFRange as *mut c_void,
+        ) != 0
+    };
+    if !ok || range.location < 0 {
+        return None;
+    }
+    Some((range.location + range.length.max(0)) as usize)
+}
+
+pub fn read_focused_element_info(_timeout_ms: u32) -> Option<ElementInfo> {
+    if !is_trusted() || is_blocked_app(frontmost_bundle_id().as_deref()) {
+        return None;
+    }
+    let focused = focused_element()?;
+    set_timeout(focused.raw());
+    Some(ElementInfo {
+        role: copy_string(focused.raw(), ATTR_ROLE),
+        subrole: copy_string(focused.raw(), ATTR_SUBROLE),
+        value: copy_string(focused.raw(), ATTR_VALUE),
+        identifier: copy_string(focused.raw(), "AXIdentifier"),
+        dom_identifier: copy_string(focused.raw(), "AXDOMIdentifier"),
+        dom_class: copy_string(focused.raw(), "AXDOMClassList"),
+        url: copy_string(focused.raw(), "AXURL"),
+    })
+}
+
+/// Read the focused field's text around the cursor: `before_chars` characters
+/// before it and `after_chars` after it. Bounded, so a terminal's whole scrollback
+/// is never captured. `None` means nothing readable.
+pub fn read_focused_related_content(
+    before_chars: usize,
+    after_chars: usize,
+    timeout_ms: u32,
+) -> Option<RelatedContent> {
+    if !is_trusted() || crate::secure_input::is_enabled_now() {
+        return None;
+    }
+    if is_blocked_app(frontmost_bundle_id().as_deref()) {
+        return None;
+    }
+
+    let timeout = CaptureTimeout::new(timeout_ms);
+    let focused = focused_element()?;
+    set_timeout(focused.raw());
+
+    // Native fields: the value plus the selection range gives a true cursor split.
+    if let Some(value) = native::read(focused.raw()) {
+        if let Some(cursor) = selected_cursor(focused.raw()) {
+            let (before, after) = slice_before_after(&value, cursor, before_chars, after_chars);
+            return Some(RelatedContent {
+                before,
+                after,
+                truncated: false,
+                is_timeout: false,
+            });
+        }
+    }
+
+    // Web content: read the editable element's text (already bounded to the field,
+    // not the page); split at the cursor when a selection range is available.
+    if let Some(text) = read_element(focused.raw())
+        .or_else(|| read_ancestor(focused.raw()))
+        .map(|read| read.text)
+    {
+        let cursor = selected_cursor(focused.raw()).unwrap_or(text.encode_utf16().count());
+        let (before, after) = slice_before_after(&text, cursor, before_chars, after_chars);
+        return Some(RelatedContent {
+            before,
+            after,
+            truncated: before_chars < cursor || after_chars + cursor < text.encode_utf16().count(),
+            is_timeout: timeout.has_expired(),
+        });
+    }
+
+    // Last resort: bounded visible-text collection.
+    if let Some(read) = collect_visible_text(
+        focused.raw(),
+        Instant::now() + Duration::from_millis(timeout_ms as u64),
+    ) {
+        let units = read.text.encode_utf16().count();
+        let (before, after) = slice_before_after(&read.text, units, before_chars, after_chars);
+        return Some(RelatedContent {
+            before,
+            after,
+            truncated: true,
+            is_timeout: timeout.has_expired(),
+        });
+    }
+
+    None
 }
 
 fn is_secure_text_field(element: AXUIElementRef) -> bool {
@@ -1033,5 +1223,36 @@ mod tests {
     fn select_candidate_without_a_paste_takes_the_first() {
         let candidates = vec![text("first"), text("second")];
         assert_eq!(select_candidate(candidates, None).unwrap().text, "first");
+    }
+
+    #[test]
+    fn slice_before_after_splits_at_the_cursor() {
+        // Cursor after "C3XO" in "他想做C3XO，可以吗".
+        let (before, after) = slice_before_after("他想做C3XO，可以吗", 7, 100, 100);
+        assert_eq!(before, "他想做C3XO");
+        assert_eq!(after, "，可以吗");
+    }
+
+    #[test]
+    fn slice_before_after_bounds_the_window() {
+        let (before, after) = slice_before_after("abcdefghij", 5, 3, 2);
+        assert_eq!(before, "cde");
+        assert_eq!(after, "fg");
+    }
+
+    #[test]
+    fn capture_timeout_expires() {
+        let timeout = CaptureTimeout::new(0);
+        assert!(timeout.has_expired());
+        let fresh = CaptureTimeout::new(5000);
+        assert!(!fresh.has_expired());
+    }
+
+    #[test]
+    fn browser_whitelist_matches_known_browsers() {
+        assert!(is_browser_app(Some("com.google.Chrome")));
+        assert!(is_browser_app(Some("company.thebrowser.Browser")));
+        assert!(!is_browser_app(Some("com.apple.TextEdit")));
+        assert!(!is_browser_app(None));
     }
 }
