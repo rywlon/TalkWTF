@@ -1705,6 +1705,16 @@ fn apply_settings_migrations(
         updated = true;
     }
 
+    // A stored threshold of 0.0 is the phase-12 slider bug: it made the
+    // correction gate require an exact match, which reads as "learning is
+    // broken". Repair it to the shipped default on load. Idempotent, and the
+    // `updated` flag persists the repair through the same path as the
+    // migrations above.
+    if settings.word_correction_threshold < 0.01 {
+        settings.word_correction_threshold = default_word_correction_threshold();
+        updated = true;
+    }
+
     updated
 }
 
@@ -2555,6 +2565,24 @@ mod tests {
             settings.active_scene_id.as_deref(),
             Some("default_improve_transcriptions")
         );
+    }
+
+    #[test]
+    fn a_stored_zero_word_correction_threshold_is_repaired_on_load() {
+        // The phase-12 slider let the value be dragged to 0.0, which made the
+        // correction gate require an exact match. Loading the store must repair
+        // it to the default, and persist the repair via the `updated` flag.
+        let mut settings = get_default_settings();
+        settings.word_correction_threshold = 0.0;
+
+        let raw = serde_json::json!({ "word_correction_threshold": 0.0 });
+
+        assert!(apply_settings_migrations(&mut settings, &raw));
+        assert_eq!(
+            settings.word_correction_threshold,
+            default_word_correction_threshold()
+        );
+        assert_eq!(settings.word_correction_threshold, 0.18);
     }
 
     #[test]

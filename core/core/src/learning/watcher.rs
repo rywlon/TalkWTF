@@ -177,14 +177,24 @@ pub fn watch_for_edit(pasted_text: &str) {
     });
 }
 
-/// The newest state the field held that differs from what we pasted. This is what
-/// we compare against when deciding what the edit taught.
+/// The newest state the field held that is still an edit of what we pasted.
+/// Prefers a complete value (no trailing whitespace) over a half-typed one.
 fn choose_final(observed: &[String], pasted: &str) -> Option<String> {
-    observed
+    let related = observed
         .iter()
         .rev()
-        .find(|text| text.as_str() != pasted)
-        .cloned()
+        .filter(|text| text.as_str() != pasted && diff::is_related(pasted, text));
+
+    let mut fallback: Option<String> = None;
+    for text in related {
+        if fallback.is_none() {
+            fallback = Some(text.trim_end().to_string());
+        }
+        if !text.ends_with(char::is_whitespace) {
+            return Some(text.clone());
+        }
+    }
+    fallback
 }
 
 fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<String>, WatchReport) {
@@ -590,6 +600,29 @@ mod tests {
     fn choose_final_is_none_when_nothing_differs() {
         let pasted = "hello world";
         let observed = states(&[pasted, pasted]);
+
+        assert_eq!(choose_final(&observed, pasted), None);
+    }
+
+    #[test]
+    fn choose_final_prefers_a_complete_state_over_a_trailing_space() {
+        // The field was sampled mid-word after the correction: "hello world! "
+        // has the term plus a trailing space. The complete earlier state wins.
+        let pasted = "hello world";
+        let observed = states(&[pasted, "hello world!", "hello world! "]);
+
+        assert_eq!(
+            choose_final(&observed, pasted),
+            Some("hello world!".to_string())
+        );
+    }
+
+    #[test]
+    fn choose_final_is_none_when_the_newest_state_is_unrelated() {
+        // Focus moved to a different field in the same app: the text is not an
+        // edit of what we pasted, so the LLM must never see it.
+        let pasted = "hello world";
+        let observed = states(&[pasted, "completely different text"]);
 
         assert_eq!(choose_final(&observed, pasted), None);
     }

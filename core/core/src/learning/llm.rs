@@ -9,11 +9,19 @@ use crate::settings::{AppSettings, APPLE_INTELLIGENCE_PROVIDER_ID};
 const MAX_CORRECTIONS: usize = 5;
 /// Longest pattern / replacement we accept from the model.
 const MAX_FIELD_CHARS: usize = 40;
+/// Longest pasted / edited text we send to the provider. Mirrors the local
+/// path's `MAX_PASTED_CHARS`, so a pathological dictation cannot balloon the
+/// request (or leak an unbounded field read) to a third party.
+const MAX_INPUT_CHARS: usize = 600;
 
 /// Ask the active provider what the user misheard. `None` means the LLM is
 /// unavailable or failed, so the caller falls back to the local diff. `Some` with
 /// an empty vector means the LLM ran and found nothing worth learning — trust it.
 pub fn detect_corrections(pasted: &str, final_text: &str) -> Option<Vec<EditCandidate>> {
+    if pasted.chars().count() > MAX_INPUT_CHARS || final_text.chars().count() > MAX_INPUT_CHARS {
+        return None;
+    }
+
     let settings = crate::settings::current();
     let (provider, model, api_key) = provider_config(&settings)?;
 

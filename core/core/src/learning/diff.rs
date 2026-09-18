@@ -279,6 +279,20 @@ fn unchanged_span(pasted: &[char], window: &[char]) -> (usize, usize) {
     (prefix, suffix)
 }
 
+/// Whether `current` still looks like an edit of `pasted` — enough shared text on
+/// both sides that they are the same field, not a different one. `unchanged_span`
+/// is already case-insensitive.
+pub fn is_related(pasted: &str, current: &str) -> bool {
+    let pasted_chars: Vec<char> = pasted.chars().collect();
+    let current_chars: Vec<char> = current.chars().collect();
+    if pasted_chars.is_empty() || current_chars.is_empty() {
+        return false;
+    }
+    let (prefix, suffix) = unchanged_span(&pasted_chars, &current_chars);
+    let required = (pasted_chars.len() / 2).max(2);
+    prefix + suffix >= required
+}
+
 /// Windows of `current` that might hold the pasted text, best alignment first.
 ///
 /// Anchors on the pasted text's *suffix* first: a correction can begin at the very
@@ -767,5 +781,27 @@ mod tests {
     #[test]
     fn gate_rejects_an_identical_pair() {
         assert!(!is_likely_mishearing("hello", "hello"));
+    }
+
+    #[test]
+    fn related_accepts_a_short_dictation_still_anchoring() {
+        // A short dictation has little shared text, but enough to prove the field
+        // is the same one the user corrected.
+        assert!(is_related("C3XO", "Cica Exo"));
+    }
+
+    #[test]
+    fn related_accepts_a_small_append() {
+        assert!(is_related("hello world", "hello world!"));
+    }
+
+    #[test]
+    fn related_rejects_unrelated_text() {
+        assert!(!is_related("hello world", "completely different text"));
+    }
+
+    #[test]
+    fn related_rejects_an_empty_paste() {
+        assert!(!is_related("", "anything"));
     }
 }
