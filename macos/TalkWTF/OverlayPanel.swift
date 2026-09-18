@@ -41,6 +41,14 @@ enum OverlayState: Equatable {
 
     /// One continuous radius for the glass card, shared with the rest of the UI.
     var cornerRadius: CGFloat { Theme.Radius.overlay }
+
+    /// Recording or live-streaming: the states that show the target app badge.
+    var isRecording: Bool {
+        switch self {
+        case .recording, .streaming: return true
+        default: return false
+        }
+    }
 }
 
 /// Where the overlay sits on the pointer's screen when it is not placed next to
@@ -92,11 +100,32 @@ final class OverlayController {
             guard let levels = note.object as? [CGFloat] else { return }
             MainActor.assumeIsolated { self?.model.setLevels(levels) }
         }
+        // Follow the frontmost app while recording, so the badge shows where the
+        // text will actually land even if the user switches mid-dictation.
+        center.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let self, self.model.state.isRecording else { return }
+                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                    ?? NSWorkspace.shared.frontmostApplication
+                self.model.targetAppName = app?.localizedName
+                self.model.targetAppIcon = app?.icon
+                self.panel?.refit(anchor: self.anchor)
+            }
+        }
+    }
+
+    /// The screen anchor the overlay uses when it is not placed next to a field.
+    private var anchor: OverlayAnchor {
+        SettingsStore.shared.string("overlay_position", "bottom") == "top" ? .top : .bottom
     }
 
     /// Show the panel in `state`, optionally next to the field it refers to.
     func show(_ state: OverlayState, near frame: CGRect? = nil) {
-        if case .recording = state {
+        if state.isRecording {
             let app = NSWorkspace.shared.frontmostApplication
             model.targetAppName = app?.localizedName
             model.targetAppIcon = app?.icon
@@ -104,8 +133,6 @@ final class OverlayController {
         model.state = state
         let panel = panel ?? OverlayPanel(model: model)
         self.panel = panel
-        let anchor: OverlayAnchor =
-            SettingsStore.shared.string("overlay_position", "bottom") == "top" ? .top : .bottom
         panel.show(autoHideAfter: state.autoHideAfter, near: frame, anchor: anchor)
     }
 
@@ -203,6 +230,16 @@ final class OverlayPanel {
 
     func hide() {
         panel?.orderOut(nil)
+    }
+
+    /// Re-measure and recenter after the content changed without a state change
+    /// (the target app's name/icon can get longer).
+    func refit(anchor: OverlayAnchor) {
+        guard let panel else { return }
+        let size = fittedSize()
+        panel.setContentSize(size)
+        panel.layoutIfNeeded()
+        reposition(panel, near: nil, anchor: anchor, size: size)
     }
 
     private func existingOrCreate() -> NSPanel {
