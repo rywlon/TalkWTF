@@ -65,6 +65,7 @@ static MIGRATIONS: &[M] = &[
             learned_json TEXT
         );",
     ),
+    M::up("ALTER TABLE learning_attempts ADD COLUMN strategy TEXT;"),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -94,6 +95,7 @@ pub struct NewLearningAttempt {
     pub outcome: String,
     pub reason: String,
     pub learned_json: Option<String>,
+    pub strategy: Option<String>,
 }
 
 /// A recorded learning attempt, as read back for the debug pane.
@@ -110,6 +112,7 @@ pub struct LearningAttempt {
     pub outcome: String,
     pub reason: String,
     pub learned_json: Option<String>,
+    pub strategy: Option<String>,
 }
 
 /// Everything the transcription and polish paths need, read once per dictation
@@ -723,8 +726,8 @@ impl DictionaryStore {
         let created_at = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO learning_attempts
-                (created_at, bundle_id, field_id, pasted, final_text, source, llm_raw, outcome, reason, learned_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                (created_at, bundle_id, field_id, pasted, final_text, source, llm_raw, outcome, reason, learned_json, strategy)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 created_at,
                 attempt.bundle_id,
@@ -736,6 +739,7 @@ impl DictionaryStore {
                 attempt.outcome,
                 attempt.reason,
                 attempt.learned_json,
+                attempt.strategy,
             ],
         )?;
         conn.execute(
@@ -752,7 +756,7 @@ impl DictionaryStore {
         let conn = self.get_connection()?;
         let mut stmt = conn.prepare(
             "SELECT id, created_at, bundle_id, field_id, pasted, final_text, source,
-                    llm_raw, outcome, reason, learned_json
+                    llm_raw, outcome, reason, learned_json, strategy
              FROM learning_attempts ORDER BY id DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit as i64], |row| {
@@ -768,6 +772,7 @@ impl DictionaryStore {
                 outcome: row.get(8)?,
                 reason: row.get(9)?,
                 learned_json: row.get(10)?,
+                strategy: row.get(11)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
@@ -806,6 +811,7 @@ mod tests {
                     outcome: "learned".into(),
                     reason: "learned from the local gate".into(),
                     learned_json: Some("[]".into()),
+                    strategy: Some("focused element, AXValue".into()),
                 })
                 .unwrap();
         }

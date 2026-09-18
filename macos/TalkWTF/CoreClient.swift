@@ -295,6 +295,7 @@ enum Core {
         let llmRaw: String?
         let outcome: String
         let reason: String
+        let strategy: String?
 
         init(_ dict: [String: Any]) {
             id = (dict["id"] as? NSNumber)?.intValue ?? 0
@@ -307,6 +308,7 @@ enum Core {
             llmRaw = dict["llm_raw"] as? String
             outcome = dict["outcome"] as? String ?? ""
             reason = dict["reason"] as? String ?? ""
+            strategy = dict["strategy"] as? String
         }
     }
 

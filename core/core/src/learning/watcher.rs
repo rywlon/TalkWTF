@@ -195,6 +195,7 @@ pub fn watch_for_edit(pasted_text: &str) {
                 &outcome,
                 &reason,
                 learned_json(&applied),
+                report.strategy.clone(),
             );
         } else {
             // No related edit was observed. Record the settle anyway so a watch
@@ -212,6 +213,7 @@ pub fn watch_for_edit(pasted_text: &str) {
                 &outcome,
                 &reason,
                 None,
+                report.strategy.clone(),
             );
         }
 
@@ -404,6 +406,18 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
     while started.elapsed() < WATCH_WINDOW {
         let entered = wait_for_enter(listener.as_ref(), POLL_INTERVAL);
         report.polls += 1;
+
+        // Read once more when Enter arrives: the edit is committed just before
+        // the key, and a browser's accessibility tree can lag one poll behind, so
+        // the freshest text must be in `observed` before we settle.
+        if entered {
+            if let Some(field) = ax::read_focused_field(READ_TIMEOUT_MS) {
+                record_field(&mut report, &field);
+                if let Poll::Readable(text) = field_poll(&field, &mut start_identity) {
+                    let _ = machine.on(Poll::Readable(text));
+                }
+            }
+        }
 
         let poll = if entered {
             Poll::Enter
@@ -723,6 +737,7 @@ fn record_attempt(
     outcome: &str,
     reason: &str,
     learned_json: Option<String>,
+    strategy: Option<String>,
 ) {
     let Some(store) = crate::state::dictionary_store() else {
         return;
@@ -738,6 +753,7 @@ fn record_attempt(
         outcome: outcome.to_string(),
         reason: reason.to_string(),
         learned_json,
+        strategy,
     };
 
     if let Err(error) = store.add_learning_attempt(&attempt) {

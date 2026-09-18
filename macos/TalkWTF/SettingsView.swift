@@ -493,6 +493,11 @@ struct SettingsView: View {
                             Text(attempt.reason)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
+                            if let strategy = attempt.strategy {
+                                Text(strategy)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
                     Button(L("settings.debug.learningAttempts.clear")) {

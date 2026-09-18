@@ -578,10 +578,21 @@ pub fn read_focused_field(timeout_ms: u32) -> Option<FocusedField> {
     let deadline = Instant::now() + Duration::from_millis(timeout_ms as u64);
     let identity = field_identity(focused.raw());
 
-    let read = read_element(focused.raw())
-        .or_else(|| read_ancestor(focused.raw()))
-        .or_else(|| read_child(focused.raw()))
-        .or_else(|| collect_visible_text(focused.raw(), deadline))?;
+    // Run every strategy and keep the most complete read. Chrome's
+    // contenteditable `AXValue` is often stale or partial while the text-marker
+    // and visible-text reads reflect the live tree, so "longest" picks the full
+    // current text instead of a lagging fragment.
+    let candidates = [
+        read_element(focused.raw()),
+        read_ancestor(focused.raw()),
+        read_child(focused.raw()),
+        collect_visible_text(focused.raw(), deadline),
+    ];
+
+    let read = candidates
+        .into_iter()
+        .flatten()
+        .max_by_key(|candidate| candidate.text.chars().count())?;
 
     Some(FocusedField {
         text: read.text,
