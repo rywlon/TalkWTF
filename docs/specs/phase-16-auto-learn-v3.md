@@ -56,7 +56,7 @@ web 文本标记、祖先、子元素、可见文本收集）都跑一遍，然�
 | --- | --- | --- |
 | 读取 | 取最长 → 常读整窗 | 取「含粘贴文本的最短候选」= 输入框 |
 | diff | 粘贴小段 vs 整框，靠对齐 | 整框 baseline vs final，同源 |
-| 触发 | 必须 Enter + 清空/跳转 | 停手 1.5s 去抖（Enter 仅加速） |
+| 触发 | 必须 Enter + 清空/跳转 | 停手 1.5s 去抖 |
 | 半截 | `decide()` 兜底保留半截 | 删兜底；只学稳定整框的局部改动 |
 | 判定 | LLM 看整框 | LLM 只看候选附近的有界上下文 |
 
@@ -156,9 +156,11 @@ const MAX_LEARNED_WORDS: usize = 5;
 | `Unreadable` 连续 `FOCUS_LOST_POLLS` 且曾可读 | `edited` → Learn，否则 Ignore |
 | `AppChanged` | `edited` → Learn，否则 Ignore |
 | `SecureInput` / `Superseded` / `SettingOff` | Ignore（不学） |
-| `Enter`（加速） | 命中后若字段清空/前台变化 → 立即 Learn；否则忽略，交由去抖 |
 | 无编辑且超过 `NO_EDIT_WINDOW` | Ignore（timeout） |
 | 超过 `WATCH_WINDOW` | `edited` → Learn，否则 Ignore |
+
+结算触发共有五类：编辑静默 1.5s、失焦约 2s、切 app、无编辑超时、观察窗口到期。
+发送后输入框清空的情形，会在约 2s 失焦后结算学到（不再有回车立即结算）。
 
 **结算**：`final = last_text`（停手后的稳定整框）。`final == baseline` → 不学。
 
@@ -173,7 +175,7 @@ const MAX_LEARNED_WORDS: usize = 5;
 
 ```rust
 /// baseline/final 的公共前后缀之间的差异区，向两侧各扩 radius 字符。
-/// 用于只把「改动附近」发给 LLM，避免外发整框。
+/// 上下文被限制在改动附近 ±radius 字符内；字段短于该范围时原样返回整段。
 pub fn bounded_context(baseline: &str, final: &str, radius: usize) -> (String, String);
 ```
 
@@ -193,6 +195,7 @@ pub fn bounded_context(baseline: &str, final: &str, radius: usize) -> (String, S
 ### 5.6 隐私
 
 - 输入框文本只在本地读取；只有配了 provider 时才把**改动附近的有界上下文**直连发给该 provider。
+  该上下文被限制在改动周围 ±`radius` 字符内；字段短于该范围时整段发出（并非「绝不外发整框」）。
 - 密码框/被禁 app/Secure Input 永不读取。
 - `learning_attempts` 只存本地，沿用现有 200 条裁剪。
 
@@ -204,7 +207,7 @@ pub fn bounded_context(baseline: &str, final: &str, radius: usize) -> (String, S
 热键 → 听写 → 粘贴 → watch_for_edit(pasted)
   ↓ 采集 baseline：轮询直到读到「含 pasted 的输入框」（≤2s）
   ↓ 轮询 200ms：文本一变 → 重置 1.5s 去抖
-  ↓ 停手 1.5s / 切 app / 失焦 / Enter+清空
+  ↓ 停手 1.5s / 切 app / 失焦 / 观察窗口到期
 final = 稳定整框
   ↓ final == baseline ? 不学
   ↓ diff::detect_edits(baseline, final) → 局部候选
@@ -242,8 +245,7 @@ final = 稳定整框
   - 编辑后持续变化 → 不结算；
   - 无编辑超时 → 不学；
   - 切 app / 失焦有编辑 → Learn，无编辑 → Ignore；
-  - SecureInput / Superseded / SettingOff → Ignore；
-  - Enter + 清空 → 立即 Learn。
+  - SecureInput / Superseded / SettingOff → Ignore。
 - `watcher`：删除 `decide()`/`choose_final()` 及其半截兜底测试；`attempt_outcome` 等纯函数测试保留。
 - `llm`：有界上下文判定（沿用现有 judge 测试 + 新上下文测试）。
 

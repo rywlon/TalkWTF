@@ -300,7 +300,8 @@ pub fn relation_score(pasted: &str, current: &str) -> usize {
 
 /// The differing middle of `baseline` / `final_text`, widened by `radius`
 /// characters on both sides. Used to send only the edit's neighbourhood to the
-/// LLM, never the whole input box.
+/// LLM: the context is bounded to ±`radius` characters around the edit, and a
+/// field shorter than that is returned in full.
 pub fn bounded_context(baseline: &str, final_text: &str, radius: usize) -> (String, String) {
     let old: Vec<char> = baseline.chars().collect();
     let new: Vec<char> = final_text.chars().collect();

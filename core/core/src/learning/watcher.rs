@@ -8,7 +8,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use handy_keys::{Key, KeyEvent, KeyboardListener};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -242,8 +241,6 @@ enum Poll {
     Readable(String),
     /// Nothing readable was focused this poll.
     Unreadable,
-    /// The user pressed Enter (an accelerator, not a requirement).
-    Enter,
     Superseded,
     SettingOff,
     SecureInput,
@@ -261,10 +258,6 @@ enum WatchStep {
 enum StopReason {
     /// The edit stopped changing for `EDIT_DEBOUNCE`.
     Settled,
-    /// Enter was pressed and the field cleared.
-    Enter,
-    /// The field emptied without Enter.
-    FieldEmptied,
     FocusLost,
     AppChanged,
     Superseded,
@@ -284,9 +277,6 @@ struct WatchMachine {
     last_edit: Option<Instant>,
     ever_readable: bool,
     unreadable: u32,
-    /// Set by Enter; cleared by any text change. Lets a cleared field settle
-    /// immediately instead of waiting out the debounce.
-    pending_enter: bool,
 }
 
 impl WatchMachine {
@@ -297,7 +287,6 @@ impl WatchMachine {
             last_edit: None,
             ever_readable: false,
             unreadable: 0,
-            pending_enter: false,
         }
     }
 
@@ -322,10 +311,6 @@ impl WatchMachine {
             Poll::SettingOff => (WatchStep::Ignore, Some(StopReason::SettingOff)),
             Poll::SecureInput => (WatchStep::Ignore, Some(StopReason::SecureInput)),
             Poll::AppChanged => self.settle(StopReason::AppChanged),
-            Poll::Enter => {
-                self.pending_enter = true;
-                (WatchStep::Continue, None)
-            }
             Poll::Unreadable => {
                 self.unreadable = self.unreadable.saturating_add(1);
                 if self.ever_readable && self.unreadable >= FOCUS_LOST_POLLS {
@@ -343,9 +328,6 @@ impl WatchMachine {
         self.ever_readable = true;
 
         if self.observed.last() != Some(&text) {
-            let pending = self.pending_enter;
-            let emptied = text.trim().is_empty();
-            self.pending_enter = false;
             self.observed.push(text);
             if self.observed.len() > MAX_OBSERVED_STATES {
                 // Index 0 is the baseline (the paste) and must be kept: the diff
@@ -354,20 +336,9 @@ impl WatchMachine {
                 self.observed.remove(1);
             }
 
-            if emptied {
-                return if self.edited() {
-                    let reason = if pending {
-                        StopReason::Enter
-                    } else {
-                        StopReason::FieldEmptied
-                    };
-                    (WatchStep::Learn, Some(reason))
-                } else {
-                    (WatchStep::Ignore, Some(StopReason::NoEdit))
-                };
-            }
-
-            if self.edited() {
+            let just_pushed = self.observed.last();
+            let non_empty = just_pushed.is_some_and(|text| !text.trim().is_empty());
+            if non_empty && just_pushed != Some(&self.baseline) {
                 self.last_edit = Some(Instant::now());
             }
             return (WatchStep::Continue, None);
@@ -387,8 +358,6 @@ impl WatchMachine {
 fn stop_outcome(reason: StopReason) -> &'static str {
     match reason {
         StopReason::Settled => "the edit settled",
-        StopReason::Enter => "the enter key was pressed and the field cleared",
-        StopReason::FieldEmptied => "the field emptied",
         StopReason::FocusLost => "the field lost focus",
         StopReason::AppChanged => "the frontmost app changed",
         StopReason::Superseded => "superseded by a newer dictation",
@@ -418,13 +387,6 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         ..Default::default()
     };
 
-    // A second CGEventTap coexists with the app's blocking `HotkeyManager`; the
-    // listener lives only for this watch. Enter is only an accelerator now.
-    let listener = KeyboardListener::new().ok();
-    if listener.is_none() {
-        debug!("Enter watch unavailable; falling back to field polling only");
-    }
-
     // Enable the enhanced tree once for the whole watch; the guard restores it.
     let _enhance = ax::enable_enhanced_user_interface();
 
@@ -449,10 +411,6 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
 
     while started.elapsed() < WATCH_WINDOW {
         report.polls += 1;
-        let entered = wait_for_enter(listener.as_ref(), POLL_INTERVAL);
-        if entered {
-            let _ = machine.on(Poll::Enter);
-        }
 
         let poll = if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
             Poll::Superseded
@@ -475,7 +433,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         match machine.on(poll) {
             (WatchStep::Continue, _) => {
                 if !machine.edited() && started.elapsed() >= NO_EDIT_WINDOW {
-                    report.outcome = "no edit was made".to_string();
+                    report.outcome = stop_outcome(StopReason::NoEdit).to_string();
                     return (Vec::new(), report);
                 }
             }
@@ -522,46 +480,11 @@ fn field_poll(field: &ax::FocusedField) -> Poll {
     }
 }
 
-/// Wait up to `budget` for key events and report whether a Return keyDown
-/// arrived. Drains anything queued behind the first event so a burst of typing
-/// cannot hide the Enter.
-fn wait_for_enter(listener: Option<&KeyboardListener>, budget: Duration) -> bool {
-    let Some(listener) = listener else {
-        std::thread::sleep(budget);
-        return false;
-    };
-
-    let deadline = Instant::now() + budget;
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return false;
-        }
-        match listener.recv_timeout(remaining) {
-            Ok(event) => {
-                if is_return_keydown(&event) {
-                    return true;
-                }
-                while let Some(queued) = listener.try_recv() {
-                    if is_return_keydown(&queued) {
-                        return true;
-                    }
-                }
-            }
-            Err(_) => return false,
-        }
-    }
-}
-
-fn is_return_keydown(event: &KeyEvent) -> bool {
-    event.is_key_down && event.key == Some(Key::Return)
-}
-
 /// Drop candidates that are clearly half-finished.
 ///
 /// A replacement ending in whitespace means the user was mid-word when the field
 /// was sampled ("Cica " on the way to "Cica Exo"); storing that would teach half a
-/// term. Only used for the "prefer a complete one" pass — the fallback keeps them.
+/// term.
 fn usable_candidates(candidates: Vec<diff::EditCandidate>) -> Vec<diff::EditCandidate> {
     candidates
         .into_iter()
@@ -978,36 +901,6 @@ mod tests {
     }
 
     #[test]
-    fn machine_learns_when_an_edited_field_clears() {
-        let mut machine = WatchMachine::new("hello world".to_string());
-        machine.on(Poll::Readable("hello there".into()));
-        assert_eq!(
-            machine.on(Poll::Readable(String::new())),
-            (WatchStep::Learn, Some(StopReason::FieldEmptied))
-        );
-    }
-
-    #[test]
-    fn machine_ignores_a_cleared_field_without_an_edit() {
-        let mut machine = WatchMachine::new("hello world".to_string());
-        assert_eq!(
-            machine.on(Poll::Readable(String::new())),
-            (WatchStep::Ignore, Some(StopReason::NoEdit))
-        );
-    }
-
-    #[test]
-    fn machine_settles_on_enter_cleared() {
-        let mut machine = WatchMachine::new("hello world".to_string());
-        machine.on(Poll::Readable("hello there".into()));
-        machine.on(Poll::Enter);
-        assert_eq!(
-            machine.on(Poll::Readable(String::new())),
-            (WatchStep::Learn, Some(StopReason::Enter))
-        );
-    }
-
-    #[test]
     fn machine_ignores_focus_loss_without_an_edit() {
         let mut machine = WatchMachine::new("hello world".to_string());
         machine.on(Poll::Readable("hello world".into()));
@@ -1087,33 +980,5 @@ mod tests {
     fn settled_text_skips_a_trailing_empty_state() {
         let observed = states(&["hello world", "hello there", ""]);
         assert_eq!(settled_text(&observed), Some("hello there".to_string()));
-    }
-
-    /// Recorded evidence for the dual-tap assumption in `observe`: a second
-    /// `CGEventTap` (a `KeyboardListener`) can be created and used while the
-    /// app's blocking `HotkeyManager` is alive, and still receives Return.
-    ///
-    /// Ignored by default: it needs Accessibility permission and a real
-    /// synthesized key event, which a headless/CI run cannot provide.
-    ///
-    /// Manual procedure:
-    /// 1. Grant the test binary Accessibility permission.
-    /// 2. `cargo test -p talkwtf-core --lib -- --ignored dual_tap`
-    /// 3. While both are alive, post a Return keyDown with
-    ///    `CGEventCreateKeyboardEvent(None, 36, true)` + `CGEventPost`, and
-    ///    confirm the listener's `recv_timeout` yields `Key::Return` (the
-    ///    manager, which registered no hotkey for it, must not swallow it).
-    #[test]
-    #[ignore = "needs Accessibility permission and a synthesized Return CGEvent"]
-    fn dual_tap_hotkey_manager_and_listener_coexist() {
-        use handy_keys::HotkeyManager;
-
-        let manager = HotkeyManager::new_with_blocking().expect("blocking hotkey manager");
-        let listener = KeyboardListener::new().expect("second keyboard listener");
-
-        assert!(manager.try_recv().is_none());
-
-        drop(listener);
-        drop(manager);
     }
 }

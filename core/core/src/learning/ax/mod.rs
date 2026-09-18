@@ -564,7 +564,9 @@ fn field_identity(element: AXUIElementRef) -> FieldIdentity {
 /// nothing is related at all, return `None` rather than guess.
 fn select_candidate(candidates: Vec<FocusedText>, pasted: Option<&str>) -> Option<FocusedText> {
     let Some(pasted) = pasted.filter(|value| !value.trim().is_empty()) else {
-        return candidates.into_iter().next();
+        return candidates
+            .into_iter()
+            .find(|candidate| !candidate.text.trim().is_empty());
     };
 
     let mut containing: Vec<FocusedText> = candidates
@@ -1009,9 +1011,14 @@ mod tests {
 
     #[test]
     fn select_candidate_falls_back_to_the_most_related() {
-        // Nothing contains the paste verbatim (the read is stale), but one read
-        // still shares most of it.
-        let candidates = vec![text("unrelated page text"), text("hello wrold")];
+        // Nothing contains the paste verbatim (the read is stale). Two reads are
+        // still related, so the higher relation score must win: "hello wrold"
+        // shares more of the paste than "hello there".
+        let candidates = vec![
+            text("unrelated page text"),
+            text("hello there"),
+            text("hello wrold"),
+        ];
         let chosen = select_candidate(candidates, Some("hello world")).unwrap();
         assert_eq!(chosen.text, "hello wrold");
     }
