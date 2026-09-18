@@ -165,7 +165,6 @@ final class OverlayController {
 final class OverlayPanel {
     private let model: OverlayModel
     private var panel: NSPanel?
-    private var hosting: NSHostingView<OverlayView>?
 
     init(model: OverlayModel) {
         self.model = model
@@ -187,15 +186,13 @@ final class OverlayPanel {
         }
     }
 
-    /// The content's intrinsic size, clamped so a long app name grows the pill
-    /// instead of clipping the wordmark, but never past a sane width.
+    /// The panel size for the current state, computed from state alone so hover
+    /// cannot change it.
     private func fittedSize() -> NSSize {
-        guard let hosting else { return model.state.panelSize }
-        hosting.layoutSubtreeIfNeeded()
-        let fitting = hosting.fittingSize
-        let width = min(max(fitting.width, 260), 460)
-        let height = max(fitting.height, model.state.size.height)
-        return NSSize(width: width, height: height)
+        NSSize(
+            width: OverlayView.contentWidth(for: model),
+            height: model.state.panelSize.height
+        )
     }
 
     func hide() {
@@ -227,7 +224,6 @@ final class OverlayPanel {
         // The size is set explicitly in `show`.
         hosting.sizingOptions = []
         panel.contentView = hosting
-        self.hosting = hosting
 
         self.panel = panel
         return panel
@@ -358,10 +354,25 @@ struct OverlayView: View {
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: model.state.size.height)
-        .fixedSize(horizontal: true, vertical: false)
+        .frame(width: Self.contentWidth(for: model), height: model.state.size.height)
         .opacity(hovering && isRecordingState ? 0.92 : 1)
         .onHover { hovering = $0 }
+    }
+
+    /// The card width for the current state. Recording/streaming size to the app
+    /// name so a long name is not clipped, but the value is computed from state
+    /// (not from the live layout), so the hover actions cannot change it.
+    static func contentWidth(for model: OverlayModel) -> CGFloat {
+        switch model.state {
+        case .recording, .streaming:
+            let name = model.targetAppName ?? ""
+            let nameWidth = (name as NSString)
+                .size(withAttributes: [.font: NSFont.systemFont(ofSize: 13)]).width
+            let intrinsic = Theme.Overlay.iconSize + 6 + nameWidth + 8 + 105 + 8 + 56 + 32
+            return min(max(intrinsic, 260), 460)
+        default:
+            return model.state.size.width
+        }
     }
 
     /// The app the transcript will land in: its icon and name, omitted entirely
