@@ -17,8 +17,6 @@ use log::debug;
 use objc2::rc::Retained;
 use objc2_foundation::NSString;
 
-use crate::learning::diff;
-
 pub(crate) type AXUIElementRef = *mut c_void;
 pub(crate) type CFTypeRef = *const c_void;
 type CFArrayRef = *const c_void;
@@ -72,31 +70,6 @@ const MAX_CHILDREN: usize = 40;
 const MAX_CAPTURE_CHARS: usize = 4000;
 const MAX_CAPTURE_NODES: usize = 2000;
 const MAX_CAPTURE_DEPTH: usize = 20;
-
-/// What identifies the field we pasted into, so a later poll can tell it is still
-/// the same field (and stop when the user moved to another one).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldIdentity {
-    pub pid: i32,
-    pub key: String,
-}
-
-pub struct FocusedField {
-    pub text: String,
-    pub identity: FieldIdentity,
-    pub strategy: &'static str,
-}
-
-/// Pick the most stable identifier we have for a field. Geometry is
-/// deliberately not a fallback: a chat input that moves, scrolls, or auto-grows
-/// as text is typed would change its frame and look like a different field.
-/// An empty key means "unknown", which the watcher never treats as a change.
-fn identity_key(identifier: Option<String>, dom: Option<String>) -> String {
-    identifier
-        .filter(|value| !value.is_empty())
-        .or_else(|| dom.filter(|value| !value.is_empty()))
-        .unwrap_or_default()
-}
 
 /// Join collected text fragments the way Typeless's `smartJoinTexts` does: a
 /// space between fragments, but never a space between two CJK fragments.
@@ -154,7 +127,6 @@ extern "C" {
         names: *mut CFArrayRef,
     ) -> AXError;
     fn AXUIElementSetMessagingTimeout(element: AXUIElementRef, timeout: f32) -> AXError;
-    fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> AXError;
     fn AXUIElementSetAttributeValue(
         element: AXUIElementRef,
         attribute: CFTypeRef,
@@ -561,91 +533,6 @@ fn is_text_bearing_role(role: &str) -> bool {
     )
 }
 
-fn field_identity(element: AXUIElementRef) -> FieldIdentity {
-    let mut pid: i32 = 0;
-    unsafe { AXUIElementGetPid(element, &mut pid) };
-
-    let key = identity_key(
-        copy_string(element, "AXIdentifier"),
-        copy_string(element, "AXDOMIdentifier"),
-    );
-
-    FieldIdentity { pid, key }
-}
-
-/// Pick the read that is the user's input box, using the pasted text as an
-/// anchor. The whole window and the input box both contain the paste; the input
-/// box is shorter, so "shortest containing" wins. When nothing contains the
-/// paste (a stale or partial read), fall back to the most related read. When
-/// nothing is related at all, return `None` rather than guess.
-fn select_candidate(candidates: Vec<FocusedText>, pasted: Option<&str>) -> Option<FocusedText> {
-    let Some(pasted) = pasted.filter(|value| !value.trim().is_empty()) else {
-        return candidates
-            .into_iter()
-            .find(|candidate| !candidate.text.trim().is_empty());
-    };
-
-    let mut containing: Vec<FocusedText> = candidates
-        .iter()
-        .filter(|candidate| diff::contains_normalized(&candidate.text, pasted))
-        .cloned()
-        .collect();
-    if !containing.is_empty() {
-        containing.sort_by_key(|candidate| candidate.text.chars().count());
-        return containing.into_iter().next();
-    }
-
-    candidates
-        .into_iter()
-        .filter(|candidate| diff::is_related(pasted, &candidate.text))
-        .max_by_key(|candidate| diff::relation_score(pasted, &candidate.text))
-}
-
-/// Read the focused field with the four-tier strategy. `None` means "nothing
-/// readable here" — never an error.
-///
-/// The caller is responsible for `AXEnhancedUserInterface`: the watcher enables
-/// it once at watch start (`enable_enhanced_user_interface`), so this read does
-/// not toggle it on every poll.
-pub fn read_focused_field(pasted: Option<&str>, timeout_ms: u32) -> Option<FocusedField> {
-    if !is_trusted() {
-        debug!("Accessibility permission is not granted");
-        return None;
-    }
-    if crate::secure_input::is_enabled_now() {
-        return None;
-    }
-    if is_blocked_app(frontmost_bundle_id().as_deref()) {
-        return None;
-    }
-
-    let focused = focused_element()?;
-    set_timeout(focused.raw());
-
-    let deadline = Instant::now() + Duration::from_millis(timeout_ms as u64);
-    let identity = field_identity(focused.raw());
-
-    // Run every strategy, then let the anchor pick the input box instead of the
-    // longest read (which is the whole window in Terminal/browsers).
-    let candidates: Vec<FocusedText> = [
-        read_element(focused.raw()),
-        read_ancestor(focused.raw()),
-        read_child(focused.raw()),
-        collect_visible_text(focused.raw(), deadline),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-
-    let read = select_candidate(candidates, pasted)?;
-
-    Some(FocusedField {
-        text: read.text,
-        identity,
-        strategy: read.strategy,
-    })
-}
-
 /// A per-capture deadline. Typeless's `CaptureTimeout`.
 pub struct CaptureTimeout {
     timeout_ms: u32,
@@ -663,16 +550,6 @@ impl CaptureTimeout {
     pub fn has_expired(&self) -> bool {
         self.started.elapsed() >= Duration::from_millis(self.timeout_ms as u64)
     }
-}
-
-pub struct ElementInfo {
-    pub role: Option<String>,
-    pub subrole: Option<String>,
-    pub value: Option<String>,
-    pub identifier: Option<String>,
-    pub dom_identifier: Option<String>,
-    pub dom_class: Option<String>,
-    pub url: Option<String>,
 }
 
 pub struct RelatedContent {
@@ -738,23 +615,6 @@ fn selected_cursor(element: AXUIElementRef) -> Option<usize> {
         return None;
     }
     Some((range.location + range.length.max(0)) as usize)
-}
-
-pub fn read_focused_element_info(_timeout_ms: u32) -> Option<ElementInfo> {
-    if !is_trusted() || is_blocked_app(frontmost_bundle_id().as_deref()) {
-        return None;
-    }
-    let focused = focused_element()?;
-    set_timeout(focused.raw());
-    Some(ElementInfo {
-        role: copy_string(focused.raw(), ATTR_ROLE),
-        subrole: copy_string(focused.raw(), ATTR_SUBROLE),
-        value: copy_string(focused.raw(), ATTR_VALUE),
-        identifier: copy_string(focused.raw(), "AXIdentifier"),
-        dom_identifier: copy_string(focused.raw(), "AXDOMIdentifier"),
-        dom_class: copy_string(focused.raw(), "AXDOMClassList"),
-        url: copy_string(focused.raw(), "AXURL"),
-    })
 }
 
 /// Read the focused field's text around the cursor: `before_chars` characters
@@ -1175,62 +1035,6 @@ mod tests {
     fn smart_join_skips_empty_fragments() {
         let fragments = vec!["".to_string(), "hi".to_string(), "".to_string()];
         assert_eq!(smart_join(&fragments), "hi");
-    }
-
-    #[test]
-    fn identity_key_prefers_identifier_over_dom() {
-        assert_eq!(
-            identity_key(Some("field-1".into()), Some("dom-9".into())),
-            "field-1"
-        );
-        assert_eq!(identity_key(None, Some("dom-9".into())), "dom-9");
-        assert_eq!(identity_key(None, None), "");
-    }
-
-    fn text(value: &str) -> FocusedText {
-        FocusedText {
-            text: value.to_string(),
-            source: TextSource::Native,
-            strategy: "test",
-        }
-    }
-
-    #[test]
-    fn select_candidate_prefers_the_shortest_containing_read() {
-        // The whole window and the input box both contain the paste; the input
-        // box is shorter, so it wins even though the window is "longer".
-        let candidates = vec![
-            text("页面上其他文字 hello world 更多页面文字"),
-            text("hello world"),
-        ];
-        let chosen = select_candidate(candidates, Some("hello world")).unwrap();
-        assert_eq!(chosen.text, "hello world");
-    }
-
-    #[test]
-    fn select_candidate_falls_back_to_the_most_related() {
-        // Nothing contains the paste verbatim (the read is stale). Two reads are
-        // still related, so the higher relation score must win: "hello wrold"
-        // shares more of the paste than "hello there".
-        let candidates = vec![
-            text("unrelated page text"),
-            text("hello there"),
-            text("hello wrold"),
-        ];
-        let chosen = select_candidate(candidates, Some("hello world")).unwrap();
-        assert_eq!(chosen.text, "hello wrold");
-    }
-
-    #[test]
-    fn select_candidate_returns_none_when_nothing_is_related() {
-        let candidates = vec![text("completely different text")];
-        assert!(select_candidate(candidates, Some("hello world")).is_none());
-    }
-
-    #[test]
-    fn select_candidate_without_a_paste_takes_the_first() {
-        let candidates = vec![text("first"), text("second")];
-        assert_eq!(select_candidate(candidates, None).unwrap().text, "first");
     }
 
     #[test]

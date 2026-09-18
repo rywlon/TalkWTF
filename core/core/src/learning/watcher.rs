@@ -58,7 +58,8 @@ pub struct LearnedCorrection {
 #[derive(Default, Clone, serde::Serialize)]
 pub struct WatchReport {
     pub bundle_id: Option<String>,
-    /// The AX identity of the watched field, when it has a stable one.
+    /// The AX identity of the watched field. The current capture path has no
+    /// stable identity to report, so this is always `None`.
     pub field_id: Option<String>,
     pub pasted_chars: usize,
     pub outcome: String,
@@ -67,7 +68,9 @@ pub struct WatchReport {
     pub last_field_chars: Option<usize>,
     pub last_field_preview: Option<String>,
     pub candidate: Option<String>,
-    /// Which AX read path produced the last readable field (diagnostics).
+    /// Which AX read path produced the last readable field (diagnostics). The
+    /// current capture path is fixed, so this is always `"related content"` once
+    /// the field has been read.
     pub strategy: Option<String>,
 }
 

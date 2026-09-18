@@ -239,7 +239,7 @@ git commit -m "feat(learning): analysis_modification 增删改计数 + large-mod
 
 ```bash
 NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost \
-  cargo test --manifest-path core/core/src/../Cargo.toml learning::ax
+  cargo test --manifest-path core/core/Cargo.toml learning::ax
 ```
 Expected: 编译失败。
 
@@ -510,41 +510,10 @@ NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost \
 ```
 Expected: 编译失败（`diff::analysis_modification` 尚未导出到该路径；若已导出则先失败于测试文件缺失）。
 
-- [ ] **Step 3: 重新引入键盘监听驱动去抖**
+- [ ] **Step 3: （推迟）键盘监听**
 
-在 `observe` 的轮询循环里，恢复键盘监听（阶段 16 曾删掉）：
-
-```rust
-    let listener = handy_keys::KeyboardListener::new().ok();
-```
-
-每轮先收键：
-
-```rust
-    // Any edit key resets the debounce; Enter is recorded for the fast path.
-    if let Some(listener) = listener.as_ref() {
-        while let Ok(event) = listener.try_recv() {
-            if event.is_key_down {
-                machine.on_key(event.key == Some(handy_keys::Key::Return));
-            }
-        }
-    }
-```
-
-`WatchMachine` 增加方法（`last_edit` 已存在）：
-
-```rust
-    /// A key was pressed while watching: any key resets the debounce (the user is
-    /// still editing); Enter is remembered for the send fast-path.
-    fn on_key(&mut self, is_enter: bool) {
-        self.last_edit = Some(Instant::now());
-        if is_enter {
-            self.pending_enter = true;
-        }
-    }
-```
-
-并在结构体加回 `pending_enter: bool` 字段（`new` 里初始化 `false`；`on_readable` 里文本变化时清空；字段清空且 `pending_enter && edited` → `Learn(Enter)`）。
+**本阶段不做。** 现有轮询已在文本变化时重置去抖，键盘监听属增益、非必需；阶段 16 曾因它变成死代码。
+留待真机验收后按需再加。
 
 - [ ] **Step 4: 改用有界采集**
 
