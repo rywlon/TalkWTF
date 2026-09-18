@@ -55,6 +55,7 @@ const MAX_CHILDREN: usize = 40;
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     fn AXUIElementCreateSystemWide() -> AXUIElementRef;
+    fn AXUIElementCreateApplication(pid: i32) -> AXUIElementRef;
     fn AXUIElementCopyAttributeValue(
         element: AXUIElementRef,
         attribute: CFTypeRef,
@@ -159,6 +160,35 @@ pub fn is_blocked_app(bundle_id: Option<&str>) -> bool {
     bundle_id.is_some_and(|id| BLOCKED_BUNDLE_IDS.contains(&id))
 }
 
+/// Process id of the frontmost application.
+fn frontmost_pid() -> Option<i32> {
+    let workspace = objc2_app_kit::NSWorkspace::sharedWorkspace();
+    let application = workspace.frontmostApplication()?;
+    Some(application.processIdentifier())
+}
+
+/// The focused UI element.
+///
+/// The system-wide query is the normal path, but Chrome (and other Chromium
+/// apps) answer it with `kAXErrorNoValue` until their accessibility tree is
+/// requested through their own application element, so that is the fallback.
+fn focused_element() -> Option<AxElement> {
+    let system_wide = unsafe { AxElement::new(AXUIElementCreateSystemWide()) }?;
+    set_timeout(system_wide.raw());
+    if let Some(focused) = copy_element(system_wide.raw(), "AXFocusedUIElement") {
+        return Some(focused);
+    }
+
+    let pid = frontmost_pid()?;
+    let application = unsafe { AxElement::new(AXUIElementCreateApplication(pid)) }?;
+    set_timeout(application.raw());
+
+    // Nudge Chromium into building its accessibility tree before asking again.
+    let _ = copy_element(application.raw(), "AXFocusedWindow");
+
+    copy_element(application.raw(), "AXFocusedUIElement")
+}
+
 /// Read the text of whatever text field currently has focus, trying both
 /// mechanisms. `None` means "nothing readable here" — never an error.
 pub fn read_focused_text(verbose: bool) -> Option<FocusedText> {
@@ -173,14 +203,11 @@ pub fn read_focused_text(verbose: bool) -> Option<FocusedText> {
         return None;
     }
 
-    let Some(system_wide) = (unsafe { AxElement::new(AXUIElementCreateSystemWide()) }) else {
-        debug!("Could not create the system-wide accessibility element");
-        return None;
-    };
-    set_timeout(system_wide.raw());
-
-    let Some(focused) = copy_element(system_wide.raw(), "AXFocusedUIElement") else {
-        debug!("No focused accessibility element");
+    let Some(focused) = focused_element() else {
+        debug!(
+            "No focused accessibility element (frontmost {:?})",
+            frontmost_bundle_id()
+        );
         return None;
     };
     set_timeout(focused.raw());
@@ -321,6 +348,7 @@ fn copy_element(element: AXUIElementRef, name: &str) -> Option<AxElement> {
         )
     };
     if status != SUCCESS {
+        debug!("AX attribute {name:?} failed with status {status}");
         return None;
     }
 

@@ -167,8 +167,9 @@ pub fn watch_for_edit(pasted_text: &str) {
         }
 
         debug!(
-            "Edit watch finished: {} | polls {} ({} readable) | last field {} chars | {:?}",
+            "Edit watch finished: {} | pasted into {:?} | polls {} ({} readable) | last field {} chars | {:?}",
             report.outcome,
+            report.bundle_id,
             report.polls,
             report.readable_polls,
             report.last_field_chars.unwrap_or(0),
