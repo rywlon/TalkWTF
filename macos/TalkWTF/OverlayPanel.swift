@@ -203,11 +203,17 @@ final class OverlayPanel {
     /// top/bottom of the pointer's screen.
     func show(autoHideAfter seconds: TimeInterval?, near: CGRect? = nil, anchor: OverlayAnchor) {
         let panel = existingOrCreate()
-        let size = fittedSize()
-        panel.setContentSize(size)
-        panel.layoutIfNeeded()
-        reposition(panel, near: near, anchor: anchor, size: size)
         panel.orderFrontRegardless()
+        // Measure on the next runloop turn so SwiftUI has rendered the new state;
+        // measuring synchronously would size the panel for the previous state.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let size = self.fittedSize()
+            panel.setContentSize(size)
+            panel.layoutIfNeeded()
+            self.reposition(panel, near: near, anchor: anchor, size: size)
+            panel.orderFrontRegardless()
+        }
 
         if let seconds {
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
@@ -304,6 +310,7 @@ final class OverlayPanel {
         case .bottom:
             y = (frame.minY + 12).clamped(to: frame.minY ... (frame.maxY - size.height))
         }
+        print("[overlay] state=\(model.state) size=\(Int(size.width))x\(Int(size.height)) x=\(Int(x)) screenMid=\(Int(frame.midX))")
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
