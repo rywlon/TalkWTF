@@ -193,7 +193,7 @@ final class OverlayPanel {
         guard let hosting else { return model.state.panelSize }
         hosting.layoutSubtreeIfNeeded()
         let fitting = hosting.fittingSize
-        let width = min(max(fitting.width, 200), 460)
+        let width = min(max(fitting.width, 260), 460)
         let height = max(fitting.height, model.state.size.height)
         return NSSize(width: width, height: height)
     }
@@ -222,6 +222,10 @@ final class OverlayPanel {
 
         let hosting = NSHostingView(rootView: OverlayView(model: model))
         hosting.autoresizingMask = [.width, .height]
+        // Never let SwiftUI resize the panel on its own: the hover actions change
+        // the content, and an auto-sizing host would stretch the pill mid-hover.
+        // The size is set explicitly in `show`.
+        hosting.sizingOptions = []
         panel.contentView = hosting
         self.hosting = hosting
 

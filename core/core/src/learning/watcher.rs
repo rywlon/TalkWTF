@@ -292,13 +292,13 @@ impl WatchMachine {
             Poll::Superseded => (WatchStep::Ignore, Some(StopReason::Superseded)),
             Poll::SettingOff => (WatchStep::Ignore, Some(StopReason::SettingOff)),
             Poll::SecureInput => (WatchStep::Ignore, Some(StopReason::SecureInput)),
-            Poll::AppChanged => (WatchStep::Learn, Some(StopReason::AppChanged)),
+            Poll::AppChanged => (WatchStep::Ignore, Some(StopReason::AppChanged)),
             Poll::Enter => (WatchStep::Learn, Some(StopReason::Enter)),
             Poll::IdentityChanged => (WatchStep::Ignore, Some(StopReason::IdentityChanged)),
             Poll::Unreadable => {
                 self.unreadable = self.unreadable.saturating_add(1);
                 if self.ever_readable && self.unreadable >= FOCUS_LOST_POLLS {
-                    (WatchStep::Learn, Some(StopReason::FocusLost))
+                    (WatchStep::Ignore, Some(StopReason::FocusLost))
                 } else {
                     (WatchStep::Continue, None)
                 }
@@ -308,7 +308,7 @@ impl WatchMachine {
                 self.ever_readable = true;
 
                 if text.trim().is_empty() {
-                    return (WatchStep::Learn, Some(StopReason::FieldEmptied));
+                    return (WatchStep::Ignore, Some(StopReason::FieldEmptied));
                 }
 
                 if self.observed.last() != Some(&text) {
@@ -409,12 +409,18 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
 
         // Read once more when Enter arrives: the edit is committed just before
         // the key, and a browser's accessibility tree can lag one poll behind, so
-        // the freshest text must be in `observed` before we settle.
+        // the freshest text must be in `observed` before we settle. Read twice —
+        // the first sample is often still the half-typed value.
         if entered {
-            if let Some(field) = ax::read_focused_field(READ_TIMEOUT_MS) {
-                record_field(&mut report, &field);
-                if let Poll::Readable(text) = field_poll(&field, &mut start_identity) {
-                    let _ = machine.on(Poll::Readable(text));
+            for attempt in 0..2 {
+                if attempt > 0 {
+                    std::thread::sleep(Duration::from_millis(150));
+                }
+                if let Some(field) = ax::read_focused_field(READ_TIMEOUT_MS) {
+                    record_field(&mut report, &field);
+                    if let Poll::Readable(text) = field_poll(&field, &mut start_identity) {
+                        let _ = machine.on(Poll::Readable(text));
+                    }
                 }
             }
         }
@@ -1094,7 +1100,9 @@ mod tests {
     }
 
     #[test]
-    fn machine_learns_when_the_field_empties() {
+    fn machine_ignores_an_emptied_field() {
+        // Only Enter means "sent"; a field that clears while the user is still
+        // editing must not settle a half-typed correction.
         let mut machine = WatchMachine::new();
         assert_eq!(
             machine.on(Poll::Readable("hello".into())).0,
@@ -1102,20 +1110,20 @@ mod tests {
         );
         assert_eq!(
             machine.on(Poll::Readable(String::new())).0,
-            WatchStep::Learn
+            WatchStep::Ignore
         );
         assert_eq!(machine.observed, vec!["hello".to_string()]);
     }
 
     #[test]
-    fn machine_learns_after_the_focus_is_lost() {
+    fn machine_ignores_focus_loss() {
         let mut machine = WatchMachine::new();
         machine.on(Poll::Readable("hello".into()));
 
         for _ in 0..(FOCUS_LOST_POLLS - 1) {
             assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
         }
-        assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Learn);
+        assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Ignore);
     }
 
     #[test]
@@ -1148,10 +1156,10 @@ mod tests {
     }
 
     #[test]
-    fn machine_learns_when_the_app_changes() {
+    fn machine_ignores_an_app_change() {
         let mut machine = WatchMachine::new();
         machine.on(Poll::Readable("hello".into()));
-        assert_eq!(machine.on(Poll::AppChanged).0, WatchStep::Learn);
+        assert_eq!(machine.on(Poll::AppChanged).0, WatchStep::Ignore);
     }
 
     #[test]
