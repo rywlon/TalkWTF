@@ -17,9 +17,12 @@ final class DictationController {
     private var recording = false
     private var activeMode = "dictation"
     private var pressStartedAt: Date?
+    private var started = false
 
     /// Register for core events and start the core's hotkey listener.
     func start() {
+        guard !started else { return }
+        started = true
         do {
             try Core.invoke("start_hotkeys")
         } catch {

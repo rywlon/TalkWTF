@@ -5,6 +5,10 @@ final class TrayController: NSObject {
     static let shared = TrayController()
     private var item: NSStatusItem?
 
+    /// Set by the shell so the item can reopen the SwiftUI window after it has
+    /// been closed (the `NSWindow` is gone by then, so AppKit can't restore it).
+    var onOpenWindow: (() -> Void)?
+
     func install() {
         guard item == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -23,15 +27,6 @@ final class TrayController: NSObject {
         self.item = item
     }
 
-    func setVisible(_ visible: Bool) {
-        if visible {
-            install()
-        } else if let item {
-            NSStatusBar.system.removeStatusItem(item)
-            self.item = nil
-        }
-    }
-
     private func menuItem(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
@@ -40,7 +35,11 @@ final class TrayController: NSObject {
 
     @objc private func showWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first?.makeKeyAndOrderFront(nil)
+        if let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            onOpenWindow?()
+        }
     }
 
     @objc private func toggleDictation() {

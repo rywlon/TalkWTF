@@ -26,9 +26,12 @@ final class SecureInputFallback {
     private var handler: EventHandlerRef?
     private var nextId: UInt32 = 1
     private var active = false
+    private var started = false
 
     /// Subscribe to the core's secure-input events and start the monitor.
     func start() {
+        guard !started else { return }
+        started = true
         installHandlerIfNeeded()
         NotificationCenter.default.addObserver(
             forName: .talkWtfCoreEvent,

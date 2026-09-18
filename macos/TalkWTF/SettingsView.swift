@@ -115,10 +115,6 @@ struct SettingsView: View {
                     .onChange(of: store.bool("autostart_enabled")) { _, enabled in
                         Autostart.apply(enabled)
                     }
-                Toggle(L("settings.advanced.showTrayIcon.label"), isOn: store.boolBinding("show_tray_icon"))
-                    .onChange(of: store.bool("show_tray_icon")) { _, visible in
-                        TrayController.shared.setVisible(visible)
-                    }
                 Picker(L("settings.advanced.overlay.style.title"), selection: store.binding("overlay_style", default: "minimal")) {
                     Text(L("settings.advanced.overlay.style.options.none")).tag("none")
                     Text(L("settings.advanced.overlay.style.options.minimal")).tag("minimal")

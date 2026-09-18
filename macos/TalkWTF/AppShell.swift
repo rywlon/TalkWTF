@@ -50,17 +50,65 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     }
 }
 
+/// One-time engine/UI boot, shared across scene lifetimes.
+///
+/// As a menu-bar app the window can be closed and reopened, which recreates
+/// `AppShell`. Booting per-view would register the hotkey/event observers again
+/// and double-handle every hotkey, so the work runs exactly once per process and
+/// the resulting state is published for whichever scene is on screen.
+@MainActor
+final class AppBoot: ObservableObject {
+    static let shared = AppBoot()
+
+    @Published var booted = false
+    @Published var bootError: String?
+    @Published var needsOnboarding = false
+
+    private var started = false
+
+    func start() {
+        guard !started else { return }
+        started = true
+        // The engine loads native backends; keep it off the main thread.
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try Core.initialize()
+                DispatchQueue.main.async {
+                    let store = SettingsStore.shared
+                    store.load()
+                    Localization.shared.load(language: store.settings["app_language"] as? String)
+                    ThemeController.apply(store.string("theme", "system"))
+                    // Always present: with no Dock icon the menu bar item is the
+                    // app's only entry point.
+                    TrayController.shared.install()
+                    Autostart.removeLegacyLaunchAgent()
+                    Autostart.apply(store.bool("autostart_enabled"))
+                    OverlayController.shared.start()
+                    DictationController.shared.start()
+                    SecureInputFallback.shared.onHotkey = { bindingId, pressed in
+                        DictationController.shared.handle(bindingId: bindingId, pressed: pressed)
+                    }
+                    SecureInputFallback.shared.start()
+                    self.booted = true
+                    self.needsOnboarding = !Permissions.microphoneGranted
+                }
+            } catch {
+                DispatchQueue.main.async { self.bootError = error.localizedDescription }
+            }
+        }
+    }
+}
+
 struct AppShell: View {
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var boot = AppBoot.shared
     @State private var section: AppSection = .dashboard
     @State private var pane: SettingsPane = .general
-    @State private var booted = false
-    @State private var bootError: String?
-    @State private var needsOnboarding = false
     @State private var hoveredSection: AppSection?
 
     var body: some View {
         Group {
-            if let bootError {
+            if let bootError = boot.bootError {
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle").font(.largeTitle)
                     Text("核心启动失败").font(.headline)
@@ -68,14 +116,14 @@ struct AppShell: View {
                         .textSelection(.enabled)
                 }
                 .padding(40)
-            } else if !booted {
+            } else if !boot.booted {
                 VStack(spacing: 10) {
                     ProgressView()
                     Text(L("common.loading")).foregroundStyle(.secondary)
                 }
                 .padding(40)
-            } else if needsOnboarding {
-                OnboardingView { needsOnboarding = false }
+            } else if boot.needsOnboarding {
+                OnboardingView { boot.needsOnboarding = false }
             } else {
                 NavigationSplitView {
                     VStack(alignment: .leading, spacing: 0) {
@@ -151,36 +199,12 @@ struct AppShell: View {
                 }
             }
         }
-        .task { boot() }
-        .busyAlert()
-    }
-
-    private func boot() {
-        guard !booted else { return }
-        // The engine loads native backends; keep it off the main thread.
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                try Core.initialize()
-                DispatchQueue.main.async {
-                    let store = SettingsStore.shared
-                    store.load()
-                    Localization.shared.load(language: store.settings["app_language"] as? String)
-                    ThemeController.apply(store.string("theme", "system"))
-                    TrayController.shared.setVisible(store.bool("show_tray_icon", true))
-                    Autostart.removeLegacyLaunchAgent()
-                    Autostart.apply(store.bool("autostart_enabled"))
-                    OverlayController.shared.start()
-                    DictationController.shared.start()
-                    SecureInputFallback.shared.onHotkey = { bindingId, pressed in
-                        DictationController.shared.handle(bindingId: bindingId, pressed: pressed)
-                    }
-                    SecureInputFallback.shared.start()
-                    booted = true
-                    needsOnboarding = !Permissions.microphoneGranted
-                }
-            } catch {
-                DispatchQueue.main.async { bootError = error.localizedDescription }
-            }
+        .task {
+            // The window is destroyed on close, so the tray item reopens it via
+            // SwiftUI's scene action rather than a stale `NSWindow` reference.
+            TrayController.shared.onOpenWindow = { openWindow(id: "main") }
+            AppBoot.shared.start()
         }
+        .busyAlert()
     }
 }
