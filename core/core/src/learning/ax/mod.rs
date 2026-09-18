@@ -42,7 +42,6 @@ pub(crate) const PARAM_STRING_FOR_TEXT_MARKER_RANGE: &str = "AXStringForTextMark
 /// `kAXValueCFRangeType`.
 const AX_VALUE_CFRANGE: u32 = 4;
 const ATTR_SELECTED_TEXT_RANGE: &str = "AXSelectedTextRange";
-const PARAM_STRING_FOR_RANGE: &str = "AXStringForRange";
 /// How long to wait after enabling the enhanced tree so Chromium can build it.
 const ENHANCE_SETTLE: Duration = Duration::from_millis(30);
 
@@ -163,6 +162,7 @@ extern "C" {
     ) -> AXError;
     fn AXValueGetValue(value: CFTypeRef, the_type: u32, value_ptr: *mut c_void) -> Boolean;
     fn AXValueGetTypeID() -> usize;
+    fn AXValueGetType(value: CFTypeRef) -> u32;
     fn AXIsProcessTrusted() -> Boolean;
 }
 
@@ -170,7 +170,6 @@ extern "C" {
 extern "C" {
     fn CFRelease(value: CFTypeRef);
     fn CFGetTypeID(value: CFTypeRef) -> usize;
-    fn AXValueGetType(value: CFTypeRef) -> u32;
     fn CFStringGetTypeID() -> usize;
     fn CFArrayGetTypeID() -> usize;
     fn CFArrayGetCount(array: CFArrayRef) -> CFIndex;
@@ -701,6 +700,10 @@ fn slice_before_after(
 }
 
 /// Browsers whose editable content needs the web (text-marker) path.
+///
+/// Not called in non-test builds yet (Task 3 does not use it); kept as the
+/// canonical browser set and exercised by tests.
+#[allow(dead_code)]
 fn is_browser_app(bundle_id: Option<&str>) -> bool {
     const BROWSERS: [&str; 10] = [
         "com.google.Chrome",
@@ -773,14 +776,19 @@ pub fn read_focused_related_content(
     let focused = focused_element()?;
     set_timeout(focused.raw());
 
+    if is_secure_text_field(focused.raw()) {
+        return None;
+    }
+
     // Native fields: the value plus the selection range gives a true cursor split.
     if let Some(value) = native::read(focused.raw()) {
         if let Some(cursor) = selected_cursor(focused.raw()) {
+            let value_utf16_len = value.encode_utf16().count();
             let (before, after) = slice_before_after(&value, cursor, before_chars, after_chars);
             return Some(RelatedContent {
                 before,
                 after,
-                truncated: false,
+                truncated: before_chars < cursor || after_chars + cursor < value_utf16_len,
                 is_timeout: false,
             });
         }
