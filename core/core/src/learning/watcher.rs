@@ -15,7 +15,7 @@ use specta::Type;
 use crate::dictionary::DictionaryStore;
 use crate::settings::OverlayStyle;
 
-use super::{ax, diff};
+use super::{ax, diff, llm};
 
 /// Poll cadence while watching.
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
@@ -140,7 +140,18 @@ pub fn watch_for_edit(pasted_text: &str) {
         let (observed, mut report) = observe(&pasted, bundle_id.as_deref(), generation);
 
         if let Some(final_text) = choose_final(&observed, &pasted) {
-            let candidates = decide(&observed, &pasted, &mut report);
+            let candidates = match llm::detect_corrections(&pasted, &final_text) {
+                Some(candidates) => {
+                    let usable = usable_candidates(candidates);
+                    report.outcome = if usable.is_empty() {
+                        "the llm found no mishearing".to_string()
+                    } else {
+                        "learned (llm)".to_string()
+                    };
+                    usable
+                }
+                None => decide(&observed, &pasted, &mut report),
+            };
 
             if !candidates.is_empty() {
                 report.candidate = Some(describe(&candidates));

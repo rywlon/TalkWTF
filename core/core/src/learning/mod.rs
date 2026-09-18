@@ -8,6 +8,8 @@ pub mod diff;
 #[cfg(target_os = "macos")]
 mod ax;
 #[cfg(target_os = "macos")]
+mod llm;
+#[cfg(target_os = "macos")]
 mod watcher;
 
 #[cfg(target_os = "macos")]
