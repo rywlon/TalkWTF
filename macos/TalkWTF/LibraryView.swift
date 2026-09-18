@@ -61,8 +61,13 @@ struct LibraryView: View {
         }
         .task { load() }
         .onReceive(NotificationCenter.default.publisher(for: .talkWtfCoreEvent)) { note in
-            guard let raw = note.object as? String, raw.contains("history-update-payload") else { return }
-            load()
+            guard let raw = note.object as? String else { return }
+            if raw.contains("history-update-payload")
+                || raw.contains("dictionary-changed")
+                || raw.contains("learned-correction")
+            {
+                load()
+            }
         }
         .sheet(item: $editingWord) { word in
             WordEditor(word: word.word) { updated in
