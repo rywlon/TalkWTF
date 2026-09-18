@@ -157,38 +157,53 @@ pub fn watch_for_edit(pasted_text: &str) {
         let (outcome, reason, applied, source, llm_raw) =
             match (baseline.as_deref(), final_text.as_deref()) {
                 (Some(baseline), Some(final_text)) if final_text != baseline => {
-                    // Whole-box diff first: same source before/after, so the
-                    // localized correction is reliable.
-                    let raw = diff::detect_edits(baseline, final_text);
-                    if raw.is_empty() {
+                    let modification = diff::analysis_modification(baseline, final_text, &pasted);
+                    if modification.is_large_modify {
                         (
                             "skipped".to_string(),
-                            "the edit was not a local correction".to_string(),
+                            "large modify".to_string(),
                             Vec::new(),
                             llm::JudgeSource::None,
                             None,
                         )
                     } else {
-                        // Only the edit's neighbourhood goes to the provider.
-                        let (pasted_ctx, final_ctx) =
-                            diff::bounded_context(baseline, final_text, LLM_CONTEXT_RADIUS);
-                        let judgement = llm::judge(&pasted_ctx, &final_ctx);
-                        let source = judgement.source;
-                        let llm_raw = judgement.llm_raw.clone();
-                        let candidates = usable_candidates(judgement.candidates);
-                        let found = !candidates.is_empty();
-
-                        let applied = if found {
-                            report.candidate = Some(describe(&candidates));
-                            let frame = ax::focused_element_frame();
-                            apply(candidates, frame)
+                        // Whole-box diff first: same source before/after, so the
+                        // localized correction is reliable.
+                        let raw = diff::detect_edits(baseline, final_text);
+                        if raw.is_empty() {
+                            (
+                                "skipped".to_string(),
+                                "the edit was not a local correction".to_string(),
+                                Vec::new(),
+                                llm::JudgeSource::None,
+                                None,
+                            )
                         } else {
-                            Vec::new()
-                        };
+                            // Only the edit's neighbourhood goes to the provider.
+                            let (pasted_ctx, final_ctx) =
+                                diff::bounded_context(baseline, final_text, LLM_CONTEXT_RADIUS);
+                            let judgement = llm::judge(&pasted_ctx, &final_ctx);
+                            let source = judgement.source;
+                            let llm_raw = judgement.llm_raw.clone();
+                            let candidates = usable_candidates(judgement.candidates);
+                            let found = !candidates.is_empty();
 
-                        let (outcome, reason) =
-                            attempt_outcome(!applied.is_empty(), found, source, &judgement.reason);
-                        (outcome, reason, applied, source, llm_raw)
+                            let applied = if found {
+                                report.candidate = Some(describe(&candidates));
+                                let frame = ax::focused_element_frame();
+                                apply(candidates, frame)
+                            } else {
+                                Vec::new()
+                            };
+
+                            let (outcome, reason) = attempt_outcome(
+                                !applied.is_empty(),
+                                found,
+                                source,
+                                &judgement.reason,
+                            );
+                            (outcome, reason, applied, source, llm_raw)
+                        }
                     }
                 }
                 _ => {
@@ -396,19 +411,17 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         if started.elapsed() >= BASELINE_TIMEOUT {
             break None;
         }
-        match ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
-            Some(field) if diff::contains_normalized(&field.text, pasted) => {
+        match read_related_field() {
+            Some(text) if diff::contains_normalized(&text, pasted) => {
                 debug!(
-                    "Edit watch: baseline {} chars via {}",
-                    field.text.chars().count(),
-                    field.strategy
+                    "Edit watch: baseline {} chars of bounded context",
+                    text.chars().count()
                 );
-                break Some(field);
+                break Some(text);
             }
-            Some(field) => debug!(
-                "Edit watch: candidate {} chars via {} does not contain the paste",
-                field.text.chars().count(),
-                field.strategy
+            Some(text) => debug!(
+                "Edit watch: candidate {} chars does not contain the paste",
+                text.chars().count()
             ),
             None => debug!("Edit watch: baseline read unreadable"),
         }
@@ -420,7 +433,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         return (Vec::new(), report);
     };
     record_field(&mut report, &baseline);
-    let mut machine = WatchMachine::new(baseline.text.clone());
+    let mut machine = WatchMachine::new(baseline);
 
     while started.elapsed() < WATCH_WINDOW {
         report.polls += 1;
@@ -434,18 +447,17 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         } else if ax::frontmost_bundle_id().as_deref() != bundle_id {
             Poll::AppChanged
         } else {
-            match ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
-                Some(field) => {
-                    record_field(&mut report, &field);
-                    if machine.observed.last() != Some(&field.text) {
+            match read_related_field() {
+                Some(text) => {
+                    record_field(&mut report, &text);
+                    if machine.observed.last() != Some(&text) {
                         debug!(
-                            "Edit watch: field now {} chars via {}: {:?}",
-                            field.text.chars().count(),
-                            field.strategy,
-                            field.text.chars().take(120).collect::<String>()
+                            "Edit watch: field now {} chars: {:?}",
+                            text.chars().count(),
+                            text.chars().take(120).collect::<String>()
                         );
                     }
-                    field_poll(&field)
+                    field_poll(&text)
                 }
                 None => {
                     debug!("Edit watch: field unreadable");
@@ -484,26 +496,31 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
 /// accessibility tree, so this is per-call, not the poll cadence.
 const READ_TIMEOUT_MS: u32 = 300;
 
-/// Update the report's field diagnostics from a successful read.
-fn record_field(report: &mut WatchReport, field: &ax::FocusedField) {
-    report.readable_polls += 1;
-    report.last_field_chars = Some(field.text.chars().count());
-    report.last_field_preview = Some(field.text.chars().take(160).collect());
-    report.strategy = Some(field.strategy.to_string());
-    if !field.identity.key.is_empty() {
-        report.field_id = Some(field.identity.key.clone());
-    }
+/// Bounded window captured around the cursor, before and after it.
+const BEFORE_CHARS: usize = 600;
+const AFTER_CHARS: usize = 600;
+
+/// Read the focused field's bounded cursor-relative context as one string.
+fn read_related_field() -> Option<String> {
+    ax::read_focused_related_content(BEFORE_CHARS, AFTER_CHARS, READ_TIMEOUT_MS)
+        .map(|related| format!("{}{}", related.before, related.after))
 }
 
-/// Classify a readable field. The field identity is intentionally not compared:
-/// Chromium re-renders its contenteditable and the identifier changes while the
-/// user is still in the same field, and the whole-box diff already rejects an
-/// unrelated final text.
-fn field_poll(field: &ax::FocusedField) -> Poll {
-    if field.text.trim().is_empty() {
+/// Update the report's field diagnostics from a successful read.
+fn record_field(report: &mut WatchReport, text: &str) {
+    report.readable_polls += 1;
+    report.last_field_chars = Some(text.chars().count());
+    report.last_field_preview = Some(text.chars().take(160).collect());
+    report.strategy = Some("related content".to_string());
+}
+
+/// Classify a readable field. The whole-box diff later rejects an unrelated final
+/// text, so the poll only needs the text itself.
+fn field_poll(text: &str) -> Poll {
+    if text.trim().is_empty() {
         Poll::Readable(String::new())
     } else {
-        Poll::Readable(field.text.clone())
+        Poll::Readable(text.to_string())
     }
 }
 
@@ -1007,5 +1024,21 @@ mod tests {
     fn settled_text_skips_a_trailing_empty_state() {
         let observed = states(&["hello world", "hello there", ""]);
         assert_eq!(settled_text(&observed), Some("hello there".to_string()));
+    }
+
+    #[test]
+    fn large_modify_is_rejected() {
+        let original = "the quick brown fox jumps over the lazy dog";
+        let current = "please schedule the meeting for next tuesday morning";
+        let m = crate::learning::diff::analysis_modification(original, current, original);
+        assert!(m.is_large_modify);
+    }
+
+    #[test]
+    fn a_small_correction_is_not_large_modify() {
+        let original = "客人说他想做C3XO，请问可以吗？";
+        let current = "客人说他想做Cica Exo，请问可以吗？";
+        let m = crate::learning::diff::analysis_modification(original, current, original);
+        assert!(!m.is_large_modify);
     }
 }
