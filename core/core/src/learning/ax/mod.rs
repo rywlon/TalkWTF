@@ -52,6 +52,69 @@ const MAX_ANCESTOR_HOPS: usize = 6;
 /// Cap on children inspected when the focused element itself is not readable.
 const MAX_CHILDREN: usize = 40;
 
+/// Visible-text walk bounds: a browser page can be enormous.
+const MAX_CAPTURE_CHARS: usize = 4000;
+const MAX_CAPTURE_NODES: usize = 2000;
+const MAX_CAPTURE_DEPTH: usize = 20;
+
+/// What identifies the field we pasted into, so a later poll can tell it is still
+/// the same field (and stop when the user moved to another one).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldIdentity {
+    pub pid: i32,
+    pub key: String,
+}
+
+pub struct FocusedField {
+    pub text: String,
+    pub identity: FieldIdentity,
+    pub strategy: &'static str,
+}
+
+/// Pick the most stable identifier we have for a field.
+fn identity_key(identifier: Option<String>, dom: Option<String>, frame: Option<String>) -> String {
+    identifier
+        .filter(|value| !value.is_empty())
+        .or_else(|| dom.filter(|value| !value.is_empty()))
+        .or(frame)
+        .unwrap_or_default()
+}
+
+/// Join collected text fragments the way Typeless's `smartJoinTexts` does: a
+/// space between fragments, but never a space between two CJK fragments.
+fn smart_join(fragments: &[String]) -> String {
+    let mut out = String::new();
+    for fragment in fragments {
+        if fragment.is_empty() {
+            continue;
+        }
+        if !out.is_empty() && needs_separator(out.chars().last(), fragment.chars().next()) {
+            out.push(' ');
+        }
+        out.push_str(fragment);
+    }
+    out
+}
+
+fn needs_separator(left: Option<char>, right: Option<char>) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => {
+            !(is_cjk_char(left) && is_cjk_char(right))
+                && !left.is_whitespace()
+                && !right.is_whitespace()
+        }
+        _ => false,
+    }
+}
+
+fn is_cjk_char(character: char) -> bool {
+    let code = character as u32;
+    (0x3040..=0x30FF).contains(&code)
+        || (0x3400..=0x4DBF).contains(&code)
+        || (0x4E00..=0x9FFF).contains(&code)
+        || (0xF900..=0xFAFF).contains(&code)
+}
+
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     fn AXUIElementCreateSystemWide() -> AXUIElementRef;
@@ -73,6 +136,12 @@ extern "C" {
         names: *mut CFArrayRef,
     ) -> AXError;
     fn AXUIElementSetMessagingTimeout(element: AXUIElementRef, timeout: f32) -> AXError;
+    fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> AXError;
+    fn AXUIElementSetAttributeValue(
+        element: AXUIElementRef,
+        attribute: CFTypeRef,
+        value: CFTypeRef,
+    ) -> AXError;
     fn AXValueGetValue(value: CFTypeRef, the_type: u32, value_ptr: *mut c_void) -> Boolean;
     fn AXValueGetTypeID() -> usize;
     fn AXIsProcessTrusted() -> Boolean;
@@ -86,6 +155,10 @@ extern "C" {
     fn CFArrayGetTypeID() -> usize;
     fn CFArrayGetCount(array: CFArrayRef) -> CFIndex;
     fn CFArrayGetValueAtIndex(array: CFArrayRef, index: CFIndex) -> *const c_void;
+    static kCFBooleanTrue: CFTypeRef;
+    static kCFBooleanFalse: CFTypeRef;
+    fn CFBooleanGetValue(boolean: CFTypeRef) -> Boolean;
+    fn CFBooleanGetTypeID() -> usize;
 }
 
 /// Owned AX element. CFType objects are reference counted, so every value we
@@ -295,6 +368,167 @@ fn read_child(element: AXUIElementRef) -> Option<FocusedText> {
     }
 
     None
+}
+
+/// Sets `AXEnhancedUserInterface` on the focused window so Chromium-based apps
+/// expose their accessibility tree, and restores the previous value on drop.
+struct EnhancedUserInterface {
+    window: AxElement,
+    previous: Option<bool>,
+}
+
+impl EnhancedUserInterface {
+    fn enable(focused: AXUIElementRef) -> Option<Self> {
+        let window = copy_element(focused, "AXWindow")?;
+        set_timeout(window.raw());
+
+        let previous = copy_value(window.raw(), "AXEnhancedUserInterface")
+            .and_then(|value| cf_boolean(value.raw()));
+
+        let attribute = attribute("AXEnhancedUserInterface");
+        unsafe {
+            AXUIElementSetAttributeValue(
+                window.raw(),
+                Retained::as_ptr(&attribute) as CFTypeRef,
+                kCFBooleanTrue,
+            );
+        }
+
+        Some(Self { window, previous })
+    }
+}
+
+impl Drop for EnhancedUserInterface {
+    fn drop(&mut self) {
+        let value = match self.previous {
+            Some(true) => unsafe { kCFBooleanTrue },
+            Some(false) => unsafe { kCFBooleanFalse },
+            None => return,
+        };
+        let attribute = attribute("AXEnhancedUserInterface");
+        unsafe {
+            AXUIElementSetAttributeValue(
+                self.window.raw(),
+                Retained::as_ptr(&attribute) as CFTypeRef,
+                value,
+            );
+        }
+    }
+}
+
+fn cf_boolean(value: CFTypeRef) -> Option<bool> {
+    if unsafe { CFGetTypeID(value) != CFBooleanGetTypeID() } {
+        return None;
+    }
+    Some(unsafe { CFBooleanGetValue(value) } != 0)
+}
+
+/// Walk the focused element's subtree, collecting the text of text-bearing
+/// elements in AXChildren order. This is the fallback for web content whose
+/// editable region has no `AXValue` and no text markers.
+fn collect_visible_text(element: AXUIElementRef) -> Option<FocusedText> {
+    let mut fragments: Vec<String> = Vec::new();
+    let mut nodes = 0usize;
+    collect_into(element, 0, &mut nodes, &mut fragments);
+
+    let text = smart_join(&fragments);
+    if text.trim().is_empty() {
+        return None;
+    }
+
+    Some(FocusedText {
+        text,
+        source: TextSource::Web,
+        strategy: "visible text collection",
+    })
+}
+
+fn collect_into(element: AXUIElementRef, depth: usize, nodes: &mut usize, out: &mut Vec<String>) {
+    if depth > MAX_CAPTURE_DEPTH || *nodes >= MAX_CAPTURE_NODES {
+        return;
+    }
+    *nodes += 1;
+
+    if let Some(role) = copy_string(element, ATTR_ROLE) {
+        if is_text_bearing_role(&role) {
+            if let Some(text) = native::read(element) {
+                if out.iter().map(String::len).sum::<usize>() < MAX_CAPTURE_CHARS {
+                    out.push(text);
+                }
+            }
+        }
+    }
+
+    let Some(children) = copy_array(element, ATTR_CHILDREN) else {
+        return;
+    };
+    let count = unsafe { CFArrayGetCount(children.raw()) };
+    for index in 0..count {
+        if *nodes >= MAX_CAPTURE_NODES {
+            return;
+        }
+        let child = unsafe { CFArrayGetValueAtIndex(children.raw(), index) } as AXUIElementRef;
+        if child.is_null() {
+            continue;
+        }
+        set_timeout(child);
+        collect_into(child, depth + 1, nodes, out);
+    }
+}
+
+fn is_text_bearing_role(role: &str) -> bool {
+    matches!(
+        role,
+        "AXStaticText" | "AXTextArea" | "AXTextField" | "AXHeading" | "AXLink"
+    )
+}
+
+fn field_identity(element: AXUIElementRef) -> FieldIdentity {
+    let mut pid: i32 = 0;
+    unsafe { AXUIElementGetPid(element, &mut pid) };
+
+    let frame = focused_element_frame()
+        .map(|(x, y, width, height)| format!("{x:.0},{y:.0},{width:.0},{height:.0}"));
+
+    let key = identity_key(
+        copy_string(element, "AXIdentifier"),
+        copy_string(element, "AXDOMIdentifier"),
+        frame,
+    );
+
+    FieldIdentity { pid, key }
+}
+
+/// Read the focused field with the enhancement + three-tier strategy. `None`
+/// means "nothing readable here" — never an error.
+pub fn read_focused_field(_timeout_ms: u32) -> Option<FocusedField> {
+    if !is_trusted() {
+        debug!("Accessibility permission is not granted");
+        return None;
+    }
+    if crate::secure_input::is_enabled_now() {
+        return None;
+    }
+    if is_blocked_app(frontmost_bundle_id().as_deref()) {
+        return None;
+    }
+
+    let focused = focused_element()?;
+    set_timeout(focused.raw());
+
+    let _enhance = EnhancedUserInterface::enable(focused.raw());
+    let identity = field_identity(focused.raw());
+
+    let read = read_element(focused.raw())
+        .or_else(|| read_ancestor(focused.raw()))
+        .or_else(|| read_child(focused.raw()))
+        .or_else(|| collect_visible_text(focused.raw()))?;
+
+    Some(FocusedField {
+        text: read.text,
+        identity,
+        strategy: read.strategy,
+    })
 }
 
 fn is_secure_text_field(element: AXUIElementRef) -> bool {
@@ -610,4 +844,44 @@ pub fn diagnose() -> Vec<String> {
     }
 
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn joins_collected_fragments_in_order() {
+        let fragments = vec!["hello".to_string(), "world".to_string()];
+        assert_eq!(smart_join(&fragments), "hello world");
+    }
+
+    #[test]
+    fn smart_join_does_not_double_space() {
+        let fragments = vec!["hello ".to_string(), " world".to_string()];
+        assert_eq!(smart_join(&fragments), "hello  world");
+    }
+
+    #[test]
+    fn smart_join_inserts_space_between_cjk_and_latin() {
+        let fragments = vec!["你好".to_string(), "world".to_string()];
+        assert_eq!(smart_join(&fragments), "你好 world");
+    }
+
+    #[test]
+    fn identity_key_prefers_identifier_over_frame() {
+        assert_eq!(
+            identity_key(
+                Some("field-1".into()),
+                Some("dom-9".into()),
+                Some("1,2,3,4".into())
+            ),
+            "field-1"
+        );
+        assert_eq!(
+            identity_key(None, Some("dom-9".into()), Some("1,2,3,4".into())),
+            "dom-9"
+        );
+        assert_eq!(identity_key(None, None, Some("1,2,3,4".into())), "1,2,3,4");
+    }
 }
