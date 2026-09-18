@@ -243,7 +243,7 @@ struct SettingsView: View {
                     "word_correction_threshold",
                     "settings.debug.wordCorrectionThreshold.title",
                     description: "settings.debug.wordCorrectionThreshold.description",
-                    range: 0.0...1.0,
+                    range: 0.01...1.0,
                     step: 0.01,
                     format: { "\(Int(($0 * 100).rounded()))%" }
                 )
