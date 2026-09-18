@@ -150,9 +150,8 @@ pub fn watch_for_edit(pasted_text: &str) {
             let llm_raw = judgement.llm_raw.clone();
             let (candidates, local_outcome) = if source == llm::JudgeSource::Llm {
                 // The LLM saw the same final text the report describes, so its
-                // reason is the accurate outcome. The local path below decides
-                // from every captured state, so `decide` owns the outcome there.
-                report.outcome = judgement.reason.clone();
+                // reason feeds the outcome. The local path below decides from
+                // every captured state, so `decide` owns the outcome there.
                 (
                     usable_candidates(judgement.candidates),
                     judgement.reason.clone(),
@@ -179,9 +178,12 @@ pub fn watch_for_edit(pasted_text: &str) {
             };
 
             // Derive the pair from the result that actually produced `applied`,
-            // so the stored row cannot say "skipped" and "learned" at once.
+            // so the stored row cannot say "skipped" and "learned" at once. The
+            // in-memory report uses the same reason, so a fully-filtered LLM
+            // result cannot leave it claiming a word was learned.
             let (outcome, reason) =
                 attempt_outcome(!applied.is_empty(), found, source, &local_outcome);
+            report.outcome = reason.clone();
 
             record_attempt(
                 &pasted,
@@ -374,13 +376,24 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         debug!("Enter watch unavailable; falling back to field polling only");
     }
 
+    // Turn on the enhanced accessibility tree once for the whole watch. Doing it
+    // per read (as `read_focused_field` used to) makes Chromium rebuild its tree
+    // on every 200ms poll; the guard restores the prior value when it drops.
+    let _enhance = ax::enable_enhanced_user_interface();
+
     // Pin the field identity up front: a later read of a *different* field must
     // never be compared against what we pasted. The initial read only seeds the
     // baseline and diagnostics — it is not fed as a settling poll, because right
     // after a paste a Chromium field can transiently read as empty before its
     // accessibility tree catches up, and that must not end the watch.
+    //
+    // Chromium often answers the very first read with no value, so the baseline
+    // is also adopted from the first non-empty identity seen in the loop.
     let start = ax::read_focused_field(READ_TIMEOUT_MS);
-    let start_identity = start.as_ref().map(|field| field.identity.clone());
+    let mut start_identity = start
+        .as_ref()
+        .map(|field| field.identity.key.clone())
+        .filter(|key| !key.is_empty());
     match &start {
         Some(field) => record_field(&mut report, field),
         None => {
@@ -406,7 +419,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
             match ax::read_focused_field(READ_TIMEOUT_MS) {
                 Some(field) => {
                     record_field(&mut report, &field);
-                    field_poll(&field, start_identity.as_ref())
+                    field_poll(&field, &mut start_identity)
                 }
                 None => Poll::Unreadable,
             }
@@ -445,9 +458,18 @@ fn record_field(report: &mut WatchReport, field: &ax::FocusedField) {
     }
 }
 
-/// Classify a readable field against the identity we started watching.
-fn field_poll(field: &ax::FocusedField, start_identity: Option<&ax::FieldIdentity>) -> Poll {
-    if start_identity.is_some_and(|start| identity_changed(&start.key, &field.identity.key)) {
+/// Classify a readable field against the identity we started watching. When the
+/// seed read produced no identity (common in Chromium), the first non-empty key
+/// seen here becomes the baseline.
+fn field_poll(field: &ax::FocusedField, start_identity: &mut Option<String>) -> Poll {
+    if start_identity.is_none() && !field.identity.key.is_empty() {
+        *start_identity = Some(field.identity.key.clone());
+    }
+
+    if start_identity
+        .as_deref()
+        .is_some_and(|start| identity_changed(start, &field.identity.key))
+    {
         Poll::IdentityChanged
     } else if field.text.trim().is_empty() {
         Poll::Readable(String::new())
@@ -1143,6 +1165,61 @@ mod tests {
             machine.on(Poll::IdentityChanged),
             (WatchStep::Ignore, Some(StopReason::IdentityChanged))
         );
+    }
+
+    #[test]
+    fn field_poll_adopts_the_first_identity_when_the_seed_had_none() {
+        let field = |key: &str| ax::FocusedField {
+            text: "hello".to_string(),
+            identity: ax::FieldIdentity {
+                pid: 1,
+                key: key.to_string(),
+            },
+            strategy: "test",
+        };
+
+        // The seed read failed (Chromium): the first key seen becomes the
+        // baseline instead of leaving identity detection inert.
+        let mut baseline = None;
+        assert_eq!(
+            field_poll(&field("field-1"), &mut baseline),
+            Poll::Readable("hello".to_string())
+        );
+        assert_eq!(baseline.as_deref(), Some("field-1"));
+
+        // Once set, a later differing key is a real switch.
+        assert_eq!(
+            field_poll(&field("field-2"), &mut baseline),
+            Poll::IdentityChanged
+        );
+    }
+
+    /// Recorded evidence for the dual-tap assumption in `observe`: a second
+    /// `CGEventTap` (a `KeyboardListener`) can be created and used while the
+    /// app's blocking `HotkeyManager` is alive, and still receives Return.
+    ///
+    /// Ignored by default: it needs Accessibility permission and a real
+    /// synthesized key event, which a headless/CI run cannot provide.
+    ///
+    /// Manual procedure:
+    /// 1. Grant the test binary Accessibility permission.
+    /// 2. `cargo test -p talkwtf-core --lib -- --ignored dual_tap`
+    /// 3. While both are alive, post a Return keyDown with
+    ///    `CGEventCreateKeyboardEvent(None, 36, true)` + `CGEventPost`, and
+    ///    confirm the listener's `recv_timeout` yields `Key::Return` (the
+    ///    manager, which registered no hotkey for it, must not swallow it).
+    #[test]
+    #[ignore = "needs Accessibility permission and a synthesized Return CGEvent"]
+    fn dual_tap_hotkey_manager_and_listener_coexist() {
+        use handy_keys::HotkeyManager;
+
+        let manager = HotkeyManager::new_with_blocking().expect("blocking hotkey manager");
+        let listener = KeyboardListener::new().expect("second keyboard listener");
+
+        assert!(manager.try_recv().is_none());
+
+        drop(listener);
+        drop(manager);
     }
 
     #[test]

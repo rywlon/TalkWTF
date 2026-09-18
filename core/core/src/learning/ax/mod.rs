@@ -11,6 +11,7 @@ mod native;
 mod web;
 
 use std::ffi::c_void;
+use std::time::{Duration, Instant};
 
 use log::debug;
 use objc2::rc::Retained;
@@ -350,12 +351,16 @@ fn read_ancestor(element: AXUIElementRef) -> Option<FocusedText> {
 
 /// Last resort: a direct child that advertises a readable value.
 fn read_child(element: AXUIElementRef) -> Option<FocusedText> {
+    if is_secure_text_field(element) {
+        return None;
+    }
+
     let children = copy_array(element, ATTR_CHILDREN)?;
     let count = unsafe { CFArrayGetCount(children.raw()) }.min(MAX_CHILDREN as CFIndex);
 
     for index in 0..count {
         let child = unsafe { CFArrayGetValueAtIndex(children.raw(), index) } as AXUIElementRef;
-        if child.is_null() {
+        if child.is_null() || is_secure_text_field(child) {
             continue;
         }
         set_timeout(child);
@@ -374,7 +379,10 @@ fn read_child(element: AXUIElementRef) -> Option<FocusedText> {
 
 /// Sets `AXEnhancedUserInterface` on the focused window so Chromium-based apps
 /// expose their accessibility tree, and restores the previous value on drop.
-struct EnhancedUserInterface {
+///
+/// Hold this for the whole watch session (see `enable_enhanced_user_interface`):
+/// toggling it on every poll makes Chromium rebuild its tree repeatedly.
+pub struct EnhancedUserInterface {
     window: AxElement,
     previous: Option<bool>,
 }
@@ -421,6 +429,17 @@ impl Drop for EnhancedUserInterface {
     }
 }
 
+/// Enable `AXEnhancedUserInterface` on the currently focused element's window.
+///
+/// The returned guard restores the prior value when dropped, so the caller must
+/// hold it for as long as the accessibility tree is needed (the whole watch),
+/// not just for one read.
+pub fn enable_enhanced_user_interface() -> Option<EnhancedUserInterface> {
+    let focused = focused_element()?;
+    set_timeout(focused.raw());
+    EnhancedUserInterface::enable(focused.raw())
+}
+
 fn cf_boolean(value: CFTypeRef) -> Option<bool> {
     if unsafe { CFGetTypeID(value) != CFBooleanGetTypeID() } {
         return None;
@@ -431,10 +450,10 @@ fn cf_boolean(value: CFTypeRef) -> Option<bool> {
 /// Walk the focused element's subtree, collecting the text of text-bearing
 /// elements in AXChildren order. This is the fallback for web content whose
 /// editable region has no `AXValue` and no text markers.
-fn collect_visible_text(element: AXUIElementRef) -> Option<FocusedText> {
+fn collect_visible_text(element: AXUIElementRef, deadline: Instant) -> Option<FocusedText> {
     let mut fragments: Vec<String> = Vec::new();
     let mut nodes = 0usize;
-    collect_into(element, 0, &mut nodes, &mut fragments);
+    collect_into(element, 0, &mut nodes, &mut fragments, deadline);
 
     let text = smart_join(&fragments);
     if text.trim().is_empty() {
@@ -448,11 +467,21 @@ fn collect_visible_text(element: AXUIElementRef) -> Option<FocusedText> {
     })
 }
 
-fn collect_into(element: AXUIElementRef, depth: usize, nodes: &mut usize, out: &mut Vec<String>) {
-    if depth > MAX_CAPTURE_DEPTH || *nodes >= MAX_CAPTURE_NODES {
+fn collect_into(
+    element: AXUIElementRef,
+    depth: usize,
+    nodes: &mut usize,
+    out: &mut Vec<String>,
+    deadline: Instant,
+) {
+    if Instant::now() > deadline || depth > MAX_CAPTURE_DEPTH || *nodes >= MAX_CAPTURE_NODES {
         return;
     }
     *nodes += 1;
+
+    if is_secure_text_field(element) {
+        return;
+    }
 
     if let Some(role) = copy_string(element, ATTR_ROLE) {
         if is_text_bearing_role(&role) {
@@ -469,7 +498,7 @@ fn collect_into(element: AXUIElementRef, depth: usize, nodes: &mut usize, out: &
     };
     let count = unsafe { CFArrayGetCount(children.raw()) };
     for index in 0..count {
-        if *nodes >= MAX_CAPTURE_NODES {
+        if Instant::now() > deadline || *nodes >= MAX_CAPTURE_NODES {
             return;
         }
         let child = unsafe { CFArrayGetValueAtIndex(children.raw(), index) } as AXUIElementRef;
@@ -477,7 +506,7 @@ fn collect_into(element: AXUIElementRef, depth: usize, nodes: &mut usize, out: &
             continue;
         }
         set_timeout(child);
-        collect_into(child, depth + 1, nodes, out);
+        collect_into(child, depth + 1, nodes, out, deadline);
     }
 }
 
@@ -500,9 +529,13 @@ fn field_identity(element: AXUIElementRef) -> FieldIdentity {
     FieldIdentity { pid, key }
 }
 
-/// Read the focused field with the enhancement + three-tier strategy. `None`
-/// means "nothing readable here" — never an error.
-pub fn read_focused_field(_timeout_ms: u32) -> Option<FocusedField> {
+/// Read the focused field with the three-tier strategy. `None` means "nothing
+/// readable here" — never an error.
+///
+/// The caller is responsible for `AXEnhancedUserInterface`: the watcher enables
+/// it once at watch start (`enable_enhanced_user_interface`), so this read does
+/// not toggle it on every poll.
+pub fn read_focused_field(timeout_ms: u32) -> Option<FocusedField> {
     if !is_trusted() {
         debug!("Accessibility permission is not granted");
         return None;
@@ -517,13 +550,13 @@ pub fn read_focused_field(_timeout_ms: u32) -> Option<FocusedField> {
     let focused = focused_element()?;
     set_timeout(focused.raw());
 
-    let _enhance = EnhancedUserInterface::enable(focused.raw());
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms as u64);
     let identity = field_identity(focused.raw());
 
     let read = read_element(focused.raw())
         .or_else(|| read_ancestor(focused.raw()))
         .or_else(|| read_child(focused.raw()))
-        .or_else(|| collect_visible_text(focused.raw()))?;
+        .or_else(|| collect_visible_text(focused.raw(), deadline))?;
 
     Some(FocusedField {
         text: read.text,
