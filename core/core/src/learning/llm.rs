@@ -320,11 +320,29 @@ mod tests {
 
     #[test]
     fn judge_falls_back_to_local_and_records_the_source() {
-        // No provider configured in tests → LLM unavailable → local path.
+        // The LLM result is supplied as `None` directly: no request is made and
+        // the local diff gate decides.
         let judgement = judge_from("他想做 C3XO，可以吗？", "他想做 Cica Exo，可以吗？", None);
         assert_eq!(judgement.source, JudgeSource::Local);
         assert_eq!(judgement.candidates.len(), 1);
         assert!(!judgement.reason.is_empty());
+    }
+
+    #[test]
+    fn judge_trusts_an_empty_llm_answer_over_the_local_gate() {
+        // The LLM ran and found nothing. Even though the local diff would see the
+        // "C3XO" -> "Cica Exo" edit, the empty LLM answer wins: source stays Llm,
+        // candidates stay empty, and the reason records the empty answer.
+        let judgement = judge_from(
+            "他想做 C3XO，可以吗？",
+            "他想做 Cica Exo，可以吗？",
+            Some((Vec::new(), "raw".to_string())),
+        );
+
+        assert_eq!(judgement.source, JudgeSource::Llm);
+        assert!(judgement.candidates.is_empty());
+        assert_eq!(judgement.reason, "the llm found no mishearing");
+        assert_eq!(judgement.llm_raw.as_deref(), Some("raw"));
     }
 
     #[test]

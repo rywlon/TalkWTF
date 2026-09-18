@@ -145,11 +145,14 @@ pub fn watch_for_edit(pasted_text: &str) {
         if let Some(final_text) = choose_final(&observed, &pasted) {
             let judgement = llm::judge(&pasted, &final_text);
             let candidates = if judgement.source == llm::JudgeSource::Llm {
+                // The LLM saw the same final text the report describes, so its
+                // reason is the accurate outcome. The local path below decides
+                // from every captured state, so `decide` owns the outcome there.
+                report.outcome = judgement.reason.clone();
                 usable_candidates(judgement.candidates)
             } else {
                 decide(&observed, &pasted, &mut report)
             };
-            report.outcome = judgement.reason.clone();
 
             debug!(
                 "Edit judged: source {:?} | llm raw {:?}",
