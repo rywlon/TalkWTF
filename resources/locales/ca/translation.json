@@ -819,9 +819,9 @@
     "transcribing": "S'està transcrivint...",
     "processing": "S'està processant...",
     "learned": {
-      "title": "Afegit al diccionari: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Desfés",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

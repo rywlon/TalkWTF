@@ -816,9 +816,9 @@
     "transcribing": "Transcribiendo...",
     "processing": "Procesando...",
     "learned": {
-      "title": "Añadido al diccionario: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Deshacer",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

@@ -816,9 +816,9 @@
     "transcribing": "Đang chuyển đổi...",
     "processing": "Đang xử lý...",
     "learned": {
-      "title": "Đã thêm vào từ điển: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Hoàn tác",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

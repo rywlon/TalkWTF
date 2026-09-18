@@ -35,8 +35,6 @@ enum Theme {
         static let selectionHover = Color.primary.opacity(0.03)
         static let selectionAccent = Color.accentColor.opacity(0.14)
         static let cardFill = Color.primary.opacity(0.04)
-        static let glowRecording = Color.red.opacity(0.35)
-        static let glowWorking = Color.accentColor.opacity(0.35)
     }
 
     /// Spacing on a 4pt grid.
@@ -134,17 +132,16 @@ extension View {
     }
 
     /// A rounded surface that uses Liquid Glass on macOS 26 and falls back to a
-    /// material elsewhere. `glow` adds a soft outer shadow for the overlay.
+    /// material elsewhere.
     @ViewBuilder
-    func glassSurface(cornerRadius: CGFloat, glow: Color? = nil) -> some View {
+    func glassSurface(cornerRadius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if #available(macOS 26.0, *) {
             self.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-                .shadow(color: glow ?? .clear, radius: 12, y: 2)
         } else {
             self.background(.regularMaterial, in: shape)
                 .overlay(shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
-                .shadow(color: glow ?? .black.opacity(0.12), radius: 12, y: 2)
+                .shadow(color: .black.opacity(0.12), radius: 12, y: 2)
         }
     }
 

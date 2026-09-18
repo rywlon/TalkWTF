@@ -819,9 +819,9 @@
     "transcribing": "Transskriberer...",
     "processing": "Behandler...",
     "learned": {
-      "title": "Føjet til ordbogen: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Fortryd",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

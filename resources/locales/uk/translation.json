@@ -816,9 +816,9 @@
     "transcribing": "Обробка...",
     "processing": "Постобробка...",
     "learned": {
-      "title": "Додано до словника: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Скасувати",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

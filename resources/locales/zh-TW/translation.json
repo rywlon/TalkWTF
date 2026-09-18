@@ -816,9 +816,9 @@
     "transcribing": "正在轉錄...",
     "processing": "處理中...",
     "learned": {
-      "title": "已加入詞典：{{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}”已加入词典！",
       "undo": "復原",
-      "titlePlural": "已加入詞典：{{count}} 處修正"
+      "titlePlural": "已加入 {{count}} 个词典词"
     },
     "translate": {
       "to": "Translating to {{label}}",

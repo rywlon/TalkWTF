@@ -816,9 +816,9 @@
     "transcribing": "Transkribiere...",
     "processing": "Verarbeite...",
     "learned": {
-      "title": "Zum Wörterbuch hinzugefügt: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Rückgängig",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

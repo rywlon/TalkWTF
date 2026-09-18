@@ -88,33 +88,29 @@ struct AppShell: View {
                         .padding(.top, 14)
                         .padding(.bottom, 10)
 
-                        // A native `List` keeps arrow-key navigation and the
-                        // `.isSelected` trait that hand-rolled buttons lose on
-                        // macOS (buttons are not in the key loop unless Full
-                        // Keyboard Access is on). Rows are styled by hand so the
-                        // card look is preserved; the list chrome is hidden.
-                        List(selection: $section) {
+                        // Hand-rolled rows so the selection is our rounded pill
+                        // instead of the native list highlight (which paints a
+                        // full-width blue bar).
+                        VStack(alignment: .leading, spacing: 2) {
                             ForEach(AppSection.allCases) { item in
-                                Label(item.title, systemImage: item.symbol)
-                                    .font(Theme.Fonts.body)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .sidebarRow(
-                                        isSelected: section == item,
-                                        isHovered: hoveredSection == item
-                                    )
-                                    .tag(item)
-                                    .onHover { hovering in
-                                        hoveredSection = hovering ? item : nil
-                                    }
-                                    .listRowInsets(
-                                        EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0)
-                                    )
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
+                                Button {
+                                    section = item
+                                } label: {
+                                    Label(item.title, systemImage: item.symbol)
+                                        .font(Theme.Fonts.body)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .sidebarRow(
+                                            isSelected: section == item,
+                                            isHovered: hoveredSection == item
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .onHover { hovering in
+                                    hoveredSection = hovering ? item : nil
+                                }
+                                .accessibilityAddTraits(section == item ? [.isSelected] : [])
                             }
                         }
-                        .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
                     }
                     .padding(.horizontal, 8)
                     .padding(.top, 8)

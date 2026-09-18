@@ -819,9 +819,9 @@
     "transcribing": "Mentranskripsikan...",
     "processing": "Memproses...",
     "learned": {
-      "title": "Ditambahkan ke kamus: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Urungkan",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

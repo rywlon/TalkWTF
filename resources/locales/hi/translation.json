@@ -819,9 +819,9 @@
     "transcribing": "ट्रांसक्राइब हो रहा है...",
     "processing": "प्रोसेस हो रहा है...",
     "learned": {
-      "title": "शब्दकोश में जोड़ा गया: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "पूर्ववत करें",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

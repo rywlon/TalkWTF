@@ -816,9 +816,9 @@
     "transcribing": "Přepisuji...",
     "processing": "Zpracovávám...",
     "learned": {
-      "title": "Přidáno do slovníku: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Zpět",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

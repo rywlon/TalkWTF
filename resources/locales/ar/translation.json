@@ -816,9 +816,9 @@
     "transcribing": "...جاري التفريغ",
     "processing": "...جاري المعالجة",
     "learned": {
-      "title": "أُضيف إلى القاموس: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "تراجع",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

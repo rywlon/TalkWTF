@@ -816,9 +816,9 @@
     "transcribing": "Trascrizione...",
     "processing": "Elaborazione...",
     "learned": {
-      "title": "Aggiunto al dizionario: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Annulla",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

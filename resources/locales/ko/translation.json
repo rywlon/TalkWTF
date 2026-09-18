@@ -816,9 +816,9 @@
     "transcribing": "텍스트로 변환 중...",
     "processing": "처리 중...",
     "learned": {
-      "title": "사전에 추가됨: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "실행 취소",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

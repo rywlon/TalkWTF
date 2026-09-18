@@ -816,9 +816,9 @@
     "transcribing": "文字起こし中…",
     "processing": "処理中…",
     "learned": {
-      "title": "辞書に追加しました：{{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "元に戻す",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

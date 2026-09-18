@@ -24,9 +24,9 @@ enum OverlayState: Equatable {
     /// Fixed geometry per state (see the design system's overlay table).
     var size: CGSize {
         switch self {
-        case .recording, .streaming: return Theme.Overlay.recordingSize
+        case .recording, .streaming, .learned: return Theme.Overlay.recordingSize
         case .transcribing, .processing, .translating: return Theme.Overlay.workingSize
-        case .translationFailed, .notice, .learned: return Theme.Overlay.cardSize
+        case .translationFailed, .notice: return Theme.Overlay.cardSize
         }
     }
 
@@ -41,6 +41,13 @@ enum OverlayState: Equatable {
 
     /// One continuous radius for the glass card, shared with the rest of the UI.
     var cornerRadius: CGFloat { Theme.Radius.overlay }
+}
+
+/// Where the overlay sits on the pointer's screen when it is not placed next to
+/// a field.
+enum OverlayAnchor {
+    case top
+    case bottom
 }
 
 /// Observable bridge between the core's events and the SwiftUI panel.
@@ -97,7 +104,9 @@ final class OverlayController {
         model.state = state
         let panel = panel ?? OverlayPanel(model: model)
         self.panel = panel
-        panel.show(autoHideAfter: state.autoHideAfter, near: frame)
+        let anchor: OverlayAnchor =
+            SettingsStore.shared.string("overlay_position", "bottom") == "top" ? .top : .bottom
+        panel.show(autoHideAfter: state.autoHideAfter, near: frame, anchor: anchor)
     }
 
     func hide() {
@@ -161,12 +170,13 @@ final class OverlayPanel {
         self.model = model
     }
 
-    /// Show the overlay, optionally auto-hiding after `autoHideAfter` seconds and
-    /// placed next to `near` (top-left screen coordinates).
-    func show(autoHideAfter seconds: TimeInterval?, near: CGRect? = nil) {
+    /// Show the overlay, optionally auto-hiding after `autoHideAfter` seconds,
+    /// placed next to `near` (top-left screen coordinates) or anchored to the
+    /// top/bottom of the pointer's screen.
+    func show(autoHideAfter seconds: TimeInterval?, near: CGRect? = nil, anchor: OverlayAnchor) {
         let panel = existingOrCreate()
         panel.setContentSize(model.state.panelSize)
-        reposition(panel, near: near)
+        reposition(panel, near: near, anchor: anchor)
         panel.orderFrontRegardless()
 
         if let seconds {
@@ -207,8 +217,8 @@ final class OverlayPanel {
     }
 
     /// Place next to the focused field when we know where it is, otherwise
-    /// centred on the screen the pointer is on.
-    private func reposition(_ panel: NSPanel, near: CGRect?) {
+    /// centred on the pointer's screen at the configured top/bottom anchor.
+    private func reposition(_ panel: NSPanel, near: CGRect?, anchor: OverlayAnchor) {
         let size = panel.frame.size
 
         if let near, let screen = screenContaining(near) {
@@ -232,7 +242,13 @@ final class OverlayPanel {
 
         let frame = screen.visibleFrame
         let x = (frame.midX - size.width / 2).clamped(to: frame.minX ... (frame.maxX - size.width))
-        let y = (frame.maxY - size.height - 12).clamped(to: frame.minY ... (frame.maxY - size.height))
+        let y: CGFloat
+        switch anchor {
+        case .top:
+            y = (frame.maxY - size.height - 12).clamped(to: frame.minY ... (frame.maxY - size.height))
+        case .bottom:
+            y = (frame.minY + 12).clamped(to: frame.minY ... (frame.maxY - size.height))
+        }
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
@@ -257,26 +273,13 @@ struct OverlayView: View {
 
     var body: some View {
         VStack(spacing: Theme.Overlay.hintSpacing) {
-            content.glassSurface(
-                cornerRadius: model.state.cornerRadius,
-                glow: glowColor
-            )
+            content.glassSurface(cornerRadius: model.state.cornerRadius)
             if isRecordingState {
                 Text(L("overlay.recordingHint"))
                     .font(Theme.Fonts.caption)
                     .foregroundStyle(.secondary)
                     .opacity(hovering ? 0 : 1)
             }
-        }
-    }
-
-    /// Recording gets a red halo, work in progress an accent one, everything
-    /// else no halo.
-    private var glowColor: Color? {
-        switch model.state {
-        case .recording, .streaming: return Theme.Colors.glowRecording
-        case .transcribing, .processing, .translating: return Theme.Colors.glowWorking
-        case .translationFailed, .notice, .learned: return nil
         }
     }
 
@@ -325,11 +328,11 @@ struct OverlayView: View {
                     : L("overlay.translate.failed", ["label": ""]))
                     .font(Theme.Fonts.callout)
                 Spacer(minLength: 0)
-            case .learned(let pattern, let replacement, let count):
+            case .learned(_, let replacement, let count):
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 Text(count > 1
                     ? L("overlay.learned.titlePlural", ["count": count])
-                    : L("overlay.learned.title", ["pattern": pattern, "replacement": replacement]))
+                    : L("overlay.learned.title", ["replacement": replacement]))
                     .font(Theme.Fonts.callout)
                     .lineLimit(1)
                 Spacer(minLength: 0)

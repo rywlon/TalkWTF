@@ -816,9 +816,9 @@
     "transcribing": "Transkrypcja...",
     "processing": "Przetwarzanie...",
     "learned": {
-      "title": "Dodano do słownika: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Cofnij",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

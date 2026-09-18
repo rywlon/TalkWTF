@@ -816,9 +816,9 @@
     "transcribing": "Транскрибиране...",
     "processing": "Обработка...",
     "learned": {
-      "title": "Добавено в речника: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Отмяна",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",

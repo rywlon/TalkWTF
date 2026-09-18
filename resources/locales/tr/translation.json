@@ -816,9 +816,9 @@
     "transcribing": "Transkribe ediliyor...",
     "processing": "İşleniyor...",
     "learned": {
-      "title": "Sözlüğe eklendi: {{pattern}} → {{replacement}}",
+      "title": "“{{replacement}}” added to dictionary!",
       "undo": "Geri al",
-      "titlePlural": "Added to dictionary: {{count}} corrections"
+      "titlePlural": "Added {{count}} words to dictionary"
     },
     "translate": {
       "to": "Translating to {{label}}",
