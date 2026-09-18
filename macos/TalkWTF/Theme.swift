@@ -23,6 +23,20 @@ enum Theme {
         static let caption = Font.system(size: 11)
         /// Large numbers (dashboard metrics).
         static let metric = Font.system(size: 26, weight: .semibold).monospacedDigit()
+        /// Page subtitle under the large title.
+        static let pageSubtitle = Font.system(size: 13)
+        /// Small bold group header inside a page.
+        static let sectionHeader = Font.system(size: 13, weight: .semibold)
+    }
+
+    /// Semantic surfaces. Never hard-code brand colors (AGENTS.md).
+    enum Colors {
+        static let selection = Color.primary.opacity(0.06)
+        static let selectionHover = Color.primary.opacity(0.03)
+        static let selectionAccent = Color.accentColor.opacity(0.14)
+        static let cardFill = Color.primary.opacity(0.04)
+        static let glowRecording = Color.red.opacity(0.35)
+        static let glowWorking = Color.accentColor.opacity(0.35)
     }
 
     /// Spacing on a 4pt grid.
@@ -59,6 +73,7 @@ enum Theme {
         static let card: CGFloat = 12
         static let control: CGFloat = 8
         static let field: CGFloat = 8
+        static let overlay: CGFloat = 20
     }
 
     /// Control metrics. Native controls keep their own size; these are for the
@@ -99,5 +114,33 @@ extension View {
                 .quaternary.opacity(0.4),
                 in: RoundedRectangle(cornerRadius: Theme.Radius.card)
             )
+    }
+
+    /// A rounded surface that uses Liquid Glass on macOS 26 and falls back to a
+    /// material elsewhere. `glow` adds a soft outer shadow for the overlay.
+    @ViewBuilder
+    func glassSurface(cornerRadius: CGFloat, glow: Color? = nil) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+                .shadow(color: glow ?? .clear, radius: 12, y: 2)
+        } else {
+            self.background(.regularMaterial, in: shape)
+                .overlay(shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
+                .shadow(color: glow ?? .black.opacity(0.12), radius: 12, y: 2)
+        }
+    }
+
+    /// Sidebar navigation row: an inset rounded pill that highlights on hover and
+    /// selection, matching the reference app.
+    func sidebarRow(isSelected: Bool) -> some View {
+        self
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                    .fill(isSelected ? Theme.Colors.selection : Color.clear)
+            )
+            .contentShape(Rectangle())
     }
 }
