@@ -176,8 +176,10 @@ final class OverlayPanel {
     /// top/bottom of the pointer's screen.
     func show(autoHideAfter seconds: TimeInterval?, near: CGRect? = nil, anchor: OverlayAnchor) {
         let panel = existingOrCreate()
-        panel.setContentSize(fittedSize())
-        reposition(panel, near: near, anchor: anchor)
+        let size = fittedSize()
+        panel.setContentSize(size)
+        panel.layoutIfNeeded()
+        reposition(panel, near: near, anchor: anchor, size: size)
         panel.orderFrontRegardless()
 
         if let seconds {
@@ -236,9 +238,7 @@ final class OverlayPanel {
 
     /// Place next to the focused field when we know where it is, otherwise
     /// centred on the pointer's screen at the configured top/bottom anchor.
-    private func reposition(_ panel: NSPanel, near: CGRect?, anchor: OverlayAnchor) {
-        let size = panel.frame.size
-
+    private func reposition(_ panel: NSPanel, near: CGRect?, anchor: OverlayAnchor, size: NSSize) {
         if let near, let screen = screenContaining(near) {
             // AX y is top-left based; AppKit is bottom-left based.
             let cocoaY = screen.frame.maxY - near.maxY

@@ -28,7 +28,7 @@ const FOCUS_LOST_POLLS: u32 = 10;
 /// After Enter, how long we wait for the field to clear (or the app to navigate)
 /// to confirm the key really sent. An input-method commit keeps the text and
 /// grows it instead, so it is not a send.
-const SEND_CONFIRM_WINDOW: Duration = Duration::from_millis(1500);
+const SEND_CONFIRM_WINDOW: Duration = Duration::from_millis(2000);
 /// How many observed field states we keep. Every distinct value is stored, so the
 /// decision at the end can look back past an incomplete one.
 const MAX_OBSERVED_STATES: usize = 40;
@@ -247,8 +247,6 @@ enum Poll {
     Unreadable,
     /// The user pressed Enter: the field was (most likely) sent.
     Enter,
-    /// Focus moved to a different field; never compare against it.
-    IdentityChanged,
     Superseded,
     SettingOff,
     SecureInput,
@@ -267,7 +265,6 @@ enum StopReason {
     Enter,
     FieldEmptied,
     FocusLost,
-    IdentityChanged,
     AppChanged,
     Superseded,
     SettingOff,
@@ -328,9 +325,12 @@ impl WatchMachine {
             Poll::Enter => {
                 self.pending_send = Some(Instant::now());
                 self.pending_text = self.observed.last().cloned();
+                debug!("Edit watch: enter pressed, awaiting send confirmation");
                 (WatchStep::Continue, None)
             }
-            Poll::IdentityChanged => (WatchStep::Ignore, Some(StopReason::IdentityChanged)),
+            // Chromium re-renders its contenteditable and the identifier changes
+            // without the user leaving the field, so the identity is not compared;
+            // `choose_final` already rejects an unrelated final text.
             Poll::Unreadable => {
                 if self.pending_expired() {
                     self.clear_pending();
@@ -359,8 +359,10 @@ impl WatchMachine {
                 // commit, not a send.
                 if self.pending_send.is_some() && self.pending_text.as_deref() != Some(&text) {
                     self.clear_pending();
+                    debug!("Edit watch: pending send cancelled (the field kept changing)");
                 } else if self.pending_expired() {
                     self.clear_pending();
+                    debug!("Edit watch: pending send expired");
                 }
 
                 if self.observed.last() != Some(&text) {
@@ -381,7 +383,6 @@ fn stop_outcome(reason: StopReason) -> &'static str {
         StopReason::Enter => "the enter key was pressed and the field cleared",
         StopReason::FieldEmptied => "the field emptied",
         StopReason::FocusLost => "the field lost focus",
-        StopReason::IdentityChanged => "the focused field changed",
         StopReason::AppChanged => "the frontmost app changed",
         StopReason::Superseded => "superseded by a newer dictation",
         StopReason::SettingOff => "the setting was turned off",
@@ -444,10 +445,6 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
     // Chromium often answers the very first read with no value, so the baseline
     // is also adopted from the first non-empty identity seen in the loop.
     let start = ax::read_focused_field(READ_TIMEOUT_MS);
-    let mut start_identity = start
-        .as_ref()
-        .map(|field| field.identity.key.clone())
-        .filter(|key| !key.is_empty());
     match &start {
         Some(field) => record_field(&mut report, field),
         None => {
@@ -459,27 +456,31 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         let entered = wait_for_enter(listener.as_ref(), POLL_INTERVAL);
         report.polls += 1;
 
-        // Read once more when Enter arrives: the edit is committed just before
-        // the key, and a browser's accessibility tree can lag one poll behind, so
-        // the freshest text must be in `observed` before we settle. Read twice —
-        // the first sample is often still the half-typed value.
+        // Enter arms a pending send. Read the field just after the key: a real
+        // send clears it (or the app navigates), while an input-method commit
+        // grows it and cancels the pending send on the next poll.
         if entered {
-            for attempt in 0..2 {
-                if attempt > 0 {
-                    std::thread::sleep(Duration::from_millis(150));
-                }
-                if let Some(field) = ax::read_focused_field(READ_TIMEOUT_MS) {
-                    record_field(&mut report, &field);
-                    if let Poll::Readable(text) = field_poll(&field, &mut start_identity) {
-                        let _ = machine.on(Poll::Readable(text));
+            let _ = machine.on(Poll::Enter);
+            std::thread::sleep(Duration::from_millis(150));
+            if let Some(field) = ax::read_focused_field(READ_TIMEOUT_MS) {
+                record_field(&mut report, &field);
+                if let Poll::Readable(text) = field_poll(&field) {
+                    if let (step, reason) = machine.on(Poll::Readable(text)) {
+                        if step != WatchStep::Continue {
+                            let reason = reason.expect("settling poll has a reason");
+                            report.outcome = stop_outcome(reason).to_string();
+                            return if step == WatchStep::Learn {
+                                (machine.observed, report)
+                            } else {
+                                (Vec::new(), report)
+                            };
+                        }
                     }
                 }
             }
         }
 
-        let poll = if entered {
-            Poll::Enter
-        } else if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
+        let poll = if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
             Poll::Superseded
         } else if !crate::settings::current().learn_from_edits {
             Poll::SettingOff
@@ -491,7 +492,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
             match ax::read_focused_field(READ_TIMEOUT_MS) {
                 Some(field) => {
                     record_field(&mut report, &field);
-                    field_poll(&field, &mut start_identity)
+                    field_poll(&field)
                 }
                 None => Poll::Unreadable,
             }
@@ -530,32 +531,16 @@ fn record_field(report: &mut WatchReport, field: &ax::FocusedField) {
     }
 }
 
-/// Classify a readable field against the identity we started watching. When the
-/// seed read produced no identity (common in Chromium), the first non-empty key
-/// seen here becomes the baseline.
-fn field_poll(field: &ax::FocusedField, start_identity: &mut Option<String>) -> Poll {
-    if start_identity.is_none() && !field.identity.key.is_empty() {
-        *start_identity = Some(field.identity.key.clone());
-    }
-
-    if start_identity
-        .as_deref()
-        .is_some_and(|start| identity_changed(start, &field.identity.key))
-    {
-        Poll::IdentityChanged
-    } else if field.text.trim().is_empty() {
+/// Classify a readable field. The field identity is intentionally not compared:
+/// Chromium re-renders its contenteditable and the identifier changes while the
+/// user is still in the same field, and `choose_final` already rejects an
+/// unrelated final text.
+fn field_poll(field: &ax::FocusedField) -> Poll {
+    if field.text.trim().is_empty() {
         Poll::Readable(String::new())
     } else {
         Poll::Readable(field.text.clone())
     }
-}
-
-/// Whether the current field is definitely a different one. Both keys must be
-/// non-empty: an unknown identity (no AXIdentifier/AXDOMIdentifier) must never
-/// look like a switch, or a field that simply has no stable identifier would
-/// end the watch on its first poll.
-fn identity_changed(start: &str, current: &str) -> bool {
-    !start.is_empty() && !current.is_empty() && start != current
 }
 
 /// Wait up to `budget` for key events and report whether a Return keyDown
@@ -1293,43 +1278,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn machine_stops_when_the_field_identity_changes() {
-        let mut machine = WatchMachine::new();
-        machine.on(Poll::Readable("hello".into()));
-        assert_eq!(
-            machine.on(Poll::IdentityChanged),
-            (WatchStep::Ignore, Some(StopReason::IdentityChanged))
-        );
-    }
-
-    #[test]
-    fn field_poll_adopts_the_first_identity_when_the_seed_had_none() {
-        let field = |key: &str| ax::FocusedField {
-            text: "hello".to_string(),
-            identity: ax::FieldIdentity {
-                pid: 1,
-                key: key.to_string(),
-            },
-            strategy: "test",
-        };
-
-        // The seed read failed (Chromium): the first key seen becomes the
-        // baseline instead of leaving identity detection inert.
-        let mut baseline = None;
-        assert_eq!(
-            field_poll(&field("field-1"), &mut baseline),
-            Poll::Readable("hello".to_string())
-        );
-        assert_eq!(baseline.as_deref(), Some("field-1"));
-
-        // Once set, a later differing key is a real switch.
-        assert_eq!(
-            field_poll(&field("field-2"), &mut baseline),
-            Poll::IdentityChanged
-        );
-    }
-
     /// Recorded evidence for the dual-tap assumption in `observe`: a second
     /// `CGEventTap` (a `KeyboardListener`) can be created and used while the
     /// app's blocking `HotkeyManager` is alive, and still receives Return.
@@ -1356,21 +1304,5 @@ mod tests {
 
         drop(listener);
         drop(manager);
-    }
-
-    #[test]
-    fn identity_change_needs_two_known_differing_keys() {
-        // A differing, known pair is a real switch.
-        assert!(identity_changed("field-1", "field-2"));
-
-        // An unknown key on either side can never prove a switch: this is the
-        // common chat-input case, where neither AXIdentifier nor AXDOMIdentifier
-        // exists and the field may move or auto-grow as text is typed.
-        assert!(!identity_changed("", ""));
-        assert!(!identity_changed("", "field-2"));
-        assert!(!identity_changed("field-1", ""));
-
-        // The same known key is the same field.
-        assert!(!identity_changed("field-1", "field-1"));
     }
 }
