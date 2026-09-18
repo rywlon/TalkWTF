@@ -583,7 +583,7 @@ fn select_candidate(candidates: Vec<FocusedText>, pasted: Option<&str>) -> Optio
         .max_by_key(|candidate| diff::relation_score(pasted, &candidate.text))
 }
 
-/// Read the focused field with the three-tier strategy. `None` means "nothing
+/// Read the focused field with the four-tier strategy. `None` means "nothing
 /// readable here" — never an error.
 ///
 /// The caller is responsible for `AXEnhancedUserInterface`: the watcher enables
@@ -1011,9 +1011,9 @@ mod tests {
     fn select_candidate_falls_back_to_the_most_related() {
         // Nothing contains the paste verbatim (the read is stale), but one read
         // still shares most of it.
-        let candidates = vec![text("unrelated page text"), text("hello world!")];
+        let candidates = vec![text("unrelated page text"), text("hello wrold")];
         let chosen = select_candidate(candidates, Some("hello world")).unwrap();
-        assert_eq!(chosen.text, "hello world!");
+        assert_eq!(chosen.text, "hello wrold");
     }
 
     #[test]
