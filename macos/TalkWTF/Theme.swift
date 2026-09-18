@@ -73,6 +73,7 @@ enum Theme {
         static let card: CGFloat = 12
         static let control: CGFloat = 8
         static let field: CGFloat = 8
+        static let sidebar: CGFloat = 18
         static let overlay: CGFloat = 20
     }
 
@@ -149,13 +150,17 @@ extension View {
 
     /// Sidebar navigation row: an inset rounded pill that highlights on hover and
     /// selection, matching the reference app.
-    func sidebarRow(isSelected: Bool) -> some View {
+    func sidebarRow(isSelected: Bool, isHovered: Bool = false) -> some View {
         self
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
-                    .fill(isSelected ? Theme.Colors.selection : Color.clear)
+                    .fill(
+                        isSelected
+                            ? Theme.Colors.selection
+                            : (isHovered ? Theme.Colors.selectionHover : Color.clear)
+                    )
             )
             .contentShape(Rectangle())
     }

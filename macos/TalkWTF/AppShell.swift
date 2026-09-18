@@ -56,6 +56,7 @@ struct AppShell: View {
     @State private var booted = false
     @State private var bootError: String?
     @State private var needsOnboarding = false
+    @State private var hoveredSection: AppSection?
 
     var body: some View {
         Group {
@@ -77,7 +78,7 @@ struct AppShell: View {
                 OnboardingView { needsOnboarding = false }
             } else {
                 NavigationSplitView {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 8) {
                             Image(systemName: "waveform").foregroundStyle(.tint)
                             Text("TalkWTF").font(Theme.Fonts.headline)
@@ -87,22 +88,39 @@ struct AppShell: View {
                         .padding(.top, 14)
                         .padding(.bottom, 10)
 
-                        ForEach(AppSection.allCases) { item in
-                            Button {
-                                section = item
-                            } label: {
+                        // A native `List` keeps arrow-key navigation and the
+                        // `.isSelected` trait that hand-rolled buttons lose on
+                        // macOS (buttons are not in the key loop unless Full
+                        // Keyboard Access is on). Rows are styled by hand so the
+                        // card look is preserved; the list chrome is hidden.
+                        List(selection: $section) {
+                            ForEach(AppSection.allCases) { item in
                                 Label(item.title, systemImage: item.symbol)
                                     .font(Theme.Fonts.body)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .sidebarRow(isSelected: section == item)
+                                    .sidebarRow(
+                                        isSelected: section == item,
+                                        isHovered: hoveredSection == item
+                                    )
+                                    .tag(item)
+                                    .onHover { hovering in
+                                        hoveredSection = hovering ? item : nil
+                                    }
+                                    .listRowInsets(
+                                        EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0)
+                                    )
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                                    .accessibilityAddTraits(section == item ? [.isSelected] : [])
                             }
-                            .buttonStyle(.plain)
                         }
-                        Spacer()
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 8)
-                    .glassSurface(cornerRadius: 18)
+                    .padding(.top, 8)
+                    .padding(.bottom, 8)
+                    .glassSurface(cornerRadius: Theme.Radius.sidebar)
                     .padding(8)
                     .navigationSplitViewColumnWidth(
                         min: Theme.Layout.sidebarMinWidth,

@@ -215,7 +215,11 @@ final class OverlayPanel {
             // AX y is top-left based; AppKit is bottom-left based.
             let cocoaY = screen.frame.maxY - near.maxY
             let x = near.minX.clamped(to: screen.frame.minX ... (screen.frame.maxX - size.width))
-            let y = (cocoaY - size.height - 8)
+            // The recording panel is taller than its visible card (the hint line
+            // lives below it). Anchor the card, not the panel: push the panel
+            // down by the overflow so the card keeps its 8pt gap to the field.
+            let overflow = max(0, size.height - model.state.size.height)
+            let y = (cocoaY - size.height - 8 - overflow)
                 .clamped(to: screen.frame.minY ... (screen.frame.maxY - size.height))
             panel.setFrameOrigin(NSPoint(x: x, y: y))
             return
