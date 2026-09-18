@@ -177,6 +177,99 @@ pub fn watch_for_edit(pasted_text: &str) {
     });
 }
 
+/// What one poll of the watch saw (or why it must stop).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Poll {
+    /// The focused field was readable, holding this text.
+    Readable(String),
+    /// Nothing readable was focused this poll.
+    Unreadable,
+    Superseded,
+    SettingOff,
+    SecureInput,
+    AppChanged,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum WatchStep {
+    Continue,
+    Learn,
+    Ignore,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum StopReason {
+    FieldEmptied,
+    FocusLost,
+    AppChanged,
+    Superseded,
+    SettingOff,
+    SecureInput,
+}
+
+/// The watch's settle logic, with the accessibility reads left outside so the
+/// timing rules are unit-testable.
+struct WatchMachine {
+    observed: Vec<String>,
+    unreadable: u32,
+    ever_readable: bool,
+}
+
+impl WatchMachine {
+    fn new() -> Self {
+        Self {
+            observed: Vec::new(),
+            unreadable: 0,
+            ever_readable: false,
+        }
+    }
+
+    fn on(&mut self, poll: Poll) -> (WatchStep, Option<StopReason>) {
+        match poll {
+            Poll::Superseded => (WatchStep::Ignore, Some(StopReason::Superseded)),
+            Poll::SettingOff => (WatchStep::Ignore, Some(StopReason::SettingOff)),
+            Poll::SecureInput => (WatchStep::Ignore, Some(StopReason::SecureInput)),
+            Poll::AppChanged => (WatchStep::Learn, Some(StopReason::AppChanged)),
+            Poll::Unreadable => {
+                self.unreadable = self.unreadable.saturating_add(1);
+                if self.ever_readable && self.unreadable >= FOCUS_LOST_POLLS {
+                    (WatchStep::Learn, Some(StopReason::FocusLost))
+                } else {
+                    (WatchStep::Continue, None)
+                }
+            }
+            Poll::Readable(text) => {
+                self.unreadable = 0;
+                self.ever_readable = true;
+
+                if text.trim().is_empty() {
+                    return (WatchStep::Learn, Some(StopReason::FieldEmptied));
+                }
+
+                if self.observed.last() != Some(&text) {
+                    self.observed.push(text);
+                    if self.observed.len() > MAX_OBSERVED_STATES {
+                        self.observed.remove(0);
+                    }
+                }
+
+                (WatchStep::Continue, None)
+            }
+        }
+    }
+}
+
+fn stop_outcome(reason: StopReason) -> &'static str {
+    match reason {
+        StopReason::FieldEmptied => "the field emptied",
+        StopReason::FocusLost => "the field lost focus",
+        StopReason::AppChanged => "the frontmost app changed",
+        StopReason::Superseded => "superseded by a newer dictation",
+        StopReason::SettingOff => "the setting was turned off",
+        StopReason::SecureInput => "secure input became active",
+    }
+}
+
 /// The newest state the field held that is still an edit of what we pasted.
 /// Prefers a complete value (no trailing whitespace) over a half-typed one.
 fn choose_final(observed: &[String], pasted: &str) -> Option<String> {
@@ -199,12 +292,7 @@ fn choose_final(observed: &[String], pasted: &str) -> Option<String> {
 
 fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<String>, WatchReport) {
     let started = Instant::now();
-    let mut unreadable = 0u32;
-    let mut ever_readable = false;
-
-    // Every distinct non-empty value the field held, oldest first. The decision
-    // at the end looks back through these instead of trusting the last sample.
-    let mut observed: Vec<String> = Vec::new();
+    let mut machine = WatchMachine::new();
 
     let mut report = WatchReport {
         bundle_id: bundle_id.map(str::to_string),
@@ -217,56 +305,35 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         std::thread::sleep(POLL_INTERVAL);
         report.polls += 1;
 
-        if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
-            debug!("Stopping the edit watch: a newer dictation took over");
-            report.outcome = "superseded by a newer dictation".to_string();
-            return (Vec::new(), report);
-        }
-        if !crate::settings::current().learn_from_edits {
-            report.outcome = "the setting was turned off".to_string();
-            return (Vec::new(), report);
-        }
-        // Never read anything while the system is in a secure-input context.
-        if crate::secure_input::is_enabled_now() {
-            debug!("Stopping the edit watch: secure input became active");
-            report.outcome = "secure input became active".to_string();
-            return (Vec::new(), report);
-        }
-        if ax::frontmost_bundle_id().as_deref() != bundle_id {
-            debug!("Stopping the edit watch: the frontmost app changed");
-            report.outcome = "the frontmost app changed".to_string();
-            return (observed, report);
-        }
-
-        // A read can fail transiently — the app is busy, or an input-method
-        // composition window briefly owns focus. That is exactly when the user is
-        // editing, so a failure must never end the watch; "the user moved on" is
-        // detected by the frontmost-app check and by a sustained unreadable streak.
-        let Some(focused) = ax::read_focused_text(unreadable == 0 || unreadable % 40 == 0) else {
-            unreadable = unreadable.saturating_add(1);
-            if ever_readable && unreadable >= FOCUS_LOST_POLLS {
-                debug!("Settling the edit watch: the field lost focus");
-                report.outcome = "the field lost focus".to_string();
-                return (observed, report);
+        let poll = if WATCH_GENERATION.load(Ordering::SeqCst) != generation {
+            Poll::Superseded
+        } else if !crate::settings::current().learn_from_edits {
+            Poll::SettingOff
+        } else if crate::secure_input::is_enabled_now() {
+            Poll::SecureInput
+        } else if ax::frontmost_bundle_id().as_deref() != bundle_id {
+            Poll::AppChanged
+        } else {
+            match ax::read_focused_text(machine.unreadable == 0 || machine.unreadable % 40 == 0) {
+                Some(focused) => {
+                    report.readable_polls += 1;
+                    report.last_field_chars = Some(focused.text.chars().count());
+                    report.last_field_preview = Some(focused.text.chars().take(160).collect());
+                    Poll::Readable(focused.text)
+                }
+                None => Poll::Unreadable,
             }
-            continue;
         };
-        unreadable = 0;
-        ever_readable = true;
-        report.readable_polls += 1;
-        report.last_field_chars = Some(focused.text.chars().count());
-        report.last_field_preview = Some(focused.text.chars().take(160).collect());
 
-        // The field emptied: the message was sent (or the draft cleared).
-        if focused.text.trim().is_empty() {
-            report.outcome = "the field emptied".to_string();
-            return (observed, report);
-        }
-
-        if observed.last().map(String::as_str) != Some(focused.text.as_str()) {
-            observed.push(focused.text.clone());
-            if observed.len() > MAX_OBSERVED_STATES {
-                observed.remove(0);
+        match machine.on(poll) {
+            (WatchStep::Continue, _) => {}
+            (WatchStep::Learn, reason) => {
+                report.outcome = stop_outcome(reason.expect("learn has a reason")).to_string();
+                return (machine.observed, report);
+            }
+            (WatchStep::Ignore, reason) => {
+                report.outcome = stop_outcome(reason.expect("ignore has a reason")).to_string();
+                return (Vec::new(), report);
             }
         }
     }
@@ -625,5 +692,75 @@ mod tests {
         let observed = states(&[pasted, "completely different text"]);
 
         assert_eq!(choose_final(&observed, pasted), None);
+    }
+
+    #[test]
+    fn machine_learns_when_the_field_empties() {
+        let mut machine = WatchMachine::new();
+        assert_eq!(
+            machine.on(Poll::Readable("hello".into())).0,
+            WatchStep::Continue
+        );
+        assert_eq!(
+            machine.on(Poll::Readable(String::new())).0,
+            WatchStep::Learn
+        );
+        assert_eq!(machine.observed, vec!["hello".to_string()]);
+    }
+
+    #[test]
+    fn machine_learns_after_the_focus_is_lost() {
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("hello".into()));
+
+        for _ in 0..(FOCUS_LOST_POLLS - 1) {
+            assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
+        }
+        assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Learn);
+    }
+
+    #[test]
+    fn machine_keeps_waiting_while_the_field_is_stable() {
+        let mut machine = WatchMachine::new();
+        for _ in 0..200 {
+            assert_eq!(
+                machine.on(Poll::Readable("hello".into())).0,
+                WatchStep::Continue
+            );
+        }
+        assert_eq!(machine.observed, vec!["hello".to_string()]);
+    }
+
+    #[test]
+    fn machine_ignores_supersede_setting_and_secure_input() {
+        for poll in [Poll::Superseded, Poll::SettingOff, Poll::SecureInput] {
+            let mut machine = WatchMachine::new();
+            machine.on(Poll::Readable("hello".into()));
+            assert_eq!(machine.on(poll).0, WatchStep::Ignore);
+        }
+    }
+
+    #[test]
+    fn machine_never_settles_on_unreadable_before_reading_once() {
+        let mut machine = WatchMachine::new();
+        for _ in 0..100 {
+            assert_eq!(machine.on(Poll::Unreadable).0, WatchStep::Continue);
+        }
+    }
+
+    #[test]
+    fn machine_learns_when_the_app_changes() {
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("hello".into()));
+        assert_eq!(machine.on(Poll::AppChanged).0, WatchStep::Learn);
+    }
+
+    #[test]
+    fn machine_caps_the_observed_states() {
+        let mut machine = WatchMachine::new();
+        for index in 0..(MAX_OBSERVED_STATES + 5) {
+            machine.on(Poll::Readable(format!("value {index}")));
+        }
+        assert_eq!(machine.observed.len(), MAX_OBSERVED_STATES);
     }
 }
