@@ -400,10 +400,13 @@ impl EnhancedUserInterface {
 
 impl Drop for EnhancedUserInterface {
     fn drop(&mut self) {
+        // Chromium creates AXEnhancedUserInterface lazily, so a missing prior
+        // value is the common case. Restore to false rather than leaving the
+        // attribute we set (true) behind; if it is unsupported the set fails
+        // harmlessly.
         let value = match self.previous {
             Some(true) => unsafe { kCFBooleanTrue },
-            Some(false) => unsafe { kCFBooleanFalse },
-            None => return,
+            Some(false) | None => unsafe { kCFBooleanFalse },
         };
         let attribute = attribute("AXEnhancedUserInterface");
         unsafe {
@@ -866,6 +869,18 @@ mod tests {
     fn smart_join_inserts_space_between_cjk_and_latin() {
         let fragments = vec!["你好".to_string(), "world".to_string()];
         assert_eq!(smart_join(&fragments), "你好 world");
+    }
+
+    #[test]
+    fn smart_join_omits_separator_between_two_cjk_fragments() {
+        let fragments = vec!["你好".to_string(), "世界".to_string()];
+        assert_eq!(smart_join(&fragments), "你好世界");
+    }
+
+    #[test]
+    fn smart_join_skips_empty_fragments() {
+        let fragments = vec!["".to_string(), "hi".to_string(), "".to_string()];
+        assert_eq!(smart_join(&fragments), "hi");
     }
 
     #[test]
