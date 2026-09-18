@@ -25,6 +25,10 @@ const WATCH_WINDOW: Duration = Duration::from_secs(45);
 /// Consecutive polls with no readable focus, after the field was readable, that
 /// mean the user moved on (sent, submitted, or clicked away). 10 * 200ms = 2s.
 const FOCUS_LOST_POLLS: u32 = 10;
+/// After Enter, how long we wait for the field to clear (or the app to navigate)
+/// to confirm the key really sent. An input-method commit keeps the text and
+/// grows it instead, so it is not a send.
+const SEND_CONFIRM_WINDOW: Duration = Duration::from_millis(1500);
 /// How many observed field states we keep. Every distinct value is stored, so the
 /// decision at the end can look back past an incomplete one.
 const MAX_OBSERVED_STATES: usize = 40;
@@ -276,6 +280,12 @@ struct WatchMachine {
     observed: Vec<String>,
     unreadable: u32,
     ever_readable: bool,
+    /// Set when Enter arrives; the send is only confirmed once the field clears
+    /// (or the app navigates) within `SEND_CONFIRM_WINDOW`.
+    pending_send: Option<Instant>,
+    /// The field text when Enter arrived, so a growing field can be told apart
+    /// from a send.
+    pending_text: Option<String>,
 }
 
 impl WatchMachine {
@@ -284,7 +294,19 @@ impl WatchMachine {
             observed: Vec::new(),
             unreadable: 0,
             ever_readable: false,
+            pending_send: None,
+            pending_text: None,
         }
+    }
+
+    fn clear_pending(&mut self) {
+        self.pending_send = None;
+        self.pending_text = None;
+    }
+
+    fn pending_expired(&self) -> bool {
+        self.pending_send
+            .is_some_and(|at| at.elapsed() >= SEND_CONFIRM_WINDOW)
     }
 
     fn on(&mut self, poll: Poll) -> (WatchStep, Option<StopReason>) {
@@ -292,10 +314,27 @@ impl WatchMachine {
             Poll::Superseded => (WatchStep::Ignore, Some(StopReason::Superseded)),
             Poll::SettingOff => (WatchStep::Ignore, Some(StopReason::SettingOff)),
             Poll::SecureInput => (WatchStep::Ignore, Some(StopReason::SecureInput)),
-            Poll::AppChanged => (WatchStep::Ignore, Some(StopReason::AppChanged)),
-            Poll::Enter => (WatchStep::Learn, Some(StopReason::Enter)),
+            // An app switch only counts as a send if Enter preceded it; otherwise
+            // the user just moved on.
+            Poll::AppChanged => {
+                if self.pending_send.is_some() {
+                    (WatchStep::Learn, Some(StopReason::AppChanged))
+                } else {
+                    (WatchStep::Ignore, Some(StopReason::AppChanged))
+                }
+            }
+            // Enter is a candidate send, not a send: an input-method commit also
+            // presses Enter. Confirmation happens on a later poll.
+            Poll::Enter => {
+                self.pending_send = Some(Instant::now());
+                self.pending_text = self.observed.last().cloned();
+                (WatchStep::Continue, None)
+            }
             Poll::IdentityChanged => (WatchStep::Ignore, Some(StopReason::IdentityChanged)),
             Poll::Unreadable => {
+                if self.pending_expired() {
+                    self.clear_pending();
+                }
                 self.unreadable = self.unreadable.saturating_add(1);
                 if self.ever_readable && self.unreadable >= FOCUS_LOST_POLLS {
                     (WatchStep::Ignore, Some(StopReason::FocusLost))
@@ -308,7 +347,20 @@ impl WatchMachine {
                 self.ever_readable = true;
 
                 if text.trim().is_empty() {
-                    return (WatchStep::Ignore, Some(StopReason::FieldEmptied));
+                    // The field cleared: a send if Enter just preceded it.
+                    return if self.pending_send.is_some() {
+                        (WatchStep::Learn, Some(StopReason::Enter))
+                    } else {
+                        (WatchStep::Ignore, Some(StopReason::FieldEmptied))
+                    };
+                }
+
+                // A field that keeps changing after Enter was an input-method
+                // commit, not a send.
+                if self.pending_send.is_some() && self.pending_text.as_deref() != Some(&text) {
+                    self.clear_pending();
+                } else if self.pending_expired() {
+                    self.clear_pending();
                 }
 
                 if self.observed.last() != Some(&text) {
@@ -326,7 +378,7 @@ impl WatchMachine {
 
 fn stop_outcome(reason: StopReason) -> &'static str {
     match reason {
-        StopReason::Enter => "the enter key was pressed",
+        StopReason::Enter => "the enter key was pressed and the field cleared",
         StopReason::FieldEmptied => "the field emptied",
         StopReason::FocusLost => "the field lost focus",
         StopReason::IdentityChanged => "the focused field changed",
@@ -1172,12 +1224,72 @@ mod tests {
     }
 
     #[test]
-    fn machine_learns_on_enter() {
+    fn machine_learns_when_enter_is_confirmed_by_clearing() {
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("hello".into()));
+        // Enter alone is not a send.
+        assert_eq!(machine.on(Poll::Enter), (WatchStep::Continue, None));
+        // The field clearing right after confirms it.
+        assert_eq!(
+            machine.on(Poll::Readable(String::new())),
+            (WatchStep::Learn, Some(StopReason::Enter))
+        );
+        assert_eq!(machine.observed, vec!["hello".to_string()]);
+    }
+
+    #[test]
+    fn machine_ignores_an_input_method_commit() {
+        // Enter followed by more text is an input-method commit, not a send.
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("Cic".into()));
+        assert_eq!(machine.on(Poll::Enter), (WatchStep::Continue, None));
+        assert_eq!(
+            machine.on(Poll::Readable("Cica".into())),
+            (WatchStep::Continue, None)
+        );
+        // A later clear must not learn now that the pending send was cancelled.
+        assert_eq!(
+            machine.on(Poll::Readable(String::new())),
+            (WatchStep::Ignore, Some(StopReason::FieldEmptied))
+        );
+    }
+
+    #[test]
+    fn machine_learns_when_enter_is_confirmed_by_an_app_change() {
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("hello".into()));
+        machine.on(Poll::Enter);
+        assert_eq!(
+            machine.on(Poll::AppChanged),
+            (WatchStep::Learn, Some(StopReason::AppChanged))
+        );
+    }
+
+    #[test]
+    fn machine_ignores_an_app_change_without_enter() {
         let mut machine = WatchMachine::new();
         machine.on(Poll::Readable("hello".into()));
         assert_eq!(
-            machine.on(Poll::Enter),
-            (WatchStep::Learn, Some(StopReason::Enter))
+            machine.on(Poll::AppChanged),
+            (WatchStep::Ignore, Some(StopReason::AppChanged))
+        );
+    }
+
+    #[test]
+    fn machine_cancels_a_pending_send_on_timeout() {
+        let mut machine = WatchMachine::new();
+        machine.on(Poll::Readable("hello".into()));
+        machine.on(Poll::Enter);
+        std::thread::sleep(SEND_CONFIRM_WINDOW + Duration::from_millis(50));
+        // Same text, window elapsed: the pending send is dropped.
+        assert_eq!(
+            machine.on(Poll::Readable("hello".into())),
+            (WatchStep::Continue, None)
+        );
+        assert!(machine.pending_send.is_none());
+        assert_eq!(
+            machine.on(Poll::Readable(String::new())),
+            (WatchStep::Ignore, Some(StopReason::FieldEmptied))
         );
     }
 

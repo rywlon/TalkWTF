@@ -165,6 +165,7 @@ final class OverlayController {
 final class OverlayPanel {
     private let model: OverlayModel
     private var panel: NSPanel?
+    private var hosting: NSHostingView<OverlayView>?
 
     init(model: OverlayModel) {
         self.model = model
@@ -186,13 +187,16 @@ final class OverlayPanel {
         }
     }
 
-    /// The panel size for the current state, computed from state alone so hover
-    /// cannot change it.
+    /// The content's intrinsic size. Recording renders both the info line and the
+    /// hover actions in a `ZStack`, so the measured width is the same hovering or
+    /// not; the clamp keeps a very long app name from running off the screen.
     private func fittedSize() -> NSSize {
-        NSSize(
-            width: OverlayView.contentWidth(for: model),
-            height: model.state.panelSize.height
-        )
+        guard let hosting else { return model.state.panelSize }
+        hosting.layoutSubtreeIfNeeded()
+        let fitting = hosting.fittingSize
+        let width = min(max(fitting.width, 240), 520)
+        let height = max(fitting.height, model.state.panelSize.height)
+        return NSSize(width: width, height: height)
     }
 
     func hide() {
@@ -224,6 +228,7 @@ final class OverlayPanel {
         // The size is set explicitly in `show`.
         hosting.sizingOptions = []
         panel.contentView = hosting
+        self.hosting = hosting
 
         self.panel = panel
         return panel
@@ -300,17 +305,26 @@ struct OverlayView: View {
         HStack(spacing: 12) {
             switch model.state {
             case .recording, .streaming:
-                if hovering {
-                    finishButton
-                    discardButton
-                } else {
-                    appBadge
-                    Spacer(minLength: 8)
-                    waveform
-                    Spacer(minLength: 8)
-                    Text("TalkWTF")
-                        .font(Theme.Fonts.caption)
-                        .foregroundStyle(.secondary)
+                // Both layers live in one ZStack so the card width is the same
+                // hovering or not; the hover actions just fade over the info line.
+                ZStack {
+                    HStack(spacing: 12) {
+                        appBadge
+                        Spacer(minLength: 8)
+                        waveform
+                        Spacer(minLength: 8)
+                        Text("TalkWTF")
+                            .font(Theme.Fonts.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .opacity(hovering ? 0 : 1)
+
+                    HStack(spacing: 8) {
+                        finishButton
+                        discardButton
+                    }
+                    .opacity(hovering ? 1 : 0)
+                    .allowsHitTesting(hovering)
                 }
             case .transcribing:
                 spinner
@@ -354,25 +368,10 @@ struct OverlayView: View {
             }
         }
         .padding(.horizontal, 16)
-        .frame(width: Self.contentWidth(for: model), height: model.state.size.height)
+        .frame(height: model.state.size.height)
+        .fixedSize(horizontal: true, vertical: false)
         .opacity(hovering && isRecordingState ? 0.92 : 1)
         .onHover { hovering = $0 }
-    }
-
-    /// The card width for the current state. Recording/streaming size to the app
-    /// name so a long name is not clipped, but the value is computed from state
-    /// (not from the live layout), so the hover actions cannot change it.
-    static func contentWidth(for model: OverlayModel) -> CGFloat {
-        switch model.state {
-        case .recording, .streaming:
-            let name = model.targetAppName ?? ""
-            let nameWidth = (name as NSString)
-                .size(withAttributes: [.font: NSFont.systemFont(ofSize: 13)]).width
-            let intrinsic = Theme.Overlay.iconSize + 6 + nameWidth + 8 + 105 + 8 + 56 + 32
-            return min(max(intrinsic, 260), 460)
-        default:
-            return model.state.size.width
-        }
     }
 
     /// The app the transcript will land in: its icon and name, omitted entirely
