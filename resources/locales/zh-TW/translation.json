@@ -750,7 +750,8 @@
     "personalization": {
       "polish": "AI Polish",
       "translation": "Translate"
-    }
+    },
+    "subtitle": "依你的習慣調整 TalkWTF"
   },
   "footer": {
     "checkingUpdates": "檢查更新中...",
@@ -845,6 +846,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "subtitle": "本機聽寫活動一覽",
     "refresh": "Refresh",
     "loading": "Loading…",
     "error": "Couldn't load your stats.",
@@ -917,5 +919,9 @@
       "dictation": "Dictation",
       "translate": "Translate"
     }
+  },
+  "library": {
+    "subtitle": "歷史與詞典，全部保存在本機",
+    "searchPlaceholder": "搜尋"
   }
 }

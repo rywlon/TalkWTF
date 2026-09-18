@@ -30,8 +30,8 @@ struct LibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-                HStack {
-                    Text(L("sidebar.library")).font(Theme.Fonts.largeTitle)
+                HStack(alignment: .top) {
+                    pageHeader(L("sidebar.library"), subtitle: L("library.subtitle"))
                     Spacer()
                     Picker("", selection: $tab) {
                         ForEach(Tab.allCases) { item in
@@ -103,12 +103,12 @@ struct LibraryView: View {
             HStack(spacing: Theme.Spacing.row) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField(L("settings.history.searchPlaceholder"), text: $query)
+                    TextField(L("library.searchPlaceholder"), text: $query)
                         .textFieldStyle(.plain)
                 }
-                .padding(.horizontal, 8)
-                .frame(height: Theme.Control.fieldHeight)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Theme.Colors.cardFill, in: Capsule())
                 .frame(maxWidth: 280)
 
                 Picker("", selection: $sort) {
@@ -219,7 +219,7 @@ struct LibraryView: View {
     private var dictionaryList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                GroupBox(L("settings.dictionary.wordsTitle")) {
+                GroupBox(label: Text(L("settings.dictionary.wordsTitle")).font(Theme.Fonts.sectionHeader)) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             TextField(L("settings.advanced.customWords.placeholder"), text: $newWord)
@@ -251,7 +251,7 @@ struct LibraryView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                GroupBox(L("settings.dictionary.rulesTitle")) {
+                GroupBox(label: Text(L("settings.dictionary.rulesTitle")).font(Theme.Fonts.sectionHeader)) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             TextField(L("settings.dictionary.patternPlaceholder"), text: $newPattern)
@@ -293,7 +293,7 @@ struct LibraryView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                GroupBox(L("settings.dictionary.learn.rejectedTitle")) {
+                GroupBox(label: Text(L("settings.dictionary.learn.rejectedTitle")).font(Theme.Fonts.sectionHeader)) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(L("settings.dictionary.learn.rejectedDescription"))
                             .font(.caption)

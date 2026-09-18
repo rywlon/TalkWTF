@@ -750,7 +750,8 @@
     "personalization": {
       "polish": "AI Polish",
       "translation": "Translate"
-    }
+    },
+    "subtitle": "Make TalkWTF work the way you do"
   },
   "footer": {
     "checkingUpdates": "अपडेटहरू जाँच गरिँदैछ...",
@@ -845,6 +846,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "subtitle": "Your local dictation activity at a glance",
     "refresh": "Refresh",
     "loading": "Loading…",
     "error": "Couldn't load your stats.",
@@ -917,5 +919,9 @@
       "dictation": "Dictation",
       "translate": "Translate"
     }
+  },
+  "library": {
+    "subtitle": "History and dictionary, kept on this Mac",
+    "searchPlaceholder": "Search"
   }
 }

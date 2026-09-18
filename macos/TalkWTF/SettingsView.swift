@@ -17,8 +17,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(L("settings.panes.\(pane.rawValue)"))
-                    .font(Theme.Fonts.largeTitle)
+                pageHeader(L("settings.panes.\(pane.rawValue)"), subtitle: L("settings.subtitle"))
 
                 if let error {
                     Text(error).foregroundStyle(.red).textSelection(.enabled)
@@ -51,7 +50,7 @@ struct SettingsView: View {
 
     private var generalPane: some View {
         Form {
-            Section(L("settings.general.title")) {
+            Section(header: Text(L("settings.general.title")).font(Theme.Fonts.sectionHeader)) {
                 Picker(L("appLanguage.title"), selection: store.binding("app_language", default: "en")) {
                     ForEach(Languages.all) { language in
                         Text(language.nativeName).tag(language.code)
@@ -83,7 +82,7 @@ struct SettingsView: View {
                 }
             }
 
-            Section(L("settings.general.shortcutsGroup")) {
+            Section(header: Text(L("settings.general.shortcutsGroup")).font(Theme.Fonts.sectionHeader)) {
                 Picker(
                     L("settings.general.shortcutActivation.title"),
                     selection: store.binding("shortcut_activation", default: "hold_or_toggle")
@@ -110,7 +109,7 @@ struct SettingsView: View {
                 }
             }
 
-            Section(L("settings.general.behaviorGroup")) {
+            Section(header: Text(L("settings.general.behaviorGroup")).font(Theme.Fonts.sectionHeader)) {
                 Toggle(L("settings.advanced.startHidden.label"), isOn: store.boolBinding("start_hidden"))
                 Toggle(L("settings.advanced.autostart.label"), isOn: store.boolBinding("autostart_enabled"))
                     .onChange(of: store.bool("autostart_enabled")) { _, enabled in
@@ -140,7 +139,7 @@ struct SettingsView: View {
 
     private var audioPane: some View {
         Form {
-            Section(L("settings.sound.microphone.title")) {
+            Section(header: Text(L("settings.sound.microphone.title")).font(Theme.Fonts.sectionHeader)) {
                 Picker(L("settings.sound.microphone.title"), selection: store.binding("selected_microphone", default: "")) {
                     Text(L("settings.sound.microphone.placeholder")).tag("")
                     ForEach(inputDevices.indices, id: \.self) { index in
@@ -161,7 +160,7 @@ struct SettingsView: View {
                 Toggle(L("settings.debug.alwaysOnMicrophone.label"), isOn: store.boolBinding("always_on_microphone"))
                 Toggle(L("settings.debug.muteWhileRecording.label"), isOn: store.boolBinding("mute_while_recording"))
             }
-            Section(L("settings.sound.outputDevice.title")) {
+            Section(header: Text(L("settings.sound.outputDevice.title")).font(Theme.Fonts.sectionHeader)) {
                 Picker(L("settings.sound.outputDevice.title"), selection: store.binding("selected_output_device", default: "")) {
                     Text(L("settings.sound.outputDevice.placeholder")).tag("")
                     ForEach(outputDevices.indices, id: \.self) { index in
@@ -200,7 +199,7 @@ struct SettingsView: View {
 
     private var advancedPane: some View {
         Form {
-            Section(L("settings.advanced.groups.output")) {
+            Section(header: Text(L("settings.advanced.groups.output")).font(Theme.Fonts.sectionHeader)) {
                 Picker(L("settings.advanced.pasteMethod.title"), selection: store.binding("paste_method", default: "ctrl_v")) {
                     Text(L("settings.advanced.pasteMethod.options.clipboard", ["modifier": "⌘"])).tag("ctrl_v")
                     Text(L("settings.advanced.pasteMethod.options.clipboardShiftInsert", ["modifier": "⇧"])).tag("shift_insert")
@@ -230,7 +229,7 @@ struct SettingsView: View {
 
                 Toggle(L("settings.debug.appendTrailingSpace.label"), isOn: store.boolBinding("append_trailing_space"))
             }
-            Section(L("settings.advanced.groups.transcription")) {
+            Section(header: Text(L("settings.advanced.groups.transcription")).font(Theme.Fonts.sectionHeader)) {
                 Toggle(L("settings.advanced.voiceActivityDetection.title"), isOn: store.boolBinding("vad_enabled"))
                 Picker(L("settings.advanced.vadBackend.title"), selection: store.binding("vad_backend", default: "silero")) {
                     Text(L("settings.advanced.vadBackend.options.silero")).tag("silero")
@@ -260,7 +259,7 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.menu)
             }
-            Section(L("settings.advanced.groups.history")) {
+            Section(header: Text(L("settings.advanced.groups.history")).font(Theme.Fonts.sectionHeader)) {
                 LabeledContent(L("settings.debug.historyLimit.title")) {
                     Stepper(
                         value: store.intBinding("history_limit", default: 5),
@@ -280,14 +279,14 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.menu)
             }
-            Section(L("settings.advanced.groups.experimental")) {
+            Section(header: Text(L("settings.advanced.groups.experimental")).font(Theme.Fonts.sectionHeader)) {
                 Toggle(L("settings.advanced.experimentalToggle.label"), isOn: store.boolBinding("experimental_enabled"))
                 Text(L("settings.advanced.experimentalToggle.description"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle(L("settings.advanced.lazyStreamClose.label"), isOn: store.boolBinding("lazy_stream_close"))
             }
-            Section(L("settings.advanced.groups.app")) {
+            Section(header: Text(L("settings.advanced.groups.app")).font(Theme.Fonts.sectionHeader)) {
                 Picker(L("settings.advanced.acceleration.transcribe.title"), selection: store.binding("transcription_accelerator", default: "auto")) {
                     Text(L("settings.advanced.acceleration.gpuDevice.auto")).tag("auto")
                     ForEach(acceleratorOptions, id: \.self) { option in
@@ -307,7 +306,7 @@ struct SettingsView: View {
 
     private var debugPane: some View {
         Form {
-            Section(L("settings.debug.logLevel.title")) {
+            Section(header: Text(L("settings.debug.logLevel.title")).font(Theme.Fonts.sectionHeader)) {
                 Picker(L("settings.debug.logLevel.title"), selection: store.binding("log_level", default: "debug")) {
                     Text("Trace").tag("trace")
                     Text("Debug").tag("debug")
@@ -321,7 +320,7 @@ struct SettingsView: View {
                     Button(L("common.open")) { NSWorkspace.shared.open(AppPaths.logDirectory) }
                 }
             }
-            Section(L("settings.advanced.groups.app")) {
+            Section(header: Text(L("settings.advanced.groups.app")).font(Theme.Fonts.sectionHeader)) {
                 delayField(
                     "extra_recording_buffer_ms",
                     "settings.debug.recordingBuffer.title",
@@ -334,7 +333,7 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.menu)
             }
-            Section(L("settings.debug.overlayPreview.title")) {
+            Section(header: Text(L("settings.debug.overlayPreview.title")).font(Theme.Fonts.sectionHeader)) {
                 Text(L("settings.debug.overlayPreview.description"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -359,7 +358,7 @@ struct SettingsView: View {
                     previewButton(.notice(kind: "no_target"), "settings.debug.overlayPreview.notice")
                 }
             }
-            Section(L("settings.dictionary.diagnose.title")) {
+            Section(header: Text(L("settings.dictionary.diagnose.title")).font(Theme.Fonts.sectionHeader)) {
                 LabeledContent(
                     L("onboarding.permissions.accessibility.title"),
                     value: Permissions.accessibilityGranted ? L("dashboard.services.enabled") : L("dashboard.services.disabled")
@@ -372,7 +371,7 @@ struct SettingsView: View {
                     Permissions.requestAccessibility()
                 }
             }
-            Section(L("settings.debug.secureInput.title")) {
+            Section(header: Text(L("settings.debug.secureInput.title")).font(Theme.Fonts.sectionHeader)) {
                 Text(L("settings.debug.secureInput.hint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -414,7 +413,7 @@ struct SettingsView: View {
                 }
                 Button(L("dashboard.refresh")) { refreshSecureInput() }
             }
-            Section(L("settings.debug.keyboardDiagnostic.title")) {
+            Section(header: Text(L("settings.debug.keyboardDiagnostic.title")).font(Theme.Fonts.sectionHeader)) {
                 Text(L("settings.debug.keyboardDiagnostic.description"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -467,7 +466,7 @@ struct SettingsView: View {
                     Text(error).font(.callout).foregroundStyle(.red)
                 }
             }
-            Section(L("settings.debug.learningAttempts.title")) {
+            Section(header: Text(L("settings.debug.learningAttempts.title")).font(Theme.Fonts.sectionHeader)) {
                 if learningAttempts.isEmpty {
                     Text(L("settings.debug.learningAttempts.empty"))
                         .font(.caption)
@@ -518,7 +517,7 @@ struct SettingsView: View {
 
     private var aboutPane: some View {
         Form {
-            Section(L("settings.about.title")) {
+            Section(header: Text(L("settings.about.title")).font(Theme.Fonts.sectionHeader)) {
                 LabeledContent(L("settings.about.version.title"), value: Core.version)
                 LabeledContent("talkwtf-core", value: "Rust · FFI · 无 Tauri")
                 LabeledContent(L("settings.about.appDataDirectory.title"), value: AppPaths.dataDirectory.path)

@@ -16,8 +16,8 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-                HStack {
-                    Text(L("dashboard.title")).font(Theme.Fonts.largeTitle)
+                HStack(alignment: .top) {
+                    pageHeader(L("dashboard.title"), subtitle: L("dashboard.subtitle"))
                     Spacer()
                     Button {
                         load()
@@ -58,7 +58,7 @@ struct DashboardView: View {
     // MARK: - sections
 
     private func todaySection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(L("dashboard.today.title")) {
+        GroupBox(label: Text(L("dashboard.today.title")).font(Theme.Fonts.sectionHeader)) {
             LazyVGrid(columns: fourColumns, spacing: 12) {
                 StatCard(
                     symbol: "mic",
@@ -86,7 +86,7 @@ struct DashboardView: View {
     }
 
     private func metricsSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(L("dashboard.metrics.title")) {
+        GroupBox(label: Text(L("dashboard.metrics.title")).font(Theme.Fonts.sectionHeader)) {
             LazyVGrid(columns: columns, spacing: 12) {
                 StatCard(
                     symbol: "mic.fill",
@@ -124,7 +124,7 @@ struct DashboardView: View {
     }
 
     private func weeklySection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(L("dashboard.weekly.title")) {
+        GroupBox(label: Text(L("dashboard.weekly.title")).font(Theme.Fonts.sectionHeader)) {
             let peak = max(1, stats.weekly.map(\.count).max() ?? 1)
             HStack(alignment: .bottom, spacing: 10) {
                 ForEach(stats.weekly) { day in
@@ -149,7 +149,7 @@ struct DashboardView: View {
     }
 
     private func tokensSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(L("dashboard.tokens.title")) {
+        GroupBox(label: Text(L("dashboard.tokens.title")).font(Theme.Fonts.sectionHeader)) {
             let hasUsage = stats.tokensToday.totalTokens > 0 || stats.tokensWeek.totalTokens > 0
             if !hasUsage {
                 Text(L("dashboard.tokens.none"))
@@ -188,7 +188,7 @@ struct DashboardView: View {
     }
 
     private func servicesSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(L("dashboard.services.title")) {
+        GroupBox(label: Text(L("dashboard.services.title")).font(Theme.Fonts.sectionHeader)) {
             VStack(alignment: .leading, spacing: 8) {
                 ServiceRow(
                     title: L("dashboard.services.asr"),
@@ -209,7 +209,7 @@ struct DashboardView: View {
     }
 
     private func personalizationSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(L("dashboard.personalization.title")) {
+        GroupBox(label: Text(L("dashboard.personalization.title")).font(Theme.Fonts.sectionHeader)) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(L("dashboard.personalization.label"))
@@ -234,7 +234,7 @@ struct DashboardView: View {
     }
 
     private func recentSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(L("dashboard.recent.title")) {
+        GroupBox(label: Text(L("dashboard.recent.title")).font(Theme.Fonts.sectionHeader)) {
             if stats.recent.isEmpty {
                 Text(L("dashboard.recent.empty"))
                     .foregroundStyle(.secondary)

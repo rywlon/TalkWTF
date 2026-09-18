@@ -122,7 +122,7 @@ struct AppShell: View {
                         VStack(spacing: 0) {
                             Picker("", selection: $pane) {
                                 ForEach(SettingsPane.allCases) { item in
-                                    Text(item.title).tag(item)
+                                    Label(item.title, systemImage: item.symbol).tag(item)
                                 }
                             }
                             .pickerStyle(.segmented)

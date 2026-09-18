@@ -39,7 +39,7 @@ struct PersonalizationView: View {
     // MARK: - polish
 
     private var polishSection: some View {
-        Section(L("sidebar.postProcessing")) {
+        Section(header: Text(L("sidebar.postProcessing")).font(Theme.Fonts.sectionHeader)) {
             Picker(
                 L("settings.postProcessing.api.provider.title"),
                 selection: store.binding("post_process_provider_id", default: "")
@@ -96,7 +96,7 @@ struct PersonalizationView: View {
     // MARK: - styles
 
     private var styleSection: some View {
-        Section(L("settings.postProcessing.style.title")) {
+        Section(header: Text(L("settings.postProcessing.style.title")).font(Theme.Fonts.sectionHeader)) {
             Picker(
                 L("settings.postProcessing.style.title"),
                 selection: Binding(
@@ -123,7 +123,7 @@ struct PersonalizationView: View {
     // MARK: - scenes
 
     private var sceneSection: some View {
-        Section(L("settings.postProcessing.scene.title")) {
+        Section(header: Text(L("settings.postProcessing.scene.title")).font(Theme.Fonts.sectionHeader)) {
             ForEach(scenes.indices, id: \.self) { index in
                 let scene = scenes[index]
                 if let id = scene["id"] as? String {
@@ -176,7 +176,7 @@ struct PersonalizationView: View {
     // MARK: - translation
 
     private var translationSection: some View {
-        Section(L("settings.translation.title")) {
+        Section(header: Text(L("settings.translation.title")).font(Theme.Fonts.sectionHeader)) {
             ForEach(store.stringArray("translation_targets"), id: \.self) { code in
                 HStack {
                     Image(systemName: store.string("translation_active_target") == code

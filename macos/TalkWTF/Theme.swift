@@ -106,13 +106,26 @@ extension View {
             .frame(maxWidth: Theme.Layout.contentMaxWidth, alignment: .leading)
     }
 
+    /// Large page title + secondary subtitle, matching the reference app.
+    func pageHeader(_ title: String, subtitle: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(Theme.Fonts.largeTitle)
+            if let subtitle {
+                Text(subtitle)
+                    .font(Theme.Fonts.pageSubtitle)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// A card surface used by dashboard tiles and list containers.
     func cardSurface() -> some View {
         self
             .padding(Theme.Spacing.row + 4)
             .background(
-                .quaternary.opacity(0.4),
-                in: RoundedRectangle(cornerRadius: Theme.Radius.card)
+                Theme.Colors.cardFill,
+                in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
             )
     }
 

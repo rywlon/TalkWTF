@@ -17,7 +17,7 @@ struct ModelsView: View {
             if let error {
                 Text(error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
             }
-            Section(L("settings.models.title")) {
+            Section(header: Text(L("settings.models.title")).font(Theme.Fonts.sectionHeader)) {
                 ForEach(models.indices, id: \.self) { index in
                     modelRow(models[index])
                 }
@@ -26,7 +26,7 @@ struct ModelsView: View {
                     load()
                 }
             }
-            Section(L("settings.advanced.groups.app")) {
+            Section(header: Text(L("settings.advanced.groups.app")).font(Theme.Fonts.sectionHeader)) {
                 Picker(L("settings.advanced.acceleration.transcribe.title"), selection: transcribeSelection) {
                     ForEach(transcribeOptions, id: \.value) { option in
                         Text(option.label).tag(option.value)

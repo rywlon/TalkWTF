@@ -750,7 +750,8 @@
     "personalization": {
       "polish": "AI 润色",
       "translation": "翻译"
-    }
+    },
+    "subtitle": "按你的习惯调整 TalkWTF"
   },
   "footer": {
     "checkingUpdates": "检查更新中...",
@@ -845,6 +846,7 @@
   },
   "dashboard": {
     "title": "概览",
+    "subtitle": "本机听写活动一览",
     "refresh": "刷新",
     "loading": "加载中…",
     "error": "无法加载统计数据。",
@@ -917,5 +919,9 @@
       "dictation": "听写",
       "translate": "翻译"
     }
+  },
+  "library": {
+    "subtitle": "历史与词典，全部保存在本机",
+    "searchPlaceholder": "搜索"
   }
 }
