@@ -520,6 +520,63 @@ fn candidates_from_span(old: &[char], new: &[char]) -> Vec<EditCandidate> {
     }]
 }
 
+/// How much an edit changed relative to the dictated text. Mirrors Typeless's
+/// `analysisModification`: a small localized correction is learnable, a whole
+/// rewrite is not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Modification {
+    pub is_large_modify: bool,
+    pub added_count: usize,
+    pub removed_count: usize,
+    pub changed_count: usize,
+}
+
+/// Largest fraction of the text a learnable correction may touch.
+const LARGE_MODIFY_RATIO: f64 = 0.5;
+/// Absolute cap, so a very short dictation cannot be almost entirely rewritten.
+const LARGE_MODIFY_MAX_CHARS: usize = 40;
+
+/// Compare the dictated text with the edited text and count the character-level
+/// additions, removals and replacements.
+pub fn analysis_modification(original: &str, current: &str, inserted: &str) -> Modification {
+    let old: Vec<char> = original.chars().collect();
+    let new: Vec<char> = current.chars().collect();
+
+    let mut added = 0usize;
+    let mut removed = 0usize;
+    let mut changed = 0usize;
+
+    for (old_start, old_end, new_start, new_end) in lcs_hunks(&old, &new) {
+        let old_len = old_end - old_start;
+        let new_len = new_end - new_start;
+        match (old_len, new_len) {
+            (0, n) => added += n,
+            (m, 0) => removed += m,
+            (m, n) => {
+                let shared = m.min(n);
+                changed += shared;
+                if m > n {
+                    removed += m - n;
+                } else {
+                    added += n - m;
+                }
+            }
+        }
+    }
+
+    let baseline = inserted.chars().count().max(1);
+    let touched = added + removed + changed;
+    let is_large_modify =
+        touched > LARGE_MODIFY_MAX_CHARS || (touched as f64 / baseline as f64) > LARGE_MODIFY_RATIO;
+
+    Modification {
+        is_large_modify,
+        added_count: added,
+        removed_count: removed,
+        changed_count: changed,
+    }
+}
+
 /// Every correction we can justify between `pasted` and `current`.
 ///
 /// Empty when there is no edit, when we cannot locate the pasted text, or when
@@ -563,8 +620,14 @@ fn edits_in_window(pasted_chars: &[char], window: &[char]) -> Option<Vec<EditCan
     // Nothing changed, or a pure insertion/deletion. Checked *before* widening:
     // expanding an empty span would invent a candidate out of the neighbouring
     // token (a capitalization fix or appended text would look like an edit).
+    //
+    // Stop the window search here. The best alignment is already the correct one,
+    // so a worse alignment cannot reveal a real correction — it only smears the
+    // neighbouring text into a bogus span. Sliding on is what turned a pure
+    // deletion of "C3XO" into the invented phrase
+    // "客人说他想做C3XO" -> "人说他想做".
     if raw_old_start == raw_old_end || raw_new_start == raw_new_end {
-        return None;
+        return Some(Vec::new());
     }
 
     // A lone hanzi is not a term, so a change that is exactly one CJK character is
@@ -729,6 +792,19 @@ mod tests {
     }
 
     #[test]
+    fn a_pure_deletion_of_a_term_is_not_learned_as_a_phrase() {
+        // Real case: the user deleted "C3XO" entirely. Sliding to a worse window
+        // alignment invented the phrase "客人说他想做C3XO" -> "人说他想做".
+        assert_eq!(
+            candidate(
+                "客人说他想做C3XO，请问可以吗？",
+                "客人说他想做，请问可以吗？"
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn a_full_rewrite_is_rejected() {
         assert_eq!(
             candidate(
@@ -883,5 +959,39 @@ mod tests {
         // Nothing differs: the returned context is empty (or the whole text).
         assert!(old.len() <= "same".len());
         assert!(new.len() <= "same".len());
+    }
+
+    #[test]
+    fn analysis_modification_flags_a_small_correction() {
+        // One term replaced inside a dictated sentence: not a large modify.
+        let m = analysis_modification(
+            "客人说他想做C3XO，请问可以吗？",
+            "客人说他想做Cica Exo，请问可以吗？",
+            "客人说他想做C3XO，请问可以吗？",
+        );
+        assert!(!m.is_large_modify);
+        assert!(m.changed_count + m.added_count + m.removed_count > 0);
+    }
+
+    #[test]
+    fn analysis_modification_flags_a_whole_rewrite() {
+        // The user rewrote the sentence: a large modify.
+        let m = analysis_modification(
+            "the quick brown fox jumps over the lazy dog",
+            "please schedule the meeting for next tuesday morning",
+            "the quick brown fox jumps over the lazy dog",
+        );
+        assert!(m.is_large_modify);
+    }
+
+    #[test]
+    fn analysis_modification_counts_a_pure_deletion() {
+        let m = analysis_modification(
+            "客人说他想做C3XO，请问可以吗？",
+            "客人说他想做，请问可以吗？",
+            "客人说他想做C3XO，请问可以吗？",
+        );
+        assert_eq!(m.added_count, 0);
+        assert!(m.removed_count >= 3);
     }
 }
