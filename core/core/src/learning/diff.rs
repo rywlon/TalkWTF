@@ -279,18 +279,62 @@ fn unchanged_span(pasted: &[char], window: &[char]) -> (usize, usize) {
     (prefix, suffix)
 }
 
+/// Whether `needle` appears in `haystack` after normalizing both to lowercase
+/// alphanumerics. Used to anchor a read to the text we just pasted.
+pub fn contains_normalized(haystack: &str, needle: &str) -> bool {
+    let needle = match_key(needle);
+    if needle.is_empty() {
+        return false;
+    }
+    match_key(haystack).contains(&needle)
+}
+
+/// Common prefix + suffix length between two texts, case-insensitive. The
+/// "how much of the pasted text is still there" score.
+pub fn relation_score(pasted: &str, current: &str) -> usize {
+    let pasted: Vec<char> = pasted.chars().collect();
+    let current: Vec<char> = current.chars().collect();
+    let (prefix, suffix) = unchanged_span(&pasted, &current);
+    prefix + suffix
+}
+
+/// The differing middle of `baseline` / `final_text`, widened by `radius`
+/// characters on both sides. Used to send only the edit's neighbourhood to the
+/// LLM, never the whole input box.
+pub fn bounded_context(baseline: &str, final_text: &str, radius: usize) -> (String, String) {
+    let old: Vec<char> = baseline.chars().collect();
+    let new: Vec<char> = final_text.chars().collect();
+    let (prefix, suffix) = unchanged_span(&old, &new);
+
+    let start = prefix.saturating_sub(radius);
+    let old_end = old
+        .len()
+        .saturating_sub(suffix)
+        .saturating_add(radius)
+        .min(old.len());
+    let new_end = new
+        .len()
+        .saturating_sub(suffix)
+        .saturating_add(radius)
+        .min(new.len());
+
+    let old_start = start.min(old_end);
+    let new_start = start.min(new_end);
+    (
+        old[old_start..old_end].iter().collect(),
+        new[new_start..new_end].iter().collect(),
+    )
+}
+
 /// Whether `current` still looks like an edit of `pasted` — enough shared text on
 /// both sides that they are the same field, not a different one. `unchanged_span`
 /// is already case-insensitive.
 pub fn is_related(pasted: &str, current: &str) -> bool {
-    let pasted_chars: Vec<char> = pasted.chars().collect();
-    let current_chars: Vec<char> = current.chars().collect();
-    if pasted_chars.is_empty() || current_chars.is_empty() {
+    if pasted.is_empty() || current.is_empty() {
         return false;
     }
-    let (prefix, suffix) = unchanged_span(&pasted_chars, &current_chars);
-    let required = (pasted_chars.len() / 2).max(2);
-    prefix + suffix >= required
+    let required = (pasted.chars().count() / 2).max(2);
+    relation_score(pasted, current) >= required
 }
 
 /// Windows of `current` that might hold the pasted text, best alignment first.
@@ -803,5 +847,40 @@ mod tests {
     #[test]
     fn related_rejects_an_empty_paste() {
         assert!(!is_related("", "anything"));
+    }
+
+    #[test]
+    fn contains_normalized_ignores_case_and_punctuation() {
+        assert!(contains_normalized("Hello, World!", "hello world"));
+        assert!(contains_normalized("abc123", "ABC"));
+        assert!(!contains_normalized("hello", "world"));
+        assert!(!contains_normalized("hello", ""));
+    }
+
+    #[test]
+    fn relation_score_counts_shared_prefix_and_suffix() {
+        // Shared prefix "hello " (6); the differing middles share no suffix.
+        assert_eq!(relation_score("hello world", "hello there"), 6);
+        // Shared prefix "abc" (3) + shared suffix "def" (3).
+        assert_eq!(relation_score("abcXYZdef", "abcQQQdef"), 6);
+    }
+
+    #[test]
+    fn bounded_context_widens_the_difference() {
+        let (old, new) = bounded_context("we should ship it today", "we should hold it today", 0);
+        assert_eq!(old, "ship");
+        assert_eq!(new, "hold");
+
+        let (old, new) = bounded_context("we should ship it today", "we should hold it today", 3);
+        assert_eq!(old, "ld ship it");
+        assert_eq!(new, "ld hold it");
+    }
+
+    #[test]
+    fn bounded_context_is_safe_on_identical_text() {
+        let (old, new) = bounded_context("same", "same", 4);
+        // Nothing differs: the returned context is empty (or the whole text).
+        assert!(old.len() <= "same".len());
+        assert!(new.len() <= "same".len());
     }
 }
