@@ -91,6 +91,9 @@ fn provider_config(
         .get(&provider.id)
         .cloned()
         .unwrap_or_default();
+    if provider.requires_api_key && api_key.trim().is_empty() {
+        return None;
+    }
 
     Some((provider, model, api_key))
 }
@@ -198,6 +201,38 @@ mod tests {
         );
 
         assert_eq!(parsed, Some(Vec::new()));
+    }
+
+    #[test]
+    fn a_provider_that_needs_a_key_without_one_is_none() {
+        let mut settings = AppSettings::default();
+        settings.post_process_provider_id = "deepseek".to_string();
+        settings
+            .post_process_models
+            .insert("deepseek".to_string(), "deepseek-chat".to_string());
+        settings
+            .post_process_api_keys
+            .insert("deepseek".to_string(), String::new());
+
+        assert!(provider_config(&settings).is_none());
+    }
+
+    #[test]
+    fn a_configured_provider_is_some() {
+        let mut settings = AppSettings::default();
+        settings.post_process_provider_id = "deepseek".to_string();
+        settings
+            .post_process_models
+            .insert("deepseek".to_string(), "deepseek-chat".to_string());
+        settings
+            .post_process_api_keys
+            .insert("deepseek".to_string(), "sk-test".to_string());
+
+        let (provider, model, api_key) =
+            provider_config(&settings).expect("configured provider should be usable");
+        assert_eq!(provider.id, "deepseek");
+        assert_eq!(model, "deepseek-chat");
+        assert_eq!(api_key, "sk-test");
     }
 
     #[test]
