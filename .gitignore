@@ -14,6 +14,10 @@ target/
 macos/build
 macos/**/xcuserdata
 
+# Packaged app + archived dev leftovers
+dist/
+_dev-backup/
+
 # Recording scratch files
 recording_*
 
