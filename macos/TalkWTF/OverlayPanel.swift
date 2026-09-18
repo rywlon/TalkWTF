@@ -89,9 +89,12 @@ final class OverlayController {
 
     let model = OverlayModel()
     private var panel: OverlayPanel?
+    private var started = false
 
     /// Subscribe to the core's events. Call once, after the core is up.
     func start() {
+        guard !started else { return }
+        started = true
         let center = NotificationCenter.default
         center.addObserver(forName: .talkWtfCoreEvent, object: nil, queue: .main) { [weak self] note in
             MainActor.assumeIsolated { self?.handle(raw: note.object as? String) }
@@ -208,10 +211,12 @@ final class OverlayPanel {
         // measuring synchronously would size the panel for the previous state.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            let size = self.fittedSize()
-            panel.setContentSize(size)
+            panel.setContentSize(self.fittedSize())
             panel.layoutIfNeeded()
-            self.reposition(panel, near: near, anchor: anchor, size: size)
+            // The hosting view settles the panel to the content's intrinsic size
+            // during layout, so centre using what the frame actually became
+            // (the requested size can differ from it).
+            self.reposition(panel, near: near, anchor: anchor, size: panel.frame.size)
             panel.orderFrontRegardless()
         }
 
@@ -222,15 +227,22 @@ final class OverlayPanel {
         }
     }
 
-    /// The content's intrinsic size. Recording renders both the info line and the
-    /// hover actions in a `ZStack`, so the measured width is the same hovering or
-    /// not; the clamp keeps a very long app name from running off the screen.
+    /// The content's intrinsic size for the current state. Recording renders both
+    /// the info line and the hover actions in a `ZStack`, so the measured width is
+    /// the same hovering or not; the upper clamp keeps a very long app name from
+    /// producing an absurdly wide panel.
     private func fittedSize() -> NSSize {
         guard let hosting else { return model.state.panelSize }
+        // With `sizingOptions == []` the host reports no intrinsic size, so
+        // `fittingSize` would be zero. Enable it only for this synchronous
+        // measurement (and restore it) so the panel can be sized and centred to
+        // the real content width without SwiftUI ever driving the window itself.
+        hosting.sizingOptions = [.intrinsicContentSize]
         hosting.layoutSubtreeIfNeeded()
         let fitting = hosting.fittingSize
-        let width = min(max(fitting.width, 240), 520)
-        let height = max(fitting.height, model.state.panelSize.height)
+        hosting.sizingOptions = []
+        let width = min(max(fitting.width, 1), 520)
+        let height = max(fitting.height, 1)
         return NSSize(width: width, height: height)
     }
 
@@ -242,10 +254,9 @@ final class OverlayPanel {
     /// (the target app's name/icon can get longer).
     func refit(anchor: OverlayAnchor) {
         guard let panel else { return }
-        let size = fittedSize()
-        panel.setContentSize(size)
+        panel.setContentSize(fittedSize())
         panel.layoutIfNeeded()
-        reposition(panel, near: nil, anchor: anchor, size: size)
+        reposition(panel, near: nil, anchor: anchor, size: panel.frame.size)
     }
 
     private func existingOrCreate() -> NSPanel {
@@ -268,9 +279,10 @@ final class OverlayPanel {
 
         let hosting = NSHostingView(rootView: OverlayView(model: model))
         hosting.autoresizingMask = [.width, .height]
-        // Never let SwiftUI resize the panel on its own: the hover actions change
-        // the content, and an auto-sizing host would stretch the pill mid-hover.
-        // The size is set explicitly in `show`.
+        // Keep automatic sizing off so SwiftUI never resizes the panel on its own
+        // (the hover actions change the content and an auto-sizing host would
+        // stretch the pill mid-hover). `fittedSize` briefly enables intrinsic
+        // sizing just to measure. The size is set explicitly in `show`.
         hosting.sizingOptions = []
         panel.contentView = hosting
         self.hosting = hosting
@@ -310,7 +322,6 @@ final class OverlayPanel {
         case .bottom:
             y = (frame.minY + 12).clamped(to: frame.minY ... (frame.maxY - size.height))
         }
-        print("[overlay] state=\(model.state) size=\(Int(size.width))x\(Int(size.height)) x=\(Int(x)) screenMid=\(Int(frame.midX))")
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
