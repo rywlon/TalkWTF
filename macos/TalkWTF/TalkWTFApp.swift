@@ -3,6 +3,9 @@ import SwiftUI
 @main
 struct TalkWTFApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    /// Read before the scene is built, since the core (which owns the settings
+    /// file) is not up yet at that point.
+    private let startHidden = LaunchSettings.startHidden()
 
     init() {
         // Register the core's event channel once, before any UI appears.
@@ -10,15 +13,32 @@ struct TalkWTFApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(id: "main") {
-            AppShell()
-                .frame(
-                    minWidth: Theme.Layout.windowMinWidth,
-                    minHeight: Theme.Layout.windowMinHeight
-                )
-        }
-        .defaultSize(width: Theme.Layout.windowWidth, height: Theme.Layout.windowHeight)
-        .windowToolbarStyle(.unifiedCompact)
+        WindowGroup(id: "main") { shell }
+            .defaultSize(width: Theme.Layout.windowWidth, height: Theme.Layout.windowHeight)
+            .windowToolbarStyle(.unifiedCompact)
+    }
+
+    private var shell: some View {
+        AppShell()
+            .frame(
+                minWidth: Theme.Layout.windowMinWidth,
+                minHeight: Theme.Layout.windowMinHeight
+            )
+    }
+}
+
+/// Launch-time reads of the core-owned settings file, available before the
+/// engine initializes.
+enum LaunchSettings {
+    static func startHidden() -> Bool {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/com.talkwtf.app/settings_store.json")
+        guard
+            let data = try? Data(contentsOf: url),
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let settings = object["settings"] as? [String: Any]
+        else { return false }
+        return settings["start_hidden"] as? Bool ?? false
     }
 }
 
@@ -27,6 +47,23 @@ struct TalkWTFApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         WindowActivationController.shared.start()
+        if LaunchSettings.startHidden() {
+            suppressLaunchWindow()
+        }
+    }
+
+    /// "Start hidden": SwiftUI auto-presents the launch window, so hide it as
+    /// soon as it exists. A couple of retries cover it being created a moment
+    /// after launch; the tray can still open it later.
+    private func suppressLaunchWindow() {
+        func hide() {
+            for window in NSApp.windows where !(window is NSPanel) && window.canBecomeMain {
+                window.orderOut(nil)
+            }
+        }
+        hide()
+        DispatchQueue.main.async(execute: hide)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: hide)
     }
 
     /// Closing the last window leaves the app running in the menu bar.
