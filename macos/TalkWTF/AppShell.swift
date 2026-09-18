@@ -77,24 +77,38 @@ struct AppShell: View {
                 OnboardingView { needsOnboarding = false }
             } else {
                 NavigationSplitView {
-                    List(AppSection.allCases, selection: $section) { item in
-                        Label(item.title, systemImage: item.symbol).tag(item)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "waveform").foregroundStyle(.tint)
+                            Text("TalkWTF").font(Theme.Fonts.headline)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.top, 14)
+                        .padding(.bottom, 10)
+
+                        ForEach(AppSection.allCases) { item in
+                            Button {
+                                section = item
+                            } label: {
+                                Label(item.title, systemImage: item.symbol)
+                                    .font(Theme.Fonts.body)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .sidebarRow(isSelected: section == item)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+                    .glassSurface(cornerRadius: 18)
+                    .padding(8)
                     .navigationSplitViewColumnWidth(
                         min: Theme.Layout.sidebarMinWidth,
                         ideal: Theme.Layout.sidebarWidth,
                         max: Theme.Layout.sidebarMaxWidth
                     )
-                    .safeAreaInset(edge: .top) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "waveform")
-                                .foregroundStyle(.tint)
-                            Text("TalkWTF").font(.headline)
-                            Spacer()
-                        }
-                        .padding(.horizontal, Theme.Spacing.row)
-                        .padding(.vertical, 8)
-                    }
                 } detail: {
                     switch section {
                     case .dashboard:
