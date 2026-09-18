@@ -17,6 +17,8 @@ use log::debug;
 use objc2::rc::Retained;
 use objc2_foundation::NSString;
 
+use crate::learning::diff;
+
 pub(crate) type AXUIElementRef = *mut c_void;
 pub(crate) type CFTypeRef = *const c_void;
 type CFArrayRef = *const c_void;
@@ -212,6 +214,7 @@ pub enum TextSource {
     Web,
 }
 
+#[derive(Clone)]
 pub struct FocusedText {
     pub text: String,
     pub source: TextSource,
@@ -554,13 +557,39 @@ fn field_identity(element: AXUIElementRef) -> FieldIdentity {
     FieldIdentity { pid, key }
 }
 
+/// Pick the read that is the user's input box, using the pasted text as an
+/// anchor. The whole window and the input box both contain the paste; the input
+/// box is shorter, so "shortest containing" wins. When nothing contains the
+/// paste (a stale or partial read), fall back to the most related read. When
+/// nothing is related at all, return `None` rather than guess.
+fn select_candidate(candidates: Vec<FocusedText>, pasted: Option<&str>) -> Option<FocusedText> {
+    let Some(pasted) = pasted.filter(|value| !value.trim().is_empty()) else {
+        return candidates.into_iter().next();
+    };
+
+    let mut containing: Vec<FocusedText> = candidates
+        .iter()
+        .filter(|candidate| diff::contains_normalized(&candidate.text, pasted))
+        .cloned()
+        .collect();
+    if !containing.is_empty() {
+        containing.sort_by_key(|candidate| candidate.text.chars().count());
+        return containing.into_iter().next();
+    }
+
+    candidates
+        .into_iter()
+        .filter(|candidate| diff::is_related(pasted, &candidate.text))
+        .max_by_key(|candidate| diff::relation_score(pasted, &candidate.text))
+}
+
 /// Read the focused field with the three-tier strategy. `None` means "nothing
 /// readable here" — never an error.
 ///
 /// The caller is responsible for `AXEnhancedUserInterface`: the watcher enables
 /// it once at watch start (`enable_enhanced_user_interface`), so this read does
 /// not toggle it on every poll.
-pub fn read_focused_field(timeout_ms: u32) -> Option<FocusedField> {
+pub fn read_focused_field(pasted: Option<&str>, timeout_ms: u32) -> Option<FocusedField> {
     if !is_trusted() {
         debug!("Accessibility permission is not granted");
         return None;
@@ -578,21 +607,19 @@ pub fn read_focused_field(timeout_ms: u32) -> Option<FocusedField> {
     let deadline = Instant::now() + Duration::from_millis(timeout_ms as u64);
     let identity = field_identity(focused.raw());
 
-    // Run every strategy and keep the most complete read. Chrome's
-    // contenteditable `AXValue` is often stale or partial while the text-marker
-    // and visible-text reads reflect the live tree, so "longest" picks the full
-    // current text instead of a lagging fragment.
-    let candidates = [
+    // Run every strategy, then let the anchor pick the input box instead of the
+    // longest read (which is the whole window in Terminal/browsers).
+    let candidates: Vec<FocusedText> = [
         read_element(focused.raw()),
         read_ancestor(focused.raw()),
         read_child(focused.raw()),
         collect_visible_text(focused.raw(), deadline),
-    ];
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
 
-    let read = candidates
-        .into_iter()
-        .flatten()
-        .max_by_key(|candidate| candidate.text.chars().count())?;
+    let read = select_candidate(candidates, pasted)?;
 
     Some(FocusedField {
         text: read.text,
@@ -958,5 +985,46 @@ mod tests {
         );
         assert_eq!(identity_key(None, Some("dom-9".into())), "dom-9");
         assert_eq!(identity_key(None, None), "");
+    }
+
+    fn text(value: &str) -> FocusedText {
+        FocusedText {
+            text: value.to_string(),
+            source: TextSource::Native,
+            strategy: "test",
+        }
+    }
+
+    #[test]
+    fn select_candidate_prefers_the_shortest_containing_read() {
+        // The whole window and the input box both contain the paste; the input
+        // box is shorter, so it wins even though the window is "longer".
+        let candidates = vec![
+            text("页面上其他文字 hello world 更多页面文字"),
+            text("hello world"),
+        ];
+        let chosen = select_candidate(candidates, Some("hello world")).unwrap();
+        assert_eq!(chosen.text, "hello world");
+    }
+
+    #[test]
+    fn select_candidate_falls_back_to_the_most_related() {
+        // Nothing contains the paste verbatim (the read is stale), but one read
+        // still shares most of it.
+        let candidates = vec![text("unrelated page text"), text("hello world!")];
+        let chosen = select_candidate(candidates, Some("hello world")).unwrap();
+        assert_eq!(chosen.text, "hello world!");
+    }
+
+    #[test]
+    fn select_candidate_returns_none_when_nothing_is_related() {
+        let candidates = vec![text("completely different text")];
+        assert!(select_candidate(candidates, Some("hello world")).is_none());
+    }
+
+    #[test]
+    fn select_candidate_without_a_paste_takes_the_first() {
+        let candidates = vec![text("first"), text("second")];
+        assert_eq!(select_candidate(candidates, None).unwrap().text, "first");
     }
 }

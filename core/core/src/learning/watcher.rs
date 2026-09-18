@@ -457,7 +457,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
     //
     // Chromium often answers the very first read with no value, so the baseline
     // is also adopted from the first non-empty identity seen in the loop.
-    let start = ax::read_focused_field(READ_TIMEOUT_MS);
+    let start = ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS);
     match &start {
         Some(field) => record_field(&mut report, field),
         None => {
@@ -475,7 +475,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         if entered {
             let _ = machine.on(Poll::Enter);
             std::thread::sleep(Duration::from_millis(150));
-            if let Some(field) = ax::read_focused_field(READ_TIMEOUT_MS) {
+            if let Some(field) = ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
                 record_field(&mut report, &field);
                 if let Poll::Readable(text) = field_poll(&field) {
                     if let (step, reason) = machine.on(Poll::Readable(text)) {
@@ -502,7 +502,7 @@ fn observe(pasted: &str, bundle_id: Option<&str>, generation: u64) -> (Vec<Strin
         } else if ax::frontmost_bundle_id().as_deref() != bundle_id {
             Poll::AppChanged
         } else {
-            match ax::read_focused_field(READ_TIMEOUT_MS) {
+            match ax::read_focused_field(Some(pasted), READ_TIMEOUT_MS) {
                 Some(field) => {
                     record_field(&mut report, &field);
                     field_poll(&field)
