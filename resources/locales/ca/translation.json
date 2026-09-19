@@ -583,6 +583,7 @@
         "never": "Mai",
         "preserveLimit": "Conserva els últims {{count}}",
         "days3": "Al cap de 3 dies",
+        "month1": "Després d'1 mes",
         "weeks2": "Al cap de 2 setmanes",
         "months3": "Al cap de 3 mesos",
         "placeholder": "Selecciona el període de conservació..."

@@ -193,6 +193,7 @@ pub enum RecordingRetentionPeriod {
     PreserveLimit,
     Days3,
     Weeks2,
+    Month1,
     Months3,
 }
 
@@ -635,7 +636,7 @@ fn default_history_limit() -> usize {
 }
 
 fn default_recording_retention_period() -> RecordingRetentionPeriod {
-    RecordingRetentionPeriod::PreserveLimit
+    RecordingRetentionPeriod::Month1
 }
 
 fn default_audio_feedback_volume() -> f32 {

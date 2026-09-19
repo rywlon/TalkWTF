@@ -583,6 +583,7 @@
         "never": "Never",
         "preserveLimit": "Keep latest {{count}}",
         "days3": "After 3 days",
+        "month1": "After 1 month",
         "weeks2": "After 2 weeks",
         "months3": "After 3 months",
         "placeholder": "Select retention period..."

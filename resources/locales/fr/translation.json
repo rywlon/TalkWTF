@@ -569,6 +569,7 @@
         "never": "Jamais",
         "preserveLimit": "Conserver les {{count}} plus récents",
         "days3": "Après 3 jours",
+        "month1": "Après 1 mois",
         "weeks2": "Après 2 semaines",
         "months3": "Après 3 mois",
         "placeholder": "Sélectionner la période de conservation..."

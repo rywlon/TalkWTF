@@ -270,6 +270,7 @@ struct SettingsView: View {
                     Text(L("settings.debug.recordingRetention.preserveLimit")).tag("preserve_limit")
                     Text(L("settings.debug.recordingRetention.never")).tag("never")
                     Text(L("settings.debug.recordingRetention.days3")).tag("days3")
+                    Text(L("settings.debug.recordingRetention.month1")).tag("month1")
                     Text(L("settings.debug.recordingRetention.weeks2")).tag("weeks2")
                     Text(L("settings.debug.recordingRetention.months3")).tag("months3")
                 }

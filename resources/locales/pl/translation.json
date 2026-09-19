@@ -569,6 +569,7 @@
         "never": "Nigdy",
         "preserveLimit": "Zachowaj ostatnie {{count}}",
         "days3": "Po 3 dniach",
+        "month1": "Po 1 miesiącu",
         "weeks2": "Po 2 tygodniach",
         "months3": "Po 3 miesiącach",
         "placeholder": "Wybierz okres retencji..."

@@ -569,6 +569,7 @@
         "never": "しない",
         "preserveLimit": "最新{{count}}件を保持",
         "days3": "3日後",
+        "month1": "1か月後",
         "weeks2": "2週間後",
         "months3": "3ヶ月後",
         "placeholder": "保持期間を選択…"

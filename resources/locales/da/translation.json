@@ -583,6 +583,7 @@
         "never": "Aldrig",
         "preserveLimit": "Behold de seneste {{count}}",
         "days3": "Efter 3 dage",
+        "month1": "Efter 1 måned",
         "weeks2": "Efter 2 uger",
         "months3": "Efter 3 måneder",
         "placeholder": "Vælg opbevaringsperiode..."

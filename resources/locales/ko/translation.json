@@ -569,6 +569,7 @@
         "never": "안 함",
         "preserveLimit": "최근 {{count}}개 유지",
         "days3": "3일 후",
+        "month1": "1개월 후",
         "weeks2": "2주 후",
         "months3": "3개월 후",
         "placeholder": "보관 기간 선택..."

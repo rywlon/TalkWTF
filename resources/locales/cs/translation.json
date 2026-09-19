@@ -569,6 +569,7 @@
         "never": "Nikdy",
         "preserveLimit": "Ponechat posledních {{count}}",
         "days3": "Po 3 dnech",
+        "month1": "Po 1 měsíci",
         "weeks2": "Po 2 týdnech",
         "months3": "Po 3 měsících",
         "placeholder": "Vyberte dobu uchování..."

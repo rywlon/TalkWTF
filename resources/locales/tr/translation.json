@@ -569,6 +569,7 @@
         "never": "Asla",
         "preserveLimit": "Son {{count}} kaydı tut",
         "days3": "3 gün sonra",
+        "month1": "1 ay sonra",
         "weeks2": "2 hafta sonra",
         "months3": "3 ay sonra",
         "placeholder": "Saklama süresi seçin..."

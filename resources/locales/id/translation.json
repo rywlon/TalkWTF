@@ -583,6 +583,7 @@
         "never": "Tidak Pernah",
         "preserveLimit": "Simpan {{count}} terbaru",
         "days3": "Setelah 3 hari",
+        "month1": "Setelah 1 bulan",
         "weeks2": "Setelah 2 minggu",
         "months3": "Setelah 3 bulan",
         "placeholder": "Pilih masa penyimpanan..."

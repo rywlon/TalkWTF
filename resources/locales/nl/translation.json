@@ -583,6 +583,7 @@
         "never": "Nooit",
         "preserveLimit": "Bewaar de nieuwste {{count}}",
         "days3": "Na 3 dagen",
+        "month1": "Na 1 maand",
         "weeks2": "Na 2 weken",
         "months3": "Na 3 maanden",
         "placeholder": "Selecteer bewaarperiode..."

@@ -569,6 +569,7 @@
         "never": "從不",
         "preserveLimit": "保留最新 {{count}} 筆",
         "days3": "3 天後",
+        "month1": "1 個月後",
         "weeks2": "2 週後",
         "months3": "3 個月後",
         "placeholder": "選擇保留期限..."

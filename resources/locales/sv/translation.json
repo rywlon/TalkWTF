@@ -569,6 +569,7 @@
         "never": "Aldrig",
         "preserveLimit": "Behåll de senaste {{count}}",
         "days3": "Efter 3 dagar",
+        "month1": "Efter 1 månad",
         "weeks2": "Efter 2 veckor",
         "months3": "Efter 3 månader",
         "placeholder": "Välj lagringsperiod..."
