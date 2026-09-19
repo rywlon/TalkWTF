@@ -4,7 +4,7 @@
 
 **TalkWTF** —— 个人自用的桌面语音听写 app。以 Handy 为底座，移植 OpenTypeless 的「AI 润色 + 词典」UX，并重做 UI。
 
-不分发、不上架，不需要签名/公证/自动更新基建。
+以个人自用为主，可打 zip 小范围分发给朋友；不做公证（不交 Apple 年费），签名用 ad-hoc，靠 INSTALL.txt 绕过 Gatekeeper；不做自动更新。
 
 ## 技术栈
 
@@ -32,7 +32,7 @@ Tauri 与 React 前端已移除（阶段 9 P5）。
 - **本地优先**：本地 ASR 默认可用且不联网。润色默认不联网——只有用户在设置里显式选好 provider
   并填好 key 之后才会发出请求。
 - 除用户显式配置的 provider 外，App 自身不联网。
-- 个人使用：不做签名、公证、自动更新。
+- **个人使用/小范围分发**：不做公证（不交 Apple 开发者年费）、不做自动更新；签名用 ad-hoc。
 - 保留 MIT 许可声明；改名为自己的名字、换 logo（商标不在 MIT 内）。
 - 隐私优先：不记录、不上报用户数据。
 
@@ -166,6 +166,9 @@ Tauri 与 React 前端已移除（阶段 9 P5）。
     - App 图标（`scripts/gen_icon.swift` 可重生成）
     - 识别语言表搬进 core；补齐 12 项未暴露设置；键盘诊断（Secure Input）
     - 个性化/模型页统一为 `Form(.grouped)` + `Section`
+
+18. 自包含打包（子项目 0）— 已完成：静态链接 + ad-hoc 签名 + strip + scripts/package.sh + INSTALL.txt。
+    多平台：0 打包已完成；1 Intel/universal、2 内置 Qwen3-ASR、3 公证（否决）、4 Windows（待定）。
 
 ### 已知遗留
 

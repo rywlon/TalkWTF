@@ -37,6 +37,20 @@ Rust 日志走 stderr；直接跑二进制才能看到：
 macos/build/Debug/TalkWTF.app/Contents/MacOS/TalkWTF
 ```
 
+## 打包分发
+
+```bash
+scripts/package.sh
+```
+
+产物：`dist/TalkWTF-<version>-arm64.zip`（含 `INSTALL.txt`）。
+
+脚本流程：Release 构建 → 断言 `otool -L` 无构建目录依赖 → `strip -x`
+→ ad-hoc 签名 → `ditto` 打 zip。
+
+app 只支持 Apple Silicon（arm64）、macOS 14+。**未公证**，对方首次打开需按
+`INSTALL.txt` 绕过 Gatekeeper。
+
 ## 测试
 
 ```bash
