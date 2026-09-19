@@ -105,7 +105,9 @@ final class OverlayController {
         }
         // Follow the frontmost app while recording, so the badge shows where the
         // text will actually land even if the user switches mid-dictation.
-        center.addObserver(
+        // NSWorkspace posts its notifications on its own center, not the default
+        // one; registering on `center` here would never fire.
+        NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
@@ -196,6 +198,9 @@ final class OverlayPanel {
     private let model: OverlayModel
     private var panel: NSPanel?
     private var hosting: NSHostingView<OverlayView>?
+    /// Polls the pointer's screen while the overlay is visible so it follows the
+    /// mouse across displays instead of staying on the screen it appeared on.
+    private var pointerFollowTimer: Timer?
 
     init(model: OverlayModel) {
         self.model = model
@@ -207,6 +212,7 @@ final class OverlayPanel {
     func show(autoHideAfter seconds: TimeInterval?, near: CGRect? = nil, anchor: OverlayAnchor) {
         let panel = existingOrCreate()
         panel.orderFrontRegardless()
+        startFollowingPointer(anchor: anchor)
         // Measure on the next runloop turn so SwiftUI has rendered the new state;
         // measuring synchronously would size the panel for the previous state.
         DispatchQueue.main.async { [weak self] in
@@ -247,7 +253,33 @@ final class OverlayPanel {
     }
 
     func hide() {
+        stopFollowingPointer()
         panel?.orderOut(nil)
+    }
+
+    /// While the overlay is visible, watch the pointer and move the panel to the
+    /// screen the mouse is on. There is no AppKit notification for "pointer
+    /// crossed to another display", so a short poll is the reliable signal.
+    private func startFollowingPointer(anchor: OverlayAnchor) {
+        stopFollowingPointer()
+        let timer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.followPointerIfNeeded(anchor: anchor)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        pointerFollowTimer = timer
+    }
+
+    private func stopFollowingPointer() {
+        pointerFollowTimer?.invalidate()
+        pointerFollowTimer = nil
+    }
+
+    private func followPointerIfNeeded(anchor: OverlayAnchor) {
+        guard let panel, panel.isVisible else { return }
+        guard let target = pointerScreen(), panel.screen !== target else { return }
+        reposition(panel, near: nil, anchor: anchor, size: panel.frame.size)
     }
 
     /// Re-measure and recenter after the content changed without a state change
@@ -308,7 +340,7 @@ final class OverlayPanel {
             return
         }
 
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+        let screen = pointerScreen()
             ?? NSScreen.main
             ?? NSScreen.screens.first
         guard let screen else { return }
@@ -335,6 +367,12 @@ final class OverlayPanel {
             )
             return topLeft.intersects(rect)
         }
+    }
+
+    /// The screen the pointer is currently on, in the same Cocoa coordinates as
+    /// `NSScreen.frame`.
+    private func pointerScreen() -> NSScreen? {
+        NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
     }
 }
 
