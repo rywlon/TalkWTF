@@ -43,10 +43,10 @@ macos/build/Debug/TalkWTF.app/Contents/MacOS/TalkWTF
 scripts/package.sh
 ```
 
-产物：`dist/TalkWTF-<version>-arm64.zip`（含 `INSTALL.txt`）。
+产物：`dist/TalkWTF-<version>-arm64.zip`（含 `TalkWTF.app` 与 `INSTALL.txt`）。
 
-脚本流程：Release 构建 → 断言 `otool -L` 无构建目录依赖 → `strip -x`
-→ ad-hoc 签名 → `ditto` 打 zip。
+脚本流程：Release 构建 → 断言 `otool -L` 依赖全部为系统库 → `strip -x`
+→ ad-hoc 签名 → 暂存 `TalkWTF.app` + `INSTALL.txt` → `ditto` 打 zip。
 
 app 只支持 Apple Silicon（arm64）、macOS 14+。**未公证**，对方首次打开需按
 `INSTALL.txt` 绕过 Gatekeeper。

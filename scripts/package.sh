@@ -17,8 +17,14 @@ echo "==> 构建 Release"
 xcodebuild -project macos/TalkWTF.xcodeproj -target TalkWTF -configuration Release build
 
 echo "==> 断言自包含"
-if otool -L "$BIN" | grep -E '/Users/|libtalkwtf_ffi\.dylib'; then
-  echo "ERROR: app 仍依赖构建目录里的库，不可分发" >&2
+if ! DEPS="$(otool -L "$BIN")"; then
+  echo "ERROR: otool -L 执行失败，无法验证自包含" >&2
+  exit 1
+fi
+BAD_DEPS="$(printf '%s\n' "$DEPS" | tail -n +2 | awk '{print $1}' | grep -vE '^(/System/|/usr/lib/)' || true)"
+if [ -n "$BAD_DEPS" ]; then
+  echo "ERROR: app 依赖非系统库，不可分发：" >&2
+  printf '%s\n' "$BAD_DEPS" >&2
   exit 1
 fi
 
@@ -30,8 +36,14 @@ codesign --force --sign - --timestamp=none "$APP"
 
 echo "==> 打 zip"
 mkdir -p "$DIST"
+rm -rf "$DIST/TalkWTF.app"
 rm -f "$ZIP"
-ditto -c -k --keepParent "$APP" "$ZIP"
+STAGE="$DIST/TalkWTF-${VERSION}"
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+ditto "$APP" "$STAGE/TalkWTF.app"
+cp "$ROOT/INSTALL.txt" "$STAGE/INSTALL.txt"
+ditto -c -k --keepParent "$STAGE" "$ZIP"
 cp "$ROOT/INSTALL.txt" "$DIST/INSTALL.txt"
 
 echo "==> 完成：$ZIP"

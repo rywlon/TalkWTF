@@ -12,7 +12,7 @@
 - 引擎：Rust，`core/core`（`talkwtf-core`，零 Tauri 依赖）
 - 桥：C FFI，`core/ffi`（`talkwtf-ffi` staticlib + `talkwtf.h`，JSON invoke + 事件回调）
 - 资源：`resources/`（模型元数据、VAD 模型、提示音、`locales/` 26 个语言包）
-- 脚本：Python（`scripts/`），不依赖 Node/bun
+- 脚本：Python（`scripts/`）与打包用 bash（`scripts/package.sh`），不依赖 Node/bun
 
 Tauri 与 React 前端已移除（阶段 9 P5）。
 
