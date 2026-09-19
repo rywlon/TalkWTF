@@ -322,7 +322,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
-				CODE_SIGN_IDENTITY = "TalkWTF Dev";
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -338,7 +338,44 @@
 				);
 				MARKETING_VERSION = 0.9.6;
 				OTHER_LDFLAGS = (
-					"-ltalkwtf_ffi",
+					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release/libtalkwtf_ffi.a",
+					"-framework",
+					"Accelerate",
+					"-framework",
+					"AppKit",
+					"-framework",
+					"ApplicationServices",
+					"-framework",
+					"AudioToolbox",
+					"-framework",
+					"AudioUnit",
+					"-framework",
+					"Carbon",
+					"-framework",
+					"CloudKit",
+					"-framework",
+					"CoreAudio",
+					"-framework",
+					"CoreData",
+					"-framework",
+					"CoreFoundation",
+					"-framework",
+					"CoreGraphics",
+					"-framework",
+					"CoreImage",
+					"-framework",
+					"CoreText",
+					"-framework",
+					"CoreVideo",
+					"-framework",
+					"Metal",
+					"-framework",
+					"QuartzCore",
+					"-framework",
+					"Security",
+					"-framework",
+					"SystemConfiguration",
+					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.talkwtf.app;
 				PRODUCT_NAME = TalkWTF;
@@ -351,9 +388,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
-				CODE_SIGN_IDENTITY = "TalkWTF Dev";
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -367,7 +405,44 @@
 				);
 				MARKETING_VERSION = 0.9.6;
 				OTHER_LDFLAGS = (
-					"-ltalkwtf_ffi",
+					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release/libtalkwtf_ffi.a",
+					"-framework",
+					"Accelerate",
+					"-framework",
+					"AppKit",
+					"-framework",
+					"ApplicationServices",
+					"-framework",
+					"AudioToolbox",
+					"-framework",
+					"AudioUnit",
+					"-framework",
+					"Carbon",
+					"-framework",
+					"CloudKit",
+					"-framework",
+					"CoreAudio",
+					"-framework",
+					"CoreData",
+					"-framework",
+					"CoreFoundation",
+					"-framework",
+					"CoreGraphics",
+					"-framework",
+					"CoreImage",
+					"-framework",
+					"CoreText",
+					"-framework",
+					"CoreVideo",
+					"-framework",
+					"Metal",
+					"-framework",
+					"QuartzCore",
+					"-framework",
+					"Security",
+					"-framework",
+					"SystemConfiguration",
+					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.talkwtf.app;
 				PRODUCT_NAME = TalkWTF;
