@@ -29,3 +29,12 @@ __pycache__/
 .vscode/*
 .claude/
 .crush/
+
+# Local backups and private configuration
+.backup-*/
+.env
+.env.*
+*.pem
+*.key
+settings_store.json
+history.db*
