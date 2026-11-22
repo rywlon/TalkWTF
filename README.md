@@ -71,3 +71,17 @@ docs/specs/                  各阶段 spec 与实现记录
 ## 许可
 
 MIT（继承自 [Handy](https://github.com/cjpais/Handy)）。部分逻辑与 UX 移植自 [OpenTypeless](https://github.com/tover0314-w/opentypeless)（MIT），不含其云端/账号部分。相关许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。语音模型及第三方依赖分别遵循各自许可。
+
+## Voice to Agent（2026-11-22）
+
+打开 **Voice to Agent → 连接 Agent**，选择正在用的本地 Agent，复制连接提示词并粘贴到希望接收语音的会话。Agent 根据应用生成的本机连接说明完成配置；TalkWTF 收到并保存回执后显示已连接，再引导设置快捷键。默认流程无需填写接口地址、可执行文件或会话编号。
+
+连接说明和一次性请求保存在用户自己的 Application Support 目录中，10 分钟后失效；关闭引导会取消尚未完成的请求。应用自带 `connect-agent` 命令，由同一个可执行文件处理注册后退出，不启动另一个主窗口。随机令牌、请求、所选客户端和目标身份必须匹配；提交回执不会自动执行测试任务。
+
+支持选择 Codex、Claude Code、OpenCode、Cursor 和其他本地 Agent。选项标识用户当前的客户端，尚未表示各版本兼容性都已实测。接收方需要能读取本机文件、执行命令，并提供可用的当前会话接收方式；不支持时应明确报告，不能伪造回执。网页聊天客户端暂不支持本地配对。
+
+Codex 可用明确的当前会话 UUID 登记续接；其他接收方式为本机 HTTP 接口或会话专属命令适配器。HTTP 接收 POST JSON `text`、`conversation`、`source`；命令从 stdin 接收原文，并通过 `TALKWTF_CONVERSATION` 获取会话标识。仅配置被验证和保存后显示已配对；实际语音可用性仍需接收方验证自己的适配器。Codex 续接不保证每个桌面客户端实时刷新；不得盲目与正在运行的同一会话并发执行。
+
+语音工作流固定录音开始时的目标，在后台投递，不切换窗口或使用剪贴板。失败保留文字且不自动重发。概览的“使用统计与个性化”分组已按最新要求删除。
+
+验证：`python3 tests/agent-delivery/run.py` 覆盖配对有效期、取消、令牌/客户端匹配、会话绑定、本机 HTTP、禁止重定向、原样命令输入、会话续接回执及已登记适配器的实际文字接收。另已测试构建产物的 CLI 注册与重复提交拒绝，以及实际界面自动确认连接并进入热键设置。真实麦克风及各厂商客户端的端到端测试尚未完成。

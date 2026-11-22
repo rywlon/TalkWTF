@@ -47,9 +47,8 @@ struct OnboardingView: View {
                         .foregroundStyle(.green)
                 }
                 Spacer()
-                Button(L("common.close")) { onFinish() }
+                Button(microphone ? L("common.close") : "稍后设置，先看看") { onFinish() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!microphone)
             }
         }
         .padding(40)

@@ -2,6 +2,7 @@ import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
     case dashboard
+    case agents
     case library
     case settings
 
@@ -10,6 +11,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .dashboard: return L("sidebar.dashboard")
+        case .agents: return "Voice to Agent"
         case .library: return L("sidebar.library")
         case .settings: return L("sidebar.settings")
         }
@@ -17,7 +19,8 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .dashboard: return "square.grid.2x2"
+        case .dashboard: return "waveform.circle"
+        case .agents: return "arrow.up.forward.app"
         case .library: return "books.vertical"
         case .settings: return "gearshape"
         }
@@ -127,14 +130,17 @@ struct AppShell: View {
             } else {
                 NavigationSplitView {
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "waveform").foregroundStyle(.tint)
-                            Text("TalkWTF").font(Theme.Fonts.headline)
-                            Spacer()
+                        VStack(alignment: .leading, spacing: 8) {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 26, weight: .medium))
+                                .foregroundStyle(.tint)
+                            Text("TalkWTF").font(.system(size: 22, weight: .semibold, design: .rounded))
+                            Text("Words that flow.")
+                                .font(Theme.Fonts.callout).foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.top, 14)
-                        .padding(.bottom, 10)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 28)
+                        .padding(.bottom, 32)
 
                         // Hand-rolled rows so the selection is our rounded pill
                         // instead of the native list highlight (which paints a
@@ -159,12 +165,20 @@ struct AppShell: View {
                                 .accessibilityAddTraits(section == item ? [.isSelected] : [])
                             }
                         }
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("本地语音识别", systemImage: "waveform.badge.mic")
+                            Text("说出来，继续向前。")
+                        }
+                        .font(Theme.Fonts.caption).foregroundStyle(.secondary)
+                        .padding(16)
                     }
+                    .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.horizontal, 8)
                     .padding(.top, 8)
                     .padding(.bottom, 8)
-                    .glassSurface(cornerRadius: Theme.Radius.sidebar)
-                    .padding(8)
+                    .background(.ultraThinMaterial)
+                    .padding(.trailing, 1)
                     .navigationSplitViewColumnWidth(
                         min: Theme.Layout.sidebarMinWidth,
                         ideal: Theme.Layout.sidebarWidth,
@@ -173,7 +187,9 @@ struct AppShell: View {
                 } detail: {
                     switch section {
                     case .dashboard:
-                        DashboardView()
+                        DashboardView(onOpenAgents: { section = .agents })
+                    case .agents:
+                        AgentsView()
                     case .library:
                         LibraryView()
                     case .settings:
@@ -181,17 +197,20 @@ struct AppShell: View {
                         // third sidebar column: seven items were a long, mostly
                         // empty list, and the content gets the width back.
                         VStack(spacing: 0) {
-                            Picker("", selection: $pane) {
-                                ForEach(SettingsPane.allCases) { item in
-                                    Label(item.title, systemImage: item.symbol).tag(item)
-                                }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(SettingsPane.allCases) { item in
+                                        Button { pane = item } label: {
+                                            Text(item.title)
+                                                .font(Theme.Fonts.callout)
+                                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                                .background(pane == item ? Theme.Colors.selectionAccent : Color.clear,
+                                                    in: RoundedRectangle(cornerRadius: 8))
+                                                .foregroundStyle(pane == item ? Color.accentColor : Color.secondary)
+                                        }.buttonStyle(.plain)
+                                    }
+                                }.padding(.horizontal, Theme.Layout.contentPadding).padding(.vertical, 16)
                             }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                            .padding(.horizontal, Theme.Layout.contentPadding)
-                            .padding(.top, 12)
-
-                            Divider().padding(.top, 12)
 
                             SettingsView(pane: pane)
                         }

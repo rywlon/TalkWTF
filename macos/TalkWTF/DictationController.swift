@@ -14,6 +14,8 @@ import Foundation
 final class DictationController {
     static let shared = DictationController()
 
+    private var processing = false
+    private var destination: AgentTarget?
     private var recording = false
     private var activeMode = "dictation"
     private var pressStartedAt: Date?
@@ -55,6 +57,8 @@ final class DictationController {
     func discard() {
         guard recording else { return }
         recording = false
+        destination = nil
+        AgentHub.shared.recordingTarget = nil
         pressStartedAt = nil
         SecureInputFallback.shared.setCancelActive(false)
         SoundPlayer.play(.stop)
@@ -80,8 +84,9 @@ final class DictationController {
     /// Shared by the tap (core `hotkey` events) and the Carbon shadows used
     /// while Secure Event Input is blocking the tap.
     func handle(bindingId: String, pressed: Bool) {
-        let mode = bindingId == "translate" ? "translate" : "dictation"
-        guard ["transcribe", "transcribe_with_post_process", "translate"].contains(bindingId) else {
+        guard !processing, !AgentHub.shared.sending else { return }
+        let mode = bindingId.hasPrefix("agent_") ? bindingId : bindingId == "translate" ? "translate" : "dictation"
+        guard bindingId.hasPrefix("agent_") || ["transcribe", "transcribe_with_post_process", "translate"].contains(bindingId) else {
             return
         }
 
@@ -116,8 +121,24 @@ final class DictationController {
     // MARK: - recording
 
     private func begin(mode: String) {
+        guard !processing, !AgentHub.shared.sending else { return }
+        let target = mode.hasPrefix("agent_") ? AgentHub.shared.targets.first { $0.bindingID == mode } : nil
+        if mode.hasPrefix("agent_") {
+            guard let target else { return }
+            guard AgentHub.shared.failedText == nil else {
+                OverlayController.shared.show(.agentMessage(text: "上次内容尚未处理，请先打开 TalkWTF 复制或清除。", failed: true))
+                return
+            }
+            do { try AgentTransport.validate(target) }
+            catch {
+                OverlayController.shared.show(.agentMessage(text: error.localizedDescription, failed: true))
+                return
+            }
+        }
         do {
-            try Core.invoke("start_dictation", ["mode": mode])
+            try Core.invoke("start_dictation", ["mode": mode == "translate" ? "translate" : "dictation"])
+            destination = target
+            AgentHub.shared.recordingTarget = target
             recording = true
             activeMode = mode
             SecureInputFallback.shared.setCancelActive(true)
@@ -130,16 +151,31 @@ final class DictationController {
     }
 
     private func stop(mode: String) {
+        guard recording else { return }
+        let pipelineMode = activeMode == "translate" ? "translate" : "dictation"
+        let target = destination
+        destination = nil
         recording = false
+        processing = true
         pressStartedAt = nil
         SecureInputFallback.shared.setCancelActive(false)
         SoundPlayer.play(.stop)
         // Transcription + polish take seconds; keep them off the main thread.
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let value = try Core.invoke("stop_dictation", ["mode": mode])
+                let value = try Core.invoke("stop_dictation", ["mode": pipelineMode])
                 let text = value as? String ?? ""
                 DispatchQueue.main.async {
+                    self.processing = false
+                    AgentHub.shared.recordingTarget = nil
+                    if let target {
+                        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            OverlayController.shared.show(.agentMessage(text: "没有识别到内容，请重新录音。", failed: true))
+                        } else {
+                            AgentHub.shared.deliver(text, to: target)
+                        }
+                        return
+                    }
                     if !text.isEmpty {
                         Paster.paste(text)
                         // Watch the field we just wrote into, so a correction the
@@ -151,6 +187,12 @@ final class DictationController {
             } catch {
                 NSLog("TalkWTF: dictation failed: \(error.localizedDescription)")
                 DispatchQueue.main.async {
+                    self.processing = false
+                    AgentHub.shared.recordingTarget = nil
+                    if target != nil {
+                        OverlayController.shared.show(.agentMessage(text: error.localizedDescription, failed: true))
+                        return
+                    }
                     // A failed translation keeps its retry card up; everything
                     // else has no state worth showing.
                     if !error.localizedDescription.contains("translation failed") {

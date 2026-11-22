@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB2100000000000000000011 /* AgentPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2100000000000000000001; };
+		AB1900000000000000000012 /* AgentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000002; };
+		AB1900000000000000000011 /* AgentTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000001; };
 		1A000000000000000000006A /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007A /* AppIcon.icns */; };
 		1A000000000000000000006B /* KeyboardDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007B /* KeyboardDiagnostic.swift */; };
 		1A000000000000000000006C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007C /* Theme.swift */; };
@@ -35,6 +38,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AB2100000000000000000001 /* AgentPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPairing.swift; sourceTree = "<group>"; };
+		AB1900000000000000000002 /* AgentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsView.swift; sourceTree = "<group>"; };
+		AB1900000000000000000001 /* AgentTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTransport.swift; sourceTree = "<group>"; };
 		1A0000000000000000000006 /* TalkWTF.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TalkWTF.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A000000000000000000007A /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		1A000000000000000000007B /* KeyboardDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDiagnostic.swift; sourceTree = "<group>"; };
@@ -95,6 +101,9 @@
 		1A0000000000000000000004 /* TalkWTF */ = {
 			isa = PBXGroup;
 			children = (
+				AB1900000000000000000001 /* AgentTransport.swift */,
+				AB1900000000000000000002 /* AgentsView.swift */,
+				AB2100000000000000000001 /* AgentPairing.swift */,
 				1A0000000000000000000021 /* TalkWTFApp.swift */,
 				1A0000000000000000000070 /* SettingsStore.swift */,
 				1A0000000000000000000071 /* Localization.swift */,
@@ -246,6 +255,9 @@
 				1A000000000000000000006E /* BusyAlert.swift in Sources */,
 				1A000000000000000000006F /* ShortcutRecorder.swift in Sources */,
 				1A000000000000000000006D2 /* RecordingPlayer.swift in Sources */,
+				AB1900000000000000000011 /* AgentTransport.swift in Sources */,
+				AB1900000000000000000012 /* AgentsView.swift in Sources */,
+				AB2100000000000000000011 /* AgentPairing.swift in Sources */,
 				1A0000000000000000000011 /* TalkWTFApp.swift in Sources */,
 				1A0000000000000000000060 /* SettingsStore.swift in Sources */,
 				1A0000000000000000000061 /* Localization.swift in Sources */,

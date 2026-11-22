@@ -10,7 +10,7 @@ enum Theme {
     /// stays deliberate.
     enum Fonts {
         /// Page title (概览 / 资料库 / 设置 的标题).
-        static let largeTitle = Font.system(size: 26, weight: .semibold)
+        static let largeTitle = Font.system(size: 30, weight: .semibold)
         /// Section title inside a page.
         static let title = Font.system(size: 20, weight: .semibold)
         /// Row title.
@@ -34,7 +34,7 @@ enum Theme {
         static let selection = Color.primary.opacity(0.06)
         static let selectionHover = Color.primary.opacity(0.03)
         static let selectionAccent = Color.accentColor.opacity(0.14)
-        static let cardFill = Color.primary.opacity(0.04)
+        static let cardFill = Color(nsColor: .controlBackgroundColor)
     }
 
     /// Spacing on a 4pt grid.
@@ -51,16 +51,16 @@ enum Theme {
     /// Layout constants.
     enum Layout {
         static let contentMaxWidth: CGFloat = 880
-        static let contentPadding: CGFloat = 28
-        static let contentPaddingTop: CGFloat = 24
+        static let contentPadding: CGFloat = 32
+        static let contentPaddingTop: CGFloat = 32
 
         static let windowWidth: CGFloat = 1000
         static let windowHeight: CGFloat = 700
         static let windowMinWidth: CGFloat = 880
         static let windowMinHeight: CGFloat = 600
 
-        static let sidebarWidth: CGFloat = 224
-        static let sidebarMinWidth: CGFloat = 200
+        static let sidebarWidth: CGFloat = 208
+        static let sidebarMinWidth: CGFloat = 192
         static let sidebarMaxWidth: CGFloat = 260
         static let settingsListWidth: CGFloat = 192
         static let sidebarRowHeight: CGFloat = 30

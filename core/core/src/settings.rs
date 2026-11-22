@@ -370,6 +370,8 @@ pub struct AppSettings {
     /// default bindings for any missing keys before the settings are used.
     #[serde(default)]
     pub bindings: HashMap<String, ShortcutBinding>,
+    /// Shell-owned Agent destinations, encoded as a JSON array.
+    pub voice_agent_targets: String,
     /// Replaces the pre-0.10 `push_to_talk` bool; stores missing this key are
     /// migrated from it in `apply_settings_migrations`.
     #[serde(default)]
@@ -1258,6 +1260,7 @@ pub fn get_default_settings() -> AppSettings {
     AppSettings {
         settings_schema_version: default_settings_schema_version(),
         bindings,
+        voice_agent_targets: "[]".to_string(),
         shortcut_activation: ShortcutActivation::default(),
         hold_threshold_ms: default_hold_threshold_ms(),
         audio_feedback: false,
@@ -1770,6 +1773,7 @@ pub fn set_binding(id: &str, hotkey: &str) -> Result<ShortcutBinding, String> {
         .map_err(|e| format!("'{hotkey}' is not a valid shortcut: {e}"))?;
 
     let mut current = current();
+    validate_shortcut_assignment(&current.bindings, id, hotkey)?;
     let binding = current
         .bindings
         .get_mut(id)
@@ -1780,18 +1784,47 @@ pub fn set_binding(id: &str, hotkey: &str) -> Result<ShortcutBinding, String> {
     Ok(updated)
 }
 
+/// Reject a shortcut already assigned to a different workflow.
+fn validate_shortcut_assignment(
+    bindings: &HashMap<String, ShortcutBinding>,
+    id: &str,
+    hotkey: &str,
+) -> Result<(), String> {
+    let candidate = hotkey
+        .parse::<handy_keys::Hotkey>()
+        .map_err(|e| e.to_string())?;
+    for (other_id, binding) in bindings {
+        if other_id != id
+            && binding.current_binding.parse::<handy_keys::Hotkey>().ok() == Some(candidate)
+        {
+            return Err(format!("Shortcut already used by {}", binding.name));
+        }
+    }
+    Ok(())
+}
+
 /// Restore a binding to the value this build ships. An empty default (the
 /// translate workflow) means "no shortcut", which is a valid state.
 pub fn reset_binding(id: &str) -> Result<ShortcutBinding, String> {
     let mut current = current();
-    let binding = current
-        .bindings
-        .get_mut(id)
-        .ok_or_else(|| format!("binding '{id}' not found"))?;
-    binding.current_binding = binding.default_binding.clone();
-    let updated = binding.clone();
+    let updated = reset_binding_in(&mut current, id)?;
     store(current);
     Ok(updated)
+}
+
+fn reset_binding_in(current: &mut AppSettings, id: &str) -> Result<ShortcutBinding, String> {
+    let default = current
+        .bindings
+        .get(id)
+        .ok_or_else(|| format!("binding '{id}' not found"))?
+        .default_binding
+        .clone();
+    if !default.is_empty() {
+        validate_shortcut_assignment(&current.bindings, id, &default)?;
+    }
+    let binding = current.bindings.get_mut(id).expect("binding checked above");
+    binding.current_binding = default;
+    Ok(binding.clone())
 }
 
 /// Build a binding string from a captured key press, so the shell does not have
@@ -1851,6 +1884,49 @@ mod tests {
         // Translation ships unconfigured: no targets, no active target.
         assert!(settings.translation_targets.is_empty());
         assert_eq!(settings.translation_active_target, None);
+    }
+
+    #[test]
+    fn reset_shortcut_rejects_agent_conflict_without_changing_settings() {
+        let mut settings = get_default_settings();
+        let original = settings.bindings["transcribe"].clone();
+        let mut agent = original.clone();
+        agent.id = "agent_test".into();
+        settings.bindings.insert(agent.id.clone(), agent);
+        settings
+            .bindings
+            .get_mut("transcribe")
+            .unwrap()
+            .current_binding = "ctrl+shift+f12".into();
+        assert!(reset_binding_in(&mut settings, "transcribe").is_err());
+        assert_eq!(
+            settings.bindings["transcribe"].current_binding,
+            "ctrl+shift+f12"
+        );
+        assert!(reset_binding_in(&mut settings, "translate").is_ok());
+    }
+
+    #[test]
+    fn agent_shortcut_cannot_reuse_dictation_shortcut() {
+        let settings = get_default_settings();
+        let hotkey = &settings.bindings["transcribe"].current_binding;
+        assert!(validate_shortcut_assignment(&settings.bindings, "agent_test", hotkey).is_err());
+        assert!(validate_shortcut_assignment(&settings.bindings, "transcribe", hotkey).is_ok());
+        assert!(
+            validate_shortcut_assignment(&settings.bindings, "agent_test", "ctrl+shift+f12")
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn voice_agent_targets_survive_settings_roundtrip() {
+        let raw = serde_json::json!({"voice_agent_targets": "[{\"name\":\"Research\"}]"});
+        let settings: AppSettings = serde_json::from_value(raw).unwrap();
+        let serialized = serde_json::to_value(settings).unwrap();
+        assert_eq!(
+            serialized["voice_agent_targets"],
+            "[{\"name\":\"Research\"}]"
+        );
     }
 
     #[test]

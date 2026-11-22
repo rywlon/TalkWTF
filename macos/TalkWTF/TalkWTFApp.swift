@@ -8,6 +8,7 @@ struct TalkWTFApp: App {
     private let startHidden = LaunchSettings.startHidden()
 
     init() {
+        if let status = AgentPairing.handleCommandLine(ProcessInfo.processInfo.arguments) { exit(status) }
         // Register the core's event channel once, before any UI appears.
         talkwtf_set_event_callback(handleCoreEvent, nil)
     }

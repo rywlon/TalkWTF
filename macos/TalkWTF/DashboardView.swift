@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// Dashboard: local-only usage stats (today, all-time, last 7 days, LLM tokens,
-/// service status and personalization progress).
+/// Overview: dictation entry, today, recent activity and service status.
 struct DashboardView: View {
+    var onOpenAgents: () -> Void = {}
     @ObservedObject private var store = SettingsStore.shared
     @State private var stats: Core.Dashboard?
     @State private var error: String?
 
-    private let columns = [GridItem(.adaptive(minimum: 190, maximum: 260), spacing: 12)]
     private let fourColumns = Array(
         repeating: GridItem(.flexible(), spacing: 12),
         count: 4
@@ -24,10 +23,10 @@ struct DashboardView: View {
                     } label: {
                         Label(L("dashboard.refresh"), systemImage: "arrow.clockwise")
                     }
-                    Button(L("settings.debug.overlayPreview.title")) {
-                        OverlayController.shared.show(.recording)
-                    }
+
                 }
+
+                voiceEntry
 
                 if let error {
                     Text(error).foregroundStyle(.red).textSelection(.enabled)
@@ -35,12 +34,8 @@ struct DashboardView: View {
 
                 if let stats {
                     todaySection(stats)
-                    metricsSection(stats)
-                    weeklySection(stats)
-                    tokensSection(stats)
-                    servicesSection(stats)
-                    personalizationSection(stats)
                     recentSection(stats)
+                    servicesSection(stats)
                 } else if error == nil {
                     ProgressView().padding(.top, 40)
                 }
@@ -55,10 +50,47 @@ struct DashboardView: View {
         }
     }
 
+    private var voiceEntry: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("从想法到行动，\n只需开口。")
+                        .font(.system(size: 34, weight: .medium, design: .rounded))
+                        .tracking(-0.8).fixedSize(horizontal: false, vertical: true)
+                    Text("写下此刻的想法，或直接交给你的 Agent。")
+                        .font(Theme.Fonts.body).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "waveform")
+                    .font(.system(size: 52, weight: .ultraLight))
+                    .foregroundStyle(Color.accentColor.opacity(0.65))
+                    .padding(.top, 12)
+            }
+            HStack(spacing: 12) {
+                Label(dictationShortcut, systemImage: "keyboard")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+                Text("按热键开始听写").font(Theme.Fonts.callout).foregroundStyle(.secondary)
+                Spacer()
+                Button(action: onOpenAgents) {
+                    Label("添加语音 Agent", systemImage: "arrow.up.forward")
+                }.buttonStyle(.borderedProminent).controlSize(.large)
+            }
+        }
+        .padding(28)
+        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private var dictationShortcut: String {
+        let bindings = store.settings["bindings"] as? [String: [String: Any]] ?? [:]
+        return bindings["transcribe"]?["current_binding"] as? String ?? "未设置热键"
+    }
+
     // MARK: - sections
 
     private func todaySection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(label: Text(L("dashboard.today.title")).font(Theme.Fonts.sectionHeader)) {
+        DashboardSection(title: L("dashboard.today.title")) {
             LazyVGrid(columns: fourColumns, spacing: 12) {
                 StatCard(
                     symbol: "mic",
@@ -85,110 +117,8 @@ struct DashboardView: View {
         }
     }
 
-    private func metricsSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(label: Text(L("dashboard.metrics.title")).font(Theme.Fonts.sectionHeader)) {
-            LazyVGrid(columns: columns, spacing: 12) {
-                StatCard(
-                    symbol: "mic.fill",
-                    title: L("dashboard.metrics.totalRecordings"),
-                    value: "\(stats.totalRecordings)"
-                )
-                StatCard(
-                    symbol: "clock.fill",
-                    title: L("dashboard.metrics.dictationTime"),
-                    value: duration(stats.totalDictationMs)
-                )
-                StatCard(
-                    symbol: "textformat.abc",
-                    title: L("dashboard.metrics.chars"),
-                    value: "\(stats.totalChars)"
-                )
-                StatCard(
-                    symbol: "gauge.with.needle",
-                    title: L("dashboard.metrics.speed"),
-                    value: L("dashboard.metrics.charsPerMin", ["value": Int(stats.avgCharsPerMin)])
-                )
-                StatCard(
-                    symbol: "hourglass",
-                    title: L("dashboard.metrics.timeSaved"),
-                    value: duration(stats.timeSavedMs)
-                )
-                StatCard(
-                    symbol: "character.book.closed",
-                    title: L("dashboard.metrics.translations"),
-                    value: "\(stats.translationCount)"
-                )
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private func weeklySection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(label: Text(L("dashboard.weekly.title")).font(Theme.Fonts.sectionHeader)) {
-            let peak = max(1, stats.weekly.map(\.count).max() ?? 1)
-            HStack(alignment: .bottom, spacing: 10) {
-                ForEach(stats.weekly) { day in
-                    VStack(spacing: 6) {
-                        Text("\(day.count)")
-                            .font(Theme.Fonts.caption)
-                            .foregroundStyle(day.count > 0 ? .primary : .tertiary)
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(day.count > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary))
-                            .frame(width: 26, height: max(4, 88 * CGFloat(day.count) / CGFloat(peak)))
-                        Text(day.day)
-                            .font(Theme.Fonts.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .help(L("dashboard.weekly.recordings", ["count": day.count]))
-                }
-            }
-            .frame(height: 140, alignment: .bottom)
-            .padding(.vertical, 4)
-        }
-    }
-
-    private func tokensSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(label: Text(L("dashboard.tokens.title")).font(Theme.Fonts.sectionHeader)) {
-            let hasUsage = stats.tokensToday.totalTokens > 0 || stats.tokensWeek.totalTokens > 0
-            if !hasUsage {
-                Text(L("dashboard.tokens.none"))
-                    .font(Theme.Fonts.body)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
-            } else {
-                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
-                    GridRow {
-                        Text("").gridColumnAlignment(.leading)
-                        Text(L("dashboard.tokens.prompt")).foregroundStyle(.secondary)
-                        Text(L("dashboard.tokens.completion")).foregroundStyle(.secondary)
-                        Text(L("dashboard.tokens.total")).foregroundStyle(.secondary)
-                        Text(L("dashboard.tokens.requests")).foregroundStyle(.secondary)
-                    }
-                    .font(Theme.Fonts.caption)
-                    GridRow {
-                        Text(L("dashboard.tokens.today")).fontWeight(.medium)
-                        Text("\(stats.tokensToday.promptTokens)")
-                        Text("\(stats.tokensToday.completionTokens)")
-                        Text("\(stats.tokensToday.totalTokens)").fontWeight(.semibold)
-                        Text("\(stats.tokensToday.requests)")
-                    }
-                    GridRow {
-                        Text(L("dashboard.tokens.week")).fontWeight(.medium)
-                        Text("\(stats.tokensWeek.promptTokens)")
-                        Text("\(stats.tokensWeek.completionTokens)")
-                        Text("\(stats.tokensWeek.totalTokens)").fontWeight(.semibold)
-                        Text("\(stats.tokensWeek.requests)")
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-        }
-    }
-
     private func servicesSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(label: Text(L("dashboard.services.title")).font(Theme.Fonts.sectionHeader)) {
+        DashboardSection(title: L("dashboard.services.title")) {
             VStack(alignment: .leading, spacing: 8) {
                 ServiceRow(
                     title: L("dashboard.services.asr"),
@@ -208,33 +138,8 @@ struct DashboardView: View {
         }
     }
 
-    private func personalizationSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(label: Text(L("dashboard.personalization.title")).font(Theme.Fonts.sectionHeader)) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(L("dashboard.personalization.label"))
-                    Spacer()
-                    Text("\(stats.personalizationScore)%")
-                        .fontWeight(.semibold)
-                        .monospacedDigit()
-                }
-                ProgressView(value: Double(stats.personalizationScore), total: 100)
-                ForEach(stats.personalizationItems, id: \.id) { item in
-                    HStack(spacing: 8) {
-                        Image(systemName: item.done ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(item.done ? .green : .secondary)
-                        Text(L("dashboard.personalization.items.\(item.id)"))
-                        Spacer()
-                    }
-                    .font(Theme.Fonts.body)
-                }
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
     private func recentSection(_ stats: Core.Dashboard) -> some View {
-        GroupBox(label: Text(L("dashboard.recent.title")).font(Theme.Fonts.sectionHeader)) {
+        DashboardSection(title: L("dashboard.recent.title")) {
             if stats.recent.isEmpty {
                 Text(L("dashboard.recent.empty"))
                     .foregroundStyle(.secondary)
@@ -321,5 +226,16 @@ private struct ServiceRow: View {
                 .foregroundStyle(ok ? .green : .orange)
         }
         .frame(height: 28)
+    }
+}
+
+private struct DashboardSection<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title).font(Theme.Fonts.sectionHeader).foregroundStyle(.secondary)
+            content
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }

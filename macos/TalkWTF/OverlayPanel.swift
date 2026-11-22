@@ -5,6 +5,7 @@ import SwiftUI
 /// `learned-overlay` events; the panel only renders.
 enum OverlayState: Equatable {
     case recording
+    case agentMessage(text: String, failed: Bool)
     case streaming
     case transcribing
     case processing(label: String?)
@@ -16,7 +17,7 @@ enum OverlayState: Equatable {
     /// Transient states hide themselves; the rest stay until the shell acts.
     var autoHideAfter: TimeInterval? {
         switch self {
-        case .learned, .translationFailed, .notice: return 8
+        case .learned, .translationFailed, .notice, .agentMessage: return 8
         default: return nil
         }
     }
@@ -26,7 +27,7 @@ enum OverlayState: Equatable {
         switch self {
         case .recording, .streaming, .learned: return Theme.Overlay.recordingSize
         case .transcribing, .processing, .translating: return Theme.Overlay.workingSize
-        case .translationFailed, .notice: return Theme.Overlay.cardSize
+        case .translationFailed, .notice, .agentMessage: return Theme.Overlay.cardSize
         }
     }
 
@@ -113,7 +114,7 @@ final class OverlayController {
             queue: .main
         ) { [weak self] note in
             MainActor.assumeIsolated {
-                guard let self, self.model.state.isRecording else { return }
+                guard let self, self.model.state.isRecording, AgentHub.shared.recordingTarget == nil else { return }
                 let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
                     ?? NSWorkspace.shared.frontmostApplication
                 self.model.targetAppName = app?.localizedName
@@ -132,8 +133,8 @@ final class OverlayController {
     func show(_ state: OverlayState, near frame: CGRect? = nil) {
         if state.isRecording {
             let app = NSWorkspace.shared.frontmostApplication
-            model.targetAppName = app?.localizedName
-            model.targetAppIcon = app?.icon
+            model.targetAppName = AgentHub.shared.recordingTarget?.name ?? app?.localizedName
+            model.targetAppIcon = AgentHub.shared.recordingTarget == nil ? app?.icon : NSImage(systemSymbolName: "arrow.up.forward.circle", accessibilityDescription: "Agent")
         }
         model.state = state
         let panel = panel ?? OverlayPanel(model: model)
@@ -441,6 +442,11 @@ struct OverlayView: View {
                 Button(L("overlay.translate.retry")) { retry() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+            case .agentMessage(let text, let failed):
+                Image(systemName: failed ? "exclamationmark.circle" : "checkmark.circle")
+                    .foregroundStyle(failed ? Color.orange : Color.accentColor)
+                Text(text).font(Theme.Fonts.callout).lineLimit(3)
+                Spacer(minLength: 0)
             case .notice(let kind):
                 Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
                 Text(kind == "no_target"
