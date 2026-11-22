@@ -1,87 +1,145 @@
-# TalkWTF — Words That Flow
+<p align="center">
+  <a href="README.md"><strong>English</strong></a> · <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-**Words That Flow，让表达自然流畅。**
+<p align="center">
+  <img src="docs/assets/readme-hero.png" alt="TalkWTF: Voice to Agent for macOS. A spoken instruction travels to a paired Agent conversation." width="100%" />
+</p>
 
-基于 [Handy](https://github.com/cjpais/Handy) 二次开发的开源 macOS 语音听写 app。按住快捷键说话，松开后**转录 + AI 润色**，结果直接输入到当前输入框。
+<p align="center">
+  <strong>A voice interface for the Agent conversations you work in.</strong><br />
+  Pair a conversation. Set a shortcut. Speak your next instruction.
+</p>
 
-- **本地 ASR**：转录在你自己的 Mac 上完成（transcribe.cpp + Qwen3-ASR），音频不出本机。
-- **BYOK 润色**：AI 润色走你自己填的 API key，直连服务商（DeepSeek / OpenAI / Anthropic / OpenRouter / Groq / 自填 OpenAI 兼容地址）。
-- **无自建云**：没有自建账号、订阅或遥测服务。模型下载需要联网；启用 AI 润色或翻译时，文本会发送至你配置的服务商。
+<p align="center">
+  <img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-111827?style=flat-square" />
+  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple_Silicon-arm64-111827?style=flat-square" />
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/License-MIT-087AFF?style=flat-square" /></a>
+  <img alt="Experimental" src="https://img.shields.io/badge/Status-Experimental-64748B?style=flat-square" />
+</p>
 
-目前以个人日常使用为主，公开源码供学习与改进；尚未作为面向大众的稳定产品维护。支持 Apple Silicon Mac、macOS 14+，不提供 Windows 版本。
+<p align="center">
+  <a href="#voice-to-agent">Voice to Agent</a> · <a href="#get-started">Get started</a> · <a href="#connection-support">Connection support</a> · <a href="BUILD.md">Build guide</a>
+</p>
 
-## 从 Handy 到 TalkWTF
+---
 
-项目保留 Handy 的本地语音识别基础，扩展 AI 润色、多语言翻译、场景配置、个性化词典与自动纠错学习，整合历史检索、录音管理及本地使用统计，覆盖从语音输入到文本处理与个性化积累的完整流程。界面重构为原生 SwiftUI，核心逻辑保留在 Rust 中。
+Keep your editor, browser, or canvas in front while you speak an instruction to a paired Agent conversation. **TalkWTF turns voice into a way to work with your agents**, with local speech recognition, a shortcut for each destination, and background delivery.
 
-开发采用 AI 辅助：将需求拆为阶段目标、功能边界和验收标准，再根据实际使用反馈推进热键、悬浮窗、失败回退与安装打包。需求取舍、使用反馈和迭代记录见 `docs/specs/`。
+**Voice to Agent is the product’s focus.** AI-assisted dictation, translation, and a personal dictionary also make TalkWTF useful throughout your day on the Mac.
 
-功能选择以日常使用收益和隐私成本为依据。例如，项目放弃了需要窗口标题、浏览器地址等上下文才能发挥价值的应用感知润色，优先完善场景配置、词典纠错与自动学词。
+## Voice to Agent
 
-本地开发提交从 2026 年 9 月保留至今；本次公开发布未重写原始提交日期。TalkWTF 与 Typeless 无隶属关系。
+You have a change in mind. Instead of finding the right chat, clicking its input field, and typing it out, use the shortcut you assigned to that conversation.
 
-## 隐私边界
+| Connect | Pair | Speak |
+| :--- | :--- | :--- |
+| Choose the local Agent you use. | Copy the connection prompt into the conversation you want to reach. | Set its shortcut, then speak your instructions from another app. |
+| TalkWTF prepares the connection instructions. | The Agent sets up its receiving connection; TalkWTF confirms the saved pairing. | TalkWTF transcribes locally and sends the text to that paired destination. |
 
-- 语音识别在本机执行；下载所需模型时会访问模型托管服务。
-- 云端润色/翻译会向所选服务商发送转录文本，以及该请求所需的词典、场景等提示内容；由服务商的政策决定其处理方式。
-- 自动学词需要辅助功能权限，会在听写后观察目标输入框的修改；历史记录与录音有本地留存设置。请按自己的需求配置。
-- 本项目尚未经过独立安全审计，不将“本地优先”等同于“所有功能完全离线”。
+The default setup asks you to **choose, copy, and paste**. The receiving Agent handles session identifiers and connection details using the capabilities its host provides.
 
-## 快速开始
+### Stay with the task in front of you
 
-1. 按 [BUILD.md](BUILD.md) 安装 Xcode、Rust 并从源码构建。
-2. 启动后授予麦克风权限；回填文本和自动学词需要辅助功能权限。
-3. 在模型设置中下载本地识别模型；如需 AI 润色/翻译，再配置自己的服务商与 API key。
-4. 设置快捷键后即可听写。应用未做 Apple 公证，目前建议有开发经验的用户自行构建。
+- **A shortcut for each conversation.** Keep separate destinations for a code change, a writing project, or another supported workflow.
+- **A fixed destination while recording.** TalkWTF captures the target when you start speaking, so switching windows does not change where an Agent instruction goes.
+- **Background delivery.** The Agent workflow sends text through its connection, without pasting into the foreground app or switching focus.
+- **Recoverable failures.** If delivery fails or its outcome is unknown, keep the transcript, inspect the destination, and decide what to do next. TalkWTF does not resend automatically.
 
-## 架构
+## Get started
 
+**Requirements:** an Apple Silicon Mac, macOS 14 or later, Xcode, and Rust stable. For Voice to Agent, use a local Agent that can read files, run commands, and receive messages in the chosen conversation.
+
+### Build and open TalkWTF
+
+Follow the [build guide](BUILD.md) for toolchain setup, building, and packaging. A typical source build is:
+
+```sh
+git clone https://github.com/rywlon/TalkWTF.git
+cd TalkWTF
+xcodebuild -project macos/TalkWTF.xcodeproj -target TalkWTF -configuration Debug build
 ```
-macos/TalkWTF.xcodeproj     原生 SwiftUI app（窗口 / 设置 / 悬浮窗 / 托盘 / 热键 / 粘贴）
-        │  C FFI（JSON invoke + 事件回调）
-        ▼
-core/ffi                     talkwtf-ffi：staticlib + talkwtf.h
-        │
-        ▼
-core/core                    talkwtf-core：全部引擎逻辑，零 Tauri 依赖
-                             （设置 / 词典 / 历史 / 模型 / 音频 / ASR / LLM / 润色 / 翻译 / 学词 / Dashboard）
-resources/                   随 app 打包的资源（模型元数据、VAD 模型、提示音、26 个语言包）
-scripts/                     维护脚本（翻译一致性检查、模型目录生成/镜像）
-docs/specs/                  各阶段 spec 与实现记录
+
+Open `macos/build/Debug/TalkWTF.app`. Grant microphone access and the permissions needed for your workflow, then download a local speech model in Settings. Configure your own provider and API key if you want cloud polishing or translation.
+
+### Connect a conversation
+
+1. Open **Voice to Agent → Connect Agent**.
+2. Select your Agent and copy the generated prompt.
+3. Paste it into the conversation you want to connect. Let the Agent follow the local setup instructions.
+4. Return to TalkWTF. After it confirms the pairing, assign a shortcut.
+
+Connection prompts expire after ten minutes. If one expires, generate a new prompt. Closing the setup cancels an unfinished request.
+
+**Release stage:** experimental, source-first software. The app uses ad-hoc signing and is not Apple-notarized. Start with the build guide; this is not yet a broadly validated consumer release.
+
+## Connection support
+
+The connection picker includes **Codex, Claude Code, OpenCode, Cursor, and other local agents**. A picker entry identifies the client you are using; successful delivery also requires that client to expose a usable route into the selected conversation.
+
+| Route | Current implementation |
+| :--- | :--- |
+| **Codex session continuation** | Register an explicit existing session ID and continue it through the local Codex CLI. Desktop live refresh and behavior during an already-running turn depend on the host. |
+| **Local receiving adapter** | The Agent can register a loopback HTTP receiver or a conversation-specific command adapter using its host’s supported interfaces. |
+| **Browser-only chats** | Local pairing is not currently supported. |
+
+Pairing, receipts, session binding, and local adapter delivery have been tested. **Full microphone-to-client testing across the listed Agent applications is still in progress.** An accepted pairing confirms saved connection information; it does not prove that an Agent has completed a task.
+
+For the connection protocol and implementation scope, see [the pairing specification](docs/specs/phase-21-agent-pairing.md).
+
+## More ways to use your voice
+
+| Capability | What you can do |
+| :--- | :--- |
+| **Local speech recognition** | Transcribe on your Mac with the local ASR engine. |
+| **AI polishing** | Choose a writing style and scenario; use your own key to connect directly to a supported provider. Polishing failure falls back to the transcript. |
+| **Voice translation** | Use a separate translation shortcut and manage up to three target languages. |
+| **Personal vocabulary** | Maintain words and correction rules, import or export them, and undo learned corrections. |
+| **History** | Search, copy, and manage transcripts and recording retention. |
+| **Native macOS controls** | Use the menu bar, floating recording panel, light/dark appearance, and hold, toggle, or combined shortcut behavior. |
+
+The app bundles 26 locale packs. Some newer interface text, including parts of the Agent setup, is currently in Simplified Chinese.
+
+## Your data, your connections
+
+Speech recognition runs on your Mac. Model downloads use the network. If you enable cloud polishing or translation, TalkWTF sends the text and the required vocabulary or scenario context directly to the provider you configure.
+
+Voice to Agent sends transcript text to the paired receiving route. The Agent may then use its own model provider and tools under that client’s settings. **Local recognition does not make the entire Agent workflow offline.**
+
+TalkWTF has no self-hosted cloud relay, TalkWTF account system, subscription service, or telemetry. History and recording retention are local settings. Automatic vocabulary learning uses Accessibility access to observe edits after dictation. The project has not undergone an independent security audit.
+
+<details>
+<summary><strong>For contributors: implementation and checks</strong></summary>
+
+### Project layout
+
+```text
+macos/TalkWTF/        SwiftUI app, shortcuts, recording panel, pairing and delivery
+core/core/           Rust speech, settings, dictionary and processing engine
+core/ffi/            C bridge between Swift and Rust
+resources/           Model metadata, local resources and locale packs
+tests/agent-delivery/ Pairing and delivery integration checks
+docs/specs/          Product decisions, scope and implementation records
 ```
 
-- 没有 Tauri，没有 React，没有 webview。SwiftUI 直接调 Rust。
-- 设置、词典、历史的数据格式沿用旧版（`~/Library/Application Support/com.pais.handy/`），老数据可直接读。
+The app uses a native SwiftUI shell and a Rust core. The `connect-agent` command runs through the bundled app executable and exits after writing a local receipt. A one-time request binds the response to its target, client choice, and token.
 
-## 构建
+### Checks
 
-见 [BUILD.md](BUILD.md)。
+```sh
+cargo test --manifest-path core/core/Cargo.toml
+cargo test --manifest-path core/ffi/Cargo.toml
+python3 tests/agent-delivery/run.py
+```
 
-## 功能
+The delivery checks use local fixtures rather than real Agent tasks. They cover literal transcript delivery, session continuation, failed responses, redirects, pairing expiry, cancellation, token/client matching, and delivery through a registered adapter. See [BUILD.md](BUILD.md) for the full validation workflow.
 
-- 听写（转录 + 润色，一个动作；润色失败自动降级为原始转录）
-- 自动翻译：独立 Translate 工作流，目标语言最多 3 个
-- 润色风格 + 场景（内置 / 自定义 / 导入导出）
-- 词典：词汇 + 纠正规则，导入导出
-- 自动学词：听写后读取刚输入的输入框，把你改掉的错词学进词典（可撤销，拒绝名单可管理）
-- 历史：搜索、复制、删除、录音留存策略
-- Dashboard：活动 / 时长 / 字数 / 速度 / 节省时间 / 个性化程度 / 服务状态 / LLM token
-- 原生悬浮窗（Liquid Glass）、托盘、三种按键模式、26 个语言
+Development uses AI assistance, with product choices, implementation stages, and validation boundaries recorded in the specifications.
 
-## 许可
+</details>
 
-MIT（继承自 [Handy](https://github.com/cjpais/Handy)）。部分逻辑与 UX 移植自 [OpenTypeless](https://github.com/tover0314-w/opentypeless)（MIT），不含其云端/账号部分。相关许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。语音模型及第三方依赖分别遵循各自许可。
+## Built on open source
 
-## Voice to Agent（2026-11-22）
+TalkWTF builds on [Handy](https://github.com/cjpais/Handy), with parts of the polishing and dictionary logic and UX adapted from [OpenTypeless](https://github.com/tover0314-w/opentypeless). TalkWTF adds its own product direction, native interface, and Voice to Agent connection workflow.
 
-打开 **Voice to Agent → 连接 Agent**，选择正在用的本地 Agent，复制连接提示词并粘贴到希望接收语音的会话。Agent 根据应用生成的本机连接说明完成配置；TalkWTF 收到并保存回执后显示已连接，再引导设置快捷键。默认流程无需填写接口地址、可执行文件或会话编号。
-
-连接说明和一次性请求保存在用户自己的 Application Support 目录中，10 分钟后失效；关闭引导会取消尚未完成的请求。应用自带 `connect-agent` 命令，由同一个可执行文件处理注册后退出，不启动另一个主窗口。随机令牌、请求、所选客户端和目标身份必须匹配；提交回执不会自动执行测试任务。
-
-支持选择 Codex、Claude Code、OpenCode、Cursor 和其他本地 Agent。选项标识用户当前的客户端，尚未表示各版本兼容性都已实测。接收方需要能读取本机文件、执行命令，并提供可用的当前会话接收方式；不支持时应明确报告，不能伪造回执。网页聊天客户端暂不支持本地配对。
-
-Codex 可用明确的当前会话 UUID 登记续接；其他接收方式为本机 HTTP 接口或会话专属命令适配器。HTTP 接收 POST JSON `text`、`conversation`、`source`；命令从 stdin 接收原文，并通过 `TALKWTF_CONVERSATION` 获取会话标识。仅配置被验证和保存后显示已配对；实际语音可用性仍需接收方验证自己的适配器。Codex 续接不保证每个桌面客户端实时刷新；不得盲目与正在运行的同一会话并发执行。
-
-语音工作流固定录音开始时的目标，在后台投递，不切换窗口或使用剪贴板。失败保留文字且不自动重发。概览的“使用统计与个性化”分组已按最新要求删除。
-
-验证：`python3 tests/agent-delivery/run.py` 覆盖配对有效期、取消、令牌/客户端匹配、会话绑定、本机 HTTP、禁止重定向、原样命令输入、会话续接回执及已登记适配器的实际文字接收。另已测试构建产物的 CLI 注册与重复提交拒绝，以及实际界面自动确认连接并进入热键设置。真实麦克风及各厂商客户端的端到端测试尚未完成。
+[MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md). Dependencies and downloaded models retain their respective licenses. TalkWTF is an independent project, unaffiliated with the Agent clients listed above.
