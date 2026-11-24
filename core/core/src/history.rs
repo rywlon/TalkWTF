@@ -553,6 +553,7 @@ impl HistoryManager {
                     CASE WHEN post_processed_text IS NOT NULL AND post_processed_text != ''
                          THEN post_processed_text ELSE transcription_text END
              FROM transcription_history
+             WHERE transcription_text != ''
              ORDER BY timestamp DESC
              LIMIT ?1",
         )?;

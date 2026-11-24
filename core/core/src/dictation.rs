@@ -173,13 +173,21 @@ pub fn stop(mode: ProcessingMode) -> Result<String, String> {
 
     let transcription_text = match transcription.finalize_stream() {
         Ok(Some(text)) if !text.trim().is_empty() => text,
-        Ok(_) => transcription
-            .transcribe(samples)
-            .map_err(|e| e.to_string())?,
-        Err(error) => return Err(error.to_string()),
+        Ok(_) => match transcription.transcribe(samples) {
+            Ok(text) => text,
+            Err(error) => {
+                keep_untranscribed(&saved, sample_count, mode);
+                return Err(error.to_string());
+            }
+        },
+        Err(error) => {
+            keep_untranscribed(&saved, sample_count, mode);
+            return Err(error.to_string());
+        }
     };
 
     if transcription_text.trim().is_empty() {
+        keep_untranscribed(&saved, sample_count, mode);
         return Err("the recording contained no speech".to_string());
     }
 
@@ -321,6 +329,25 @@ fn save_recording(samples: &[f32]) -> Option<String> {
         return None;
     }
     Some(file_name)
+}
+
+/// The audio is already on disk, so a failed run should still leave a row the
+/// library can offer to re-transcribe, export, or delete.
+fn keep_untranscribed(
+    file_name: &Option<String>,
+    sample_count: usize,
+    mode: ProcessingMode,
+) {
+    let Some(file_name) = file_name else {
+        return;
+    };
+    let empty = crate::pipeline::ProcessedTranscription {
+        final_text: String::new(),
+        post_processed_text: None,
+        post_process_prompt: None,
+        translation_failed: false,
+    };
+    save_history_entry(file_name, "", &empty, sample_count, mode);
 }
 
 /// Store the run in history so the library and the dashboard see it.
