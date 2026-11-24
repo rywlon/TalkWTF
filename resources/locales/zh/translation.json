@@ -21,7 +21,9 @@
     "translation": "翻译",
     "dashboard": "概览",
     "library": "资料库",
-    "settings": "设置"
+    "settings": "设置",
+    "startDictation": "开始听写",
+    "startTranslate": "语音翻译"
   },
   "onboarding": {
     "subtitle": "请选择一个转录模型以开始使用",
@@ -896,7 +898,10 @@
       "notConfigured": "未配置",
       "enabled": "已开启",
       "disabled": "已关闭",
-      "none": "未选择"
+      "none": "未选择",
+      "routing": "Voice to Agent 自动路由",
+      "noAgents": "尚未添加 Agent",
+      "agentCount": "{{count}} 个本地 Agent"
     },
     "personalization": {
       "title": "个性化",
@@ -915,15 +920,72 @@
     "recent": {
       "title": "最近活动",
       "empty": "还没有活动。",
-      "chars": "{{count}} 字"
+      "chars": "{{count}} 字",
+      "viewAll": "查看全部资料库",
+      "translate": "翻译",
+      "dictate": "听写"
     },
     "workflow": {
       "dictation": "听写",
       "translate": "翻译"
+    },
+    "hero": {
+      "title": "从想法到行动，只需开口。",
+      "subtitle": "按热键开口，或交给对的本地 Agent。"
+    },
+    "captureHint": "点击声波开始或停止听写",
+    "startDictation": "开始听写",
+    "startTranslate": "语音翻译",
+    "openAgents": "交给 Agent",
+    "units": {
+      "times": "次",
+      "chars": "字符",
+      "voice": "语音"
+    },
+    "actions": {
+      "copy": "复制",
+      "open": "在资料库中打开"
+    },
+    "startAutoAgent": "智能路由",
+    "autoAgent": {
+      "title": "智能路由",
+      "hint": "按住快捷键说一句话，交给最像的那个 Agent。"
     }
   },
   "library": {
     "subtitle": "历史与词典，全部保存在本机",
-    "searchPlaceholder": "搜索"
+    "searchPlaceholder": "搜索",
+    "count": "%d 条记录"
+  },
+  "agents": {
+    "hero": {
+      "title": "把下一句话交给对的 Agent。",
+      "subtitle": "语音在这里变成文字，直接落进你正在用的会话。"
+    },
+    "connect": "连接 Agent",
+    "hotkey": "设置热键",
+    "count": "已配对 %d 个",
+    "list": {
+      "title": "已配对"
+    },
+    "paired": "已配对",
+    "local": "本地 Agent",
+    "edit": "编辑 Agent",
+    "remove": "移除 Agent",
+    "failedHint": "发送结果可能未知，请先检查接收端，避免重复执行。原始听写也可在资料库查找。",
+    "empty": {
+      "title": "想让谁接收你的语音？",
+      "subtitle": "选择你正在用的 Agent，把连接提示词发给它。剩下的交给它完成。"
+    },
+    "footer": "连接的是你粘贴提示词的那个会话。需要换会话时，再连接一次即可。",
+    "route": {
+      "title": "智能路由",
+      "hint": "按住快捷键说一句话，自动交给最像的那个 Agent。",
+      "unbound": "未设置"
+    },
+    "pending": {
+      "title": "这句话不确定交给谁",
+      "hint": "选一个 Agent 发出去，或复制这段文字。"
+    }
   }
 }

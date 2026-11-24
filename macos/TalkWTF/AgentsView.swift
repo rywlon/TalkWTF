@@ -10,6 +10,19 @@ final class AgentHub: ObservableObject {
     @Published var failedText: String?
     @Published var failedTarget: AgentTarget?
     @Published var recordingTarget: AgentTarget?
+    /// A sentence the router could not place, kept with its shortlist so the
+    /// user can pick one instead of losing the recording.
+    @Published var pendingRoute: PendingRoute?
+
+    struct PendingRoute: Identifiable {
+        let id = UUID()
+        let text: String
+        let candidates: [AgentTarget]
+        let reason: String
+    }
+
+    /// Pseudo binding id for "one key, the right agent".
+    static let routerBindingID = "agent_auto"
 
     var targets: [AgentTarget] {
         let raw = SettingsStore.shared.string("voice_agent_targets", "[]")
@@ -22,7 +35,8 @@ final class AgentHub: ObservableObject {
         let store = SettingsStore.shared
         var bindings = store.settings["bindings"] as? [String: Any] ?? [:]
         let valid = Set(targets.map(\.bindingID))
-        for key in Array(bindings.keys) where key.hasPrefix("agent_") && !valid.contains(key) {
+        for key in Array(bindings.keys) where key.hasPrefix("agent_")
+            && key != Self.routerBindingID && !valid.contains(key) {
             // Core patches deep-merge maps. Clearing disables removed bindings.
             if var binding = bindings[key] as? [String: Any] {
                 binding["current_binding"] = ""
@@ -32,6 +46,13 @@ final class AgentHub: ObservableObject {
         for target in targets where bindings[target.bindingID] == nil {
             bindings[target.bindingID] = ["id": target.bindingID, "name": target.name,
                 "description": "Voice to Agent", "default_binding": "", "current_binding": ""]
+        }
+        if bindings[Self.routerBindingID] == nil {
+            bindings[Self.routerBindingID] = [
+                "id": Self.routerBindingID, "name": "智能路由",
+                "description": "一句话交给对的本地 Agent",
+                "default_binding": "option+a", "current_binding": "option+a",
+            ]
         }
         guard store.patch(["voice_agent_targets": String(decoding: encoded, as: UTF8.self), "bindings": bindings]) else {
             throw AgentDeliveryError.invalid(store.error ?? "保存失败。")
@@ -46,6 +67,60 @@ final class AgentHub: ObservableObject {
         updated[index].conversation = conversation
         do { try save(updated) }
         catch { status += "（会话未能保存，请重新连接后再发送。）" }
+    }
+
+    /// Route a finished transcript to the best local agent, or park it when the
+    /// candidates are too close to call.
+    func route(_ text: String) {
+        let agents = targets
+        guard !agents.isEmpty else {
+            OverlayController.shared.show(.agentMessage(text: "还没有连接 Agent，先在 TalkWTF 里连一个。", failed: true))
+            return
+        }
+        let decision = AgentRouter.route(text, agents: agents)
+        if let target = decision.target, decision.autoDispatch {
+            status = "\(target.name) · \(decision.tier.label) \(Int((decision.confidence * 100).rounded()))%"
+            markUsed(target)
+            deliver(text, to: target)
+            return
+        }
+        pendingRoute = PendingRoute(text: text, candidates: decision.candidates, reason: decision.reason)
+        OverlayController.shared.show(.agentMessage(
+            text: "这句话不确定交给谁，打开 TalkWTF 选一下。", failed: false))
+    }
+
+    /// Deliver a parked sentence to the agent the user picked.
+    func deliverPending(_ target: AgentTarget) {
+        guard let pending = pendingRoute else { return }
+        pendingRoute = nil
+        markUsed(target)
+        deliver(pending.text, to: target)
+    }
+
+    /// Give the router binding the ⌥A default once, so "one key, right agent"
+    /// works without the user visiting this page first.
+    func ensureRouterBinding() {
+        let store = SettingsStore.shared
+        var bindings = store.settings["bindings"] as? [String: Any] ?? [:]
+        guard bindings[Self.routerBindingID] == nil else { return }
+        // Never steal a shortcut the user already gave to something else.
+        let taken = bindings.values.contains { entry in
+            (entry as? [String: Any])?["current_binding"] as? String == "option+a"
+        }
+        guard !taken else { return }
+        bindings[Self.routerBindingID] = [
+            "id": Self.routerBindingID, "name": "智能路由",
+            "description": "一句话交给对的本地 Agent",
+            "default_binding": "option+a", "current_binding": "option+a",
+        ]
+        if store.patch(["bindings": bindings]) { try? Core.invoke("start_hotkeys") }
+    }
+
+    private func markUsed(_ target: AgentTarget) {
+        var updated = targets
+        guard let index = updated.firstIndex(where: { $0.id == target.id }) else { return }
+        updated[index].lastUsedAt = Date().timeIntervalSince1970
+        try? save(updated)
     }
 
     func deliver(_ text: String, to target: AgentTarget) {
@@ -63,6 +138,7 @@ final class AgentHub: ObservableObject {
                     self.rememberConversation(receipt.conversation, for: target)
                     self.failedText = nil
                     self.failedTarget = nil
+                    self.markUsed(target)
                     OverlayController.shared.show(.agentMessage(text: self.status, failed: false))
                 }
             } catch {
@@ -90,89 +166,30 @@ struct AgentsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                HStack(alignment: .top) {
-                    pageHeader("Voice to Agent", subtitle: "保持专注，把下一句话交给对的 Agent。")
-                    Spacer()
-                    Button { editing = AgentTarget(name: "") } label: {
-                        Label("连接 Agent", systemImage: "plus")
-                    }.buttonStyle(.borderedProminent)
+            VStack(alignment: .leading, spacing: 0) {
+                hero
+                if let pending = hub.pendingRoute {
+                    pendingBanner(pending).padding(.top, 22)
                 }
-                HStack(spacing: 16) {
-                    Image(systemName: "waveform").font(.system(size: 32, weight: .light)).foregroundStyle(.tint)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("一个热键，一句话，继续你的思路。")
-                            .font(.system(size: 22, weight: .medium))
-                        Text("让你正在用的 Agent 帮你连上。以后按键说话，直接交给它。")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }.padding(24).frame(maxWidth: .infinity).background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 20))
-
-                if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
-                if let error = recorder.error { Text(error).foregroundStyle(.red) }
-                if !hub.status.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label(hub.status, systemImage: hub.sending ? "arrow.up.circle" : hub.failedText == nil ? "checkmark.circle" : "exclamationmark.circle")
-                            .foregroundStyle(hub.failedText == nil ? Color.secondary : Color.orange)
-                        if !hub.reply.isEmpty {
-                            Text(hub.reply).textSelection(.enabled)
-                        }
-                        if let text = hub.failedText {
-                            Text(text).textSelection(.enabled).lineLimit(8)
-                            HStack {
-                                Button("复制内容") {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(text, forType: .string)
-                                }
-                                Button("清除提示") { hub.failedText = nil; hub.failedTarget = nil; hub.status = "" }
-                            }
-                            Text("发送结果可能未知，请先检查接收端，避免重复执行。原始听写也可在资料库查找。")
-                                .font(Theme.Fonts.caption).foregroundStyle(.secondary)
-                        }
-                    }.cardSurface()
+                if let error {
+                    Text(error).font(Theme.Fonts.callout).foregroundStyle(Theme.Colors.err)
+                        .padding(.top, 18).textSelection(.enabled)
                 }
-                if hub.targets.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("想让谁接收你的语音？").font(Theme.Fonts.title)
-                        Text("选择你正在用的 Agent，把连接提示词发给它。剩下的交给它完成。")
-                            .foregroundStyle(.secondary)
-                        Button("连接 Agent") { editing = AgentTarget(name: "") }
-                    }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Theme.Colors.cardFill, in: RoundedRectangle(cornerRadius: 16))
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(hub.targets) { target in
-                            HStack(spacing: 16) {
-                                Image(systemName: target.kind == .codex ? "sparkles" : target.kind == .http ? "network" : "terminal")
-                                    .font(.system(size: 20)).foregroundStyle(.tint)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(target.name).font(Theme.Fonts.headline)
-                                    Text((target.provider ?? (target.kind == .codex ? "Codex" : "本地 Agent")) + " · 已配对")
-                                        .font(Theme.Fonts.callout).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Button { recorder.recording == target.bindingID ? recorder.cancel() : recorder.begin(target.bindingID) } label: {
-                                    Text(recorder.recording == target.bindingID ? recorder.preview : shortcut(target))
-                                        .font(.system(size: 12, design: .monospaced))
-                                }.disabled(recorder.recording != nil && recorder.recording != target.bindingID)
-                                Button { editing = target } label: { Image(systemName: "slider.horizontal.3") }.help("编辑 Agent")
-                                Menu {
-                                    Button("移除 Agent", role: .destructive) {
-                                        do { try hub.save(hub.targets.filter { $0.id != target.id }) }
-                                        catch { self.error = error.localizedDescription }
-                                    }
-                                } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).frame(width: 24)
-                            }.padding(20)
-                            if target.id != hub.targets.last?.id { Divider().padding(.leading, 80) }
-                        }
-                    }.background(Theme.Colors.cardFill, in: RoundedRectangle(cornerRadius: 16))
+                if let recorderError = recorder.error {
+                    Text(recorderError).font(Theme.Fonts.callout).foregroundStyle(Theme.Colors.err)
+                        .padding(.top, 18).textSelection(.enabled)
                 }
-                Text("连接的是你粘贴提示词的那个会话。需要换会话时，再连接一次即可。")
-                    .font(Theme.Fonts.callout).foregroundStyle(.secondary)
-            }.pageLayout()
+                if !hub.status.isEmpty { statusSection.padding(.top, 22) }
+                routerSection.padding(.top, 30)
+                listSection.padding(.top, 32)
+                Text(L("agents.footer"))
+                    .font(Theme.Fonts.callout)
+                    .foregroundStyle(Theme.Colors.inkTertiary)
+                    .padding(.top, 24)
+                Spacer(minLength: 40)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .pageLayout()
         }
         .sheet(item: $editing) { target in
             AgentPairingSheet(target: target) { updated in
@@ -185,10 +202,315 @@ struct AgentsView: View {
         .onDisappear { recorder.cancel() }
     }
 
+    // MARK: Routing
+
+    private var routerBinding: String {
+        let bindings = store.settings["bindings"] as? [String: Any] ?? [:]
+        let entry = bindings[AgentHub.routerBindingID] as? [String: Any]
+        return entry?["current_binding"] as? String ?? ""
+    }
+
+    private var routerSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: L("agents.route.title"))
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(L("agents.route.hint"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.Colors.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 16)
+                if routerBinding.isEmpty {
+                    Text(L("agents.route.unbound"))
+                        .font(Theme.Fonts.mono(11))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
+                } else {
+                    KeycapCombo(combo: routerBinding)
+                }
+            }
+            .padding(.vertical, 16)
+            .overlay(alignment: .bottom) { Hairline() }
+        }
+    }
+
+    private func pendingBanner(_ pending: AgentHub.PendingRoute) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.accent)
+                Text(L("agents.pending.title"))
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                StudioIconButton(systemImage: "xmark") { hub.pendingRoute = nil }
+            }
+            Text(pending.text)
+                .font(.system(size: 13.5))
+                .foregroundStyle(Theme.Colors.ink)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(L("agents.pending.hint"))
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.Colors.inkTertiary)
+            HStack(spacing: 8) {
+                ForEach(pending.candidates) { agent in
+                    StudioButton(title: agent.name, kind: .ghost, height: 30) {
+                        hub.deliverPending(agent)
+                    }
+                }
+                Spacer()
+                StudioButton(title: L("dashboard.actions.copy"), kind: .quiet, height: 30) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(pending.text, forType: .string)
+                }
+            }
+        }
+        .padding(16)
+        .background(Theme.Colors.well)
+        .overlay(alignment: .top) { Hairline() }
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    // MARK: Hero
+
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("VOICE → AGENT")
+                    .font(Theme.Fonts.mono(11, weight: .semibold))
+                    .tracking(2.6)
+                    .foregroundStyle(.white.opacity(0.55))
+                Text(L("agents.hero.title"))
+                    .font(.system(size: 31, weight: .bold))
+                    .tracking(-0.8)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(L("agents.hero.subtitle"))
+                    .font(.system(size: 14.5))
+                    .foregroundStyle(.white.opacity(0.74))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 470, alignment: .leading)
+            }
+            HStack(spacing: 10) {
+                StudioButton(title: L("agents.connect"), systemImage: "plus", kind: .accent) {
+                    editing = AgentTarget(name: "")
+                }
+            }
+        }
+        .padding(.horizontal, 30)
+        .padding(.vertical, 26)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(heroBackground)
+        .frame(height: 268)
+        .clipped()
+        .overlay(alignment: .topTrailing) {
+            Text(String(format: L("agents.count"), hub.targets.count))
+                .font(Theme.Fonts.mono(11))
+                .tracking(1.4)
+                .foregroundStyle(.white.opacity(0.6))
+                .padding(.top, 24)
+                .padding(.trailing, 26)
+        }
+    }
+
+    private var heroBackground: some View {
+        ZStack {
+            Color.black
+            if let image = StudioAssets.waveguide {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            }
+            LinearGradient(
+                colors: [Color.black.opacity(0.72), Color.black.opacity(0.35), Color.black.opacity(0.86)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+    }
+
+    // MARK: Status
+
+    private var statusSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: hub.sending ? "arrow.up.circle" : hub.failedText == nil ? "checkmark.circle" : "exclamationmark.circle")
+                    .font(.system(size: 13))
+                Text(hub.status)
+                    .font(Theme.Fonts.body)
+                Spacer()
+                if hub.sending { ProgressView().controlSize(.small) }
+            }
+            .foregroundStyle(hub.failedText == nil ? Theme.Colors.inkSecondary : Theme.Colors.warn)
+
+            if !hub.reply.isEmpty {
+                Text(hub.reply)
+                    .font(Theme.Fonts.body)
+                    .textSelection(.enabled)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.Colors.well)
+            }
+            if let text = hub.failedText {
+                Text(text)
+                    .font(Theme.Fonts.callout)
+                    .textSelection(.enabled)
+                    .lineLimit(8)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.Colors.well)
+                HStack(spacing: 8) {
+                    StudioButton(title: L("dashboard.actions.copy"), systemImage: "doc.on.doc", kind: .ghost) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+                    StudioButton(title: L("common.clear"), systemImage: "xmark", kind: .quiet) {
+                        hub.failedText = nil
+                        hub.failedTarget = nil
+                        hub.status = ""
+                    }
+                }
+                Text(L("agents.failedHint"))
+                    .font(Theme.Fonts.caption)
+                    .foregroundStyle(Theme.Colors.inkTertiary)
+            }
+        }
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) { Hairline() }
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    // MARK: List
+
+    private var listSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: L("agents.list.title"), trailing: "\(hub.targets.count)")
+
+            if hub.targets.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L("agents.empty.title"))
+                        .font(.system(size: 22, weight: .semibold))
+                        .tracking(-0.4)
+                    Text(L("agents.empty.subtitle"))
+                        .font(Theme.Fonts.body)
+                        .foregroundStyle(Theme.Colors.inkSecondary)
+                        .frame(maxWidth: 520, alignment: .leading)
+                    StudioButton(title: L("agents.connect"), systemImage: "plus", kind: .accent) {
+                        editing = AgentTarget(name: "")
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(.vertical, 34)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .top) { Hairline() }
+                .overlay(alignment: .bottom) { Hairline() }
+            } else {
+                VStack(spacing: 0) {
+                    Hairline()
+                    ForEach(hub.targets) { target in
+                        row(target)
+                        Hairline()
+                    }
+                }
+            }
+        }
+    }
+
+    private func row(_ target: AgentTarget) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Image(systemName: icon(for: target))
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(Theme.Colors.ink)
+            }
+            .frame(width: 40, height: 40)
+            .overlay(Rectangle().stroke(Theme.Colors.hairline, lineWidth: 1))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(target.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.Colors.ink)
+                    if let provider = target.provider, provider != target.name, !provider.isEmpty {
+                        Text(provider)
+                            .font(Theme.Fonts.mono(11))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
+                    }
+                }
+                Text(detail(for: target))
+                    .font(Theme.Fonts.caption)
+                    .foregroundStyle(Theme.Colors.inkSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+
+            hotkeyButton(target)
+            StudioIconButton(systemImage: "slider.horizontal.3", help: L("agents.edit")) { editing = target }
+            Menu {
+                Button(L("agents.remove"), role: .destructive) {
+                    do { try hub.save(hub.targets.filter { $0.id != target.id }) }
+                    catch { self.error = error.localizedDescription }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.Colors.inkSecondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: 22)
+        }
+        .padding(.vertical, 16)
+        .contentShape(Rectangle())
+    }
+
+    private func hotkeyButton(_ target: AgentTarget) -> some View {
+        let isRecording = recorder.recording == target.bindingID
+        let label = isRecording ? recorder.preview : shortcut(target)
+        return Button {
+            isRecording ? recorder.cancel() : recorder.begin(target.bindingID)
+        } label: {
+            Text(label.isEmpty ? L("agents.hotkey") : label)
+                .font(Theme.Fonts.mono(11.5))
+                .lineLimit(1)
+                .foregroundStyle(isRecording ? Theme.Colors.accent : Theme.Colors.inkSecondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .overlay(Rectangle().stroke(isRecording ? Theme.Colors.accent : Theme.Colors.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(recorder.recording != nil && !isRecording)
+    }
+
+    private func icon(for target: AgentTarget) -> String {
+        switch target.kind {
+        case .codex: return "sparkles"
+        case .http: return "network"
+        case .command: return "terminal"
+        }
+    }
+
+    private func detail(for target: AgentTarget) -> String {
+        if let directory = target.workingDirectory, !directory.isEmpty { return directory }
+        if !target.address.isEmpty { return target.address }
+        return "\(kindLabel(target)) · \(L("agents.paired"))"
+    }
+
+    private func kindLabel(_ target: AgentTarget) -> String {
+        switch target.kind {
+        case .codex: return "Codex"
+        case .http: return "HTTP"
+        case .command: return L("agents.local")
+        }
+    }
+
     private func shortcut(_ target: AgentTarget) -> String {
         let bindings = store.settings["bindings"] as? [String: [String: Any]] ?? [:]
         let value = bindings[target.bindingID]?["current_binding"] as? String ?? ""
-        return value.isEmpty ? "设置热键" : value
+        return value.isEmpty ? L("agents.hotkey") : KeyGlyphs.parse(value).joined(separator: " ")
     }
 }
 

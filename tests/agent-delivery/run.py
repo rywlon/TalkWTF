@@ -51,5 +51,18 @@ print(json.dumps({'type': 'turn.completed'}))
         subprocess.run([executable, f'http://127.0.0.1:{server.server_port}', str(fixture), directory], check=True)
     assert received == [('/', {'text': '原样发送 $(touch /tmp/talkwtf-should-not-exist)', 'conversation': 'project-a', 'source': 'TalkWTF'})], received
     print('Loopback payload, failure, redirect and literal command-stdin checks passed')
+
+    with tempfile.TemporaryDirectory() as directory:
+        router = str(Path(directory) / 'router-tests')
+        main = Path(directory) / 'main.swift'
+        main.write_text('import Foundation\nrunRouterChecks()\n')
+        subprocess.run([
+            'swiftc', '-O',
+            str(root / 'macos/TalkWTF/AgentTransport.swift'),
+            str(root / 'macos/TalkWTF/AgentRouter.swift'),
+            str(Path(__file__).with_name('router-checks.swift')),
+            str(main), '-o', router,
+        ], check=True)
+        subprocess.run([router], check=True)
 finally:
     server.shutdown()

@@ -21,7 +21,9 @@
     "translation": "Translate",
     "dashboard": "Dashboard",
     "library": "Library",
-    "settings": "Settings"
+    "settings": "Settings",
+    "startDictation": "Start dictation",
+    "startTranslate": "Translate speech"
   },
   "onboarding": {
     "subtitle": "To get started, choose a transcription model",
@@ -896,7 +898,10 @@
       "notConfigured": "Not configured",
       "enabled": "On",
       "disabled": "Off",
-      "none": "Not selected"
+      "none": "Not selected",
+      "routing": "Voice to Agent routing",
+      "noAgents": "No agents yet",
+      "agentCount": "{{count}} local agents"
     },
     "personalization": {
       "title": "Personalization",
@@ -915,15 +920,72 @@
     "recent": {
       "title": "Recent activity",
       "empty": "No activity yet.",
-      "chars": "{{count}} chars"
+      "chars": "{{count}} chars",
+      "viewAll": "View all in library",
+      "translate": "Translated",
+      "dictate": "Dictated"
     },
     "workflow": {
       "dictation": "Dictation",
       "translate": "Translate"
+    },
+    "hero": {
+      "title": "From thought to action. Just speak.",
+      "subtitle": "Press the hotkey and talk, or hand it to the right local agent."
+    },
+    "captureHint": "Click the waveform to start or stop dictation",
+    "startDictation": "Start dictation",
+    "startTranslate": "Translate speech",
+    "openAgents": "Hand to agent",
+    "units": {
+      "times": "count",
+      "chars": "chars",
+      "voice": "voice"
+    },
+    "actions": {
+      "copy": "Copy",
+      "open": "Open in library"
+    },
+    "startAutoAgent": "Route to agent",
+    "autoAgent": {
+      "title": "Smart routing",
+      "hint": "One key, and the sentence goes to the agent that fits."
     }
   },
   "library": {
     "subtitle": "History and dictionary, kept on this Mac",
-    "searchPlaceholder": "Search"
+    "searchPlaceholder": "Search",
+    "count": "%d entries"
+  },
+  "agents": {
+    "hero": {
+      "title": "Send the next line to the right agent.",
+      "subtitle": "Speech becomes text here, then lands straight in the session you are already using."
+    },
+    "connect": "Connect agent",
+    "hotkey": "Set hotkey",
+    "count": "%d paired",
+    "list": {
+      "title": "Paired agents"
+    },
+    "paired": "Paired",
+    "local": "Local agent",
+    "edit": "Edit agent",
+    "remove": "Remove agent",
+    "failedHint": "The send may or may not have landed. Check the receiver before retrying so nothing runs twice. The original dictation is always in the library.",
+    "empty": {
+      "title": "Who should receive your voice?",
+      "subtitle": "Pick the agent you are working in and send it the pairing prompt. It takes care of the rest."
+    },
+    "footer": "You are connected to the session you sent the prompt to. Connect again whenever you switch sessions.",
+    "route": {
+      "title": "Smart routing",
+      "hint": "Hold the key, speak, and the sentence lands with the agent that fits.",
+      "unbound": "Not set"
+    },
+    "pending": {
+      "title": "Not sure who this is for",
+      "hint": "Pick an agent to deliver it, or copy the text."
+    }
   }
 }

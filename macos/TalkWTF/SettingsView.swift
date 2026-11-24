@@ -16,9 +16,7 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                pageHeader(L("settings.panes.\(pane.rawValue)"), subtitle: L("settings.subtitle"))
-
+            VStack(alignment: .leading, spacing: 18) {
                 if let error {
                     Text(error).foregroundStyle(.red).textSelection(.enabled)
                 }
@@ -34,7 +32,9 @@ struct SettingsView: View {
                 }
                 Spacer()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .pageLayout()
+            .studioForm()
         }
         .task { load() }
         .onReceive(

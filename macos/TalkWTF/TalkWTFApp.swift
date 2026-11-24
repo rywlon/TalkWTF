@@ -16,7 +16,7 @@ struct TalkWTFApp: App {
     var body: some Scene {
         WindowGroup(id: "main") { shell }
             .defaultSize(width: Theme.Layout.windowWidth, height: Theme.Layout.windowHeight)
-            .windowToolbarStyle(.unifiedCompact)
+            .windowStyle(.hiddenTitleBar)
     }
 
     private var shell: some View {
@@ -51,6 +51,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if LaunchSettings.startHidden() {
             suppressLaunchWindow()
         }
+        placeForQAIfNeeded()
+    }
+
+    /// Debug affordance: `TALKWTF_SCREEN=builtin` parks the main window on the
+    /// built-in display so screenshot runs are not at the mercy of whichever
+    /// monitor the window happened to restore on.
+    private func placeForQAIfNeeded() {
+        guard ProcessInfo.processInfo.environment["TALKWTF_SCREEN"] == "builtin",
+              let screen = NSScreen.screens.first else { return }
+        func place() {
+            guard let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) else { return }
+            let size = NSSize(width: Theme.Layout.windowWidth, height: Theme.Layout.windowHeight)
+            let origin = NSPoint(
+                x: screen.frame.minX + (screen.frame.width - size.width) / 2,
+                y: screen.frame.minY + (screen.frame.height - size.height) / 2
+            )
+            window.setFrame(NSRect(origin: origin, size: size), display: true)
+            window.makeKeyAndOrderFront(nil)
+        }
+        place()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: place)
     }
 
     /// "Start hidden": SwiftUI auto-presents the launch window, so hide it as

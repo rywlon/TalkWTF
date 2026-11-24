@@ -10,6 +10,12 @@ struct AgentTarget: Codable, Equatable, Identifiable {
     var conversation: String = ""
     var workingDirectory: String? = nil
     var provider: String? = nil
+    /// Extra cue words this agent answers to ("claude", "reviewer", ...).
+    var aliases: [String]? = nil
+    /// What this agent is responsible for, used by the smart router.
+    var scope: String? = nil
+    /// Unix seconds of the last successful delivery — drives follow-up routing.
+    var lastUsedAt: Double? = nil
     var bindingID: String { "agent_" + id }
 }
 

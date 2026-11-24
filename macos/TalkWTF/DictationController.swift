@@ -47,6 +47,16 @@ final class DictationController {
     /// Whether a recording is in flight (the overlay's buttons need to know).
     var isRecording: Bool { recording }
 
+    /// Start or stop a recording from a button, independent of the hotkey's
+    /// activation mode. `mode` is `dictation`, `translate`, or an `agent_` id.
+    func toggle(mode: String) {
+        guard !processing, !AgentHub.shared.sending else { return }
+        if recording { stop(mode: activeMode) } else { begin(mode: mode) }
+    }
+
+    /// True while a finished recording is being transcribed/pasted.
+    var isBusy: Bool { processing }
+
     /// Finish the current recording and paste the result — the overlay's ✓.
     func finish() {
         guard recording else { return }
@@ -122,8 +132,20 @@ final class DictationController {
 
     private func begin(mode: String) {
         guard !processing, !AgentHub.shared.sending else { return }
-        let target = mode.hasPrefix("agent_") ? AgentHub.shared.targets.first { $0.bindingID == mode } : nil
-        if mode.hasPrefix("agent_") {
+        let isRouter = mode == AgentHub.routerBindingID
+        let target = mode.hasPrefix("agent_") && !isRouter
+            ? AgentHub.shared.targets.first { $0.bindingID == mode } : nil
+        if isRouter {
+            guard !AgentHub.shared.targets.isEmpty else {
+                OverlayController.shared.show(.agentMessage(
+                    text: "还没有连接 Agent，先在 TalkWTF 里连一个。", failed: true))
+                return
+            }
+            guard AgentHub.shared.failedText == nil else {
+                OverlayController.shared.show(.agentMessage(text: "上次内容尚未处理，请先打开 TalkWTF 复制或清除。", failed: true))
+                return
+            }
+        } else if mode.hasPrefix("agent_") {
             guard let target else { return }
             guard AgentHub.shared.failedText == nil else {
                 OverlayController.shared.show(.agentMessage(text: "上次内容尚未处理，请先打开 TalkWTF 复制或清除。", failed: true))
@@ -153,6 +175,7 @@ final class DictationController {
     private func stop(mode: String) {
         guard recording else { return }
         let pipelineMode = activeMode == "translate" ? "translate" : "dictation"
+        let isRouter = activeMode == AgentHub.routerBindingID
         let target = destination
         destination = nil
         recording = false
@@ -168,6 +191,14 @@ final class DictationController {
                 DispatchQueue.main.async {
                     self.processing = false
                     AgentHub.shared.recordingTarget = nil
+                    if isRouter {
+                        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            OverlayController.shared.show(.agentMessage(text: "没有识别到内容，请重新录音。", failed: true))
+                        } else {
+                            AgentHub.shared.route(text)
+                        }
+                        return
+                    }
                     if let target {
                         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             OverlayController.shared.show(.agentMessage(text: "没有识别到内容，请重新录音。", failed: true))

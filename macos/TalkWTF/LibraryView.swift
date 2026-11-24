@@ -29,34 +29,40 @@ struct LibraryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-                HStack(alignment: .top) {
-                    pageHeader(L("sidebar.library"), subtitle: L("library.subtitle"))
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(L("sidebar.library"))
+                        .font(.system(size: 30, weight: .semibold))
+                        .tracking(-0.7)
+                        .foregroundStyle(Theme.Colors.ink)
                     Spacer()
-                    Picker("", selection: $tab) {
-                        ForEach(Tab.allCases) { item in
-                            Text(item.title).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(width: 220)
+                    Text(String(format: L("library.count"), entries.count))
+                        .font(Theme.Fonts.mono(11))
+                        .tracking(1.2)
+                        .foregroundStyle(Theme.Colors.inkTertiary)
                 }
+                StudioTabs(items: Tab.allCases, title: { $0.title }, selection: $tab)
+                    .padding(.top, 14)
 
                 if let error {
-                    Text(error).foregroundStyle(.red).textSelection(.enabled)
+                    Text(error).font(Theme.Fonts.callout).foregroundStyle(Theme.Colors.err)
+                        .padding(.top, 16).textSelection(.enabled)
                 }
                 if let notice {
-                    Text(notice).foregroundStyle(.secondary).textSelection(.enabled)
+                    Text(notice).font(Theme.Fonts.callout).foregroundStyle(Theme.Colors.inkSecondary)
+                        .padding(.top, 16).textSelection(.enabled)
                 }
 
-                switch tab {
-                case .history:
-                    historyList
-                case .dictionary:
-                    dictionaryList
+                Group {
+                    switch tab {
+                    case .history: historyList
+                    case .dictionary: dictionaryList
+                    }
                 }
+                .padding(.top, 22)
+                Spacer(minLength: 40)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .pageLayout()
         }
         .task { load() }
@@ -99,17 +105,20 @@ struct LibraryView: View {
     }
 
     private var historyList: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.row) {
-            HStack(spacing: Theme.Spacing.row) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
                     TextField(L("library.searchPlaceholder"), text: $query)
                         .textFieldStyle(.plain)
+                        .font(.system(size: 13.5))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(Theme.Colors.cardFill, in: Capsule())
-                .frame(maxWidth: 280)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 8)
+                .frame(maxWidth: 320)
+                .overlay(Rectangle().stroke(Theme.Colors.hairline, lineWidth: 1))
 
                 Picker("", selection: $sort) {
                     Text(L("settings.history.sort.newest")).tag(SortOrder.newest)
@@ -117,95 +126,97 @@ struct LibraryView: View {
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
-                .frame(width: 130)
+                .frame(width: 118)
 
                 Spacer()
 
-                Button(L("settings.history.openFolder")) {
+                StudioButton(title: L("settings.history.openFolder"), systemImage: "folder", kind: .ghost) {
                     NSWorkspace.shared.open(AppPaths.recordingsDirectory)
                 }
             }
+            .padding(.bottom, 18)
 
             if filteredEntries.isEmpty {
                 Text(query.isEmpty ? L("settings.history.empty") : L("settings.history.noMatches"))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, Theme.Spacing.section)
+                    .font(Theme.Fonts.body)
+                    .foregroundStyle(Theme.Colors.inkSecondary)
+                    .padding(.vertical, 40)
                     .frame(maxWidth: .infinity, alignment: .center)
+                    .overlay(alignment: .top) { Hairline() }
             } else {
-                ForEach(filteredEntries) { entry in
-                    historyRow(entry)
-                    Divider()
+                VStack(spacing: 0) {
+                    Hairline()
+                    ForEach(filteredEntries) { entry in
+                        historyRow(entry)
+                        Hairline()
+                    }
                 }
             }
         }
     }
 
-    /// Spokenly-style row: what you got, the raw transcript when it differs, then
-    /// the metadata line.
+    /// What you got, the raw transcript when it differs, then the metadata line.
     private func historyRow(_ entry: Core.HistoryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top, spacing: Theme.Spacing.row) {
-                VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(entry.display)
-                        .font(Theme.Fonts.body)
+                        .font(.system(size: 14.5))
+                        .foregroundStyle(Theme.Colors.ink)
                         .lineLimit(3)
+                        .textSelection(.enabled)
                     if let raw = entry.rawIfDifferent {
                         Text(raw)
-                            .font(Theme.Fonts.callout)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
                             .lineLimit(2)
                     }
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 10) {
+                HStack(spacing: 2) {
                     RecordingPlayButton(entryId: entry.id, fileName: entry.fileName)
-
-                    Button {
+                    StudioIconButton(systemImage: "doc.on.doc", help: L("common.copy")) {
                         copy(entry.display)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
                     }
-                    .help(L("common.copy"))
-                    .accessibilityLabel(L("common.copy"))
-
-                    Button {
+                    StudioIconButton(
+                        systemImage: retrying.contains(entry.id) ? "arrow.triangle.2.circlepath" : "arrow.clockwise",
+                        help: L("settings.history.retranscribe")
+                    ) {
                         retranscribe(entry.id)
-                    } label: {
-                        Image(systemName: retrying.contains(entry.id)
-                            ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
                     }
                     .disabled(retrying.contains(entry.id))
-                    .help(L("settings.history.retranscribe"))
-                    .accessibilityLabel(L("settings.history.retranscribe"))
-
-                    Button {
+                    StudioIconButton(systemImage: "trash", help: L("common.delete")) {
                         run("delete_history_entry", ["id": entry.id])
-                    } label: {
-                        Image(systemName: "trash")
                     }
-                    .help(L("common.delete"))
-                    .accessibilityLabel(L("common.delete"))
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 Image(systemName: entry.workflow == "translate" ? "character.book.closed" : "mic")
+                    .font(.system(size: 10.5))
                 Text(entry.workflow == "translate"
                     ? L("dashboard.workflow.translate") : L("dashboard.workflow.dictation"))
                 Text("·")
-                Text(Date(timeIntervalSince1970: TimeInterval(entry.timestamp)), style: .relative)
+                Text(Self.relative(entry.timestamp))
                 if entry.durationMs > 0 {
                     Text("·")
                     Text(Self.shortDuration(entry.durationMs))
                 }
             }
-            .font(Theme.Fonts.caption)
-            .foregroundStyle(.tertiary)
+            .font(Theme.Fonts.mono(11))
+            .foregroundStyle(Theme.Colors.inkTertiary)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 15)
         .contentShape(Rectangle())
+    }
+
+    /// Locale-aware relative stamp ("3 分钟前"), not the en-only `.relative` style.
+    static func relative(_ timestamp: Int) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: Localization.shared.language == "zh" ? "zh_Hans_CN" : "en_US")
+        formatter.unitsStyle = .short
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     static func shortDuration(_ milliseconds: Int) -> String {
@@ -217,107 +228,152 @@ struct LibraryView: View {
     // MARK: - dictionary
 
     private var dictionaryList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                GroupBox(label: Text(L("settings.dictionary.wordsTitle")).font(Theme.Fonts.sectionHeader)) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            TextField(L("settings.advanced.customWords.placeholder"), text: $newWord)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: 260)
-                            Button(L("settings.advanced.customWords.add")) {
-                                run("add_dictionary_word", ["word": newWord])
-                                newWord = ""
-                            }
-                            .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
-                            Spacer()
-                            Button(L("settings.dictionary.import")) { importDictionary() }
-                            Button(L("settings.dictionary.export")) { exportDictionary() }
-                                .disabled((dictionary?.words.isEmpty ?? true) && (dictionary?.rules.isEmpty ?? true))
-                        }
-                        ForEach(dictionary?.words ?? []) { word in
-                            HStack {
-                                Text(word.word)
-                                Spacer()
-                                Button(L("settings.postProcessing.scene.edit")) { editingWord = word }
-                                    .buttonStyle(.link)
-                                Button(L("common.delete")) {
-                                    run("delete_dictionary_word", ["id": word.id])
-                                }
-                                .buttonStyle(.link)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
+        VStack(alignment: .leading, spacing: 30) {
+            wordsSection
+            rulesSection
+            rejectedSection
+        }
+        .padding(.bottom, 20)
+    }
 
-                GroupBox(label: Text(L("settings.dictionary.rulesTitle")).font(Theme.Fonts.sectionHeader)) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            TextField(L("settings.dictionary.patternPlaceholder"), text: $newPattern)
-                                .textFieldStyle(.roundedBorder)
-                            Image(systemName: "arrow.right").foregroundStyle(.tertiary)
-                            TextField(L("settings.dictionary.replacementPlaceholder"), text: $newReplacement)
-                                .textFieldStyle(.roundedBorder)
-                            Button(L("settings.advanced.customWords.add")) {
-                                run("add_correction_rule", [
-                                    "pattern": newPattern, "replacement": newReplacement,
-                                ])
-                                newPattern = ""
-                                newReplacement = ""
-                            }
-                            .disabled(newPattern.isEmpty || newReplacement.isEmpty)
-                        }
-                        ForEach(dictionary?.rules ?? []) { rule in
-                            HStack {
-                                Toggle("", isOn: Binding(
-                                    get: { rule.enabled },
-                                    set: { run("set_correction_rule_enabled", ["id": rule.id, "enabled": $0]) }
-                                ))
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .controlSize(.mini)
-                                Text(rule.pattern).foregroundStyle(rule.enabled ? .primary : .secondary)
-                                Image(systemName: "arrow.right").foregroundStyle(.tertiary)
-                                Text(rule.replacement)
-                                Spacer()
-                                Button(L("settings.postProcessing.scene.edit")) { editingRule = rule }
-                                    .buttonStyle(.link)
-                                Button(L("common.delete")) {
-                                    run("delete_correction_rule", ["id": rule.id])
-                                }
-                                .buttonStyle(.link)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+    private var wordsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: L("settings.dictionary.wordsTitle"), trailing: "\(dictionary?.words.count ?? 0)")
+            HStack(spacing: 10) {
+                TextField(L("settings.advanced.customWords.placeholder"), text: $newWord)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13.5))
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: 260)
+                    .overlay(Rectangle().stroke(Theme.Colors.hairline, lineWidth: 1))
+                StudioButton(title: L("settings.advanced.customWords.add"), systemImage: "plus", kind: .ghost) {
+                    run("add_dictionary_word", ["word": newWord])
+                    newWord = ""
                 }
-
-                GroupBox(label: Text(L("settings.dictionary.learn.rejectedTitle")).font(Theme.Fonts.sectionHeader)) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(L("settings.dictionary.learn.rejectedDescription"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        ForEach(rejections, id: \.self) { pattern in
-                            HStack {
-                                Text(pattern)
-                                Spacer()
-                                Button(L("settings.dictionary.learn.rejectedRestore")) {
-                                    run("forget_learning_rejection", ["pattern": pattern])
-                                }
-                                .buttonStyle(.link)
-                            }
-                        }
-                        if !rejections.isEmpty {
-                            Button(L("settings.dictionary.learn.rejectedClear")) {
-                                run("clear_learning_rejections")
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                Spacer()
+                StudioButton(title: L("settings.dictionary.import"), systemImage: "square.and.arrow.down", kind: .quiet) {
+                    importDictionary()
                 }
+                StudioButton(title: L("settings.dictionary.export"), systemImage: "square.and.arrow.up", kind: .quiet) {
+                    exportDictionary()
+                }
+                .disabled((dictionary?.words.isEmpty ?? true) && (dictionary?.rules.isEmpty ?? true))
             }
-            .padding(.bottom, 20)
+            .padding(.vertical, 14)
+
+            ForEach(dictionary?.words ?? []) { word in
+                Hairline()
+                HStack(spacing: 12) {
+                    Text(word.word)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.Colors.ink)
+                    Spacer()
+                    StudioIconButton(systemImage: "pencil", help: L("settings.postProcessing.scene.edit")) {
+                        editingWord = word
+                    }
+                    StudioIconButton(systemImage: "trash", help: L("common.delete")) {
+                        run("delete_dictionary_word", ["id": word.id])
+                    }
+                }
+                .padding(.vertical, 11)
+            }
+            if !(dictionary?.words.isEmpty ?? true) { Hairline() }
+        }
+    }
+
+    private var rulesSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: L("settings.dictionary.rulesTitle"), trailing: "\(dictionary?.rules.count ?? 0)")
+            HStack(spacing: 8) {
+                TextField(L("settings.dictionary.patternPlaceholder"), text: $newPattern)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .overlay(Rectangle().stroke(Theme.Colors.hairline, lineWidth: 1))
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.Colors.inkTertiary)
+                TextField(L("settings.dictionary.replacementPlaceholder"), text: $newReplacement)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .overlay(Rectangle().stroke(Theme.Colors.hairline, lineWidth: 1))
+                StudioButton(title: L("settings.advanced.customWords.add"), systemImage: "plus", kind: .ghost) {
+                    run("add_correction_rule", [
+                        "pattern": newPattern, "replacement": newReplacement,
+                    ])
+                    newPattern = ""
+                    newReplacement = ""
+                }
+                .disabled(newPattern.isEmpty || newReplacement.isEmpty)
+            }
+            .padding(.vertical, 14)
+
+            ForEach(dictionary?.rules ?? []) { rule in
+                Hairline()
+                HStack(spacing: 10) {
+                    Toggle("", isOn: Binding(
+                        get: { rule.enabled },
+                        set: { run("set_correction_rule_enabled", ["id": rule.id, "enabled": $0]) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    Text(rule.pattern)
+                        .font(Theme.Fonts.mono(13))
+                        .foregroundStyle(rule.enabled ? Theme.Colors.ink : Theme.Colors.inkTertiary)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
+                    Text(rule.replacement)
+                        .font(.system(size: 13))
+                        .foregroundStyle(rule.enabled ? Theme.Colors.inkSecondary : Theme.Colors.inkTertiary)
+                    Spacer()
+                    StudioIconButton(systemImage: "pencil", help: L("settings.postProcessing.scene.edit")) {
+                        editingRule = rule
+                    }
+                    StudioIconButton(systemImage: "trash", help: L("common.delete")) {
+                        run("delete_correction_rule", ["id": rule.id])
+                    }
+                }
+                .padding(.vertical, 11)
+            }
+            if !(dictionary?.rules.isEmpty ?? true) { Hairline() }
+        }
+    }
+
+    private var rejectedSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: L("settings.dictionary.learn.rejectedTitle"), trailing: "\(rejections.count)")
+            Text(L("settings.dictionary.learn.rejectedDescription"))
+                .font(Theme.Fonts.caption)
+                .foregroundStyle(Theme.Colors.inkTertiary)
+                .padding(.top, 6)
+                .padding(.bottom, 12)
+            ForEach(rejections, id: \.self) { pattern in
+                Hairline()
+                HStack(spacing: 12) {
+                    Text(pattern)
+                        .font(Theme.Fonts.mono(12.5))
+                        .foregroundStyle(Theme.Colors.inkSecondary)
+                    Spacer()
+                    StudioButton(title: L("settings.dictionary.learn.rejectedRestore"), kind: .quiet) {
+                        run("forget_learning_rejection", ["pattern": pattern])
+                    }
+                }
+                .padding(.vertical, 10)
+            }
+            if !rejections.isEmpty {
+                Hairline()
+                StudioButton(title: L("settings.dictionary.learn.rejectedClear"), kind: .quiet) {
+                    run("clear_learning_rejections")
+                }
+                .padding(.top, 10)
+            }
         }
     }
 

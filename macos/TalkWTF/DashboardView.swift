@@ -1,175 +1,384 @@
+import AppKit
 import SwiftUI
 
-/// Overview: dictation entry, today, recent activity and service status.
+/// Overview: the capture strip, live signal chain, today's numbers and the
+/// recent activity feed.
 struct DashboardView: View {
     var onOpenAgents: () -> Void = {}
+    var onOpenLibrary: () -> Void = {}
+    var onOpenSettings: (SettingsPane) -> Void = { _ in }
+
     @ObservedObject private var store = SettingsStore.shared
+    @ObservedObject private var agents = AgentHub.shared
     @State private var stats: Core.Dashboard?
     @State private var error: String?
+    @State private var levels: [CGFloat] = []
+    @State private var levelGeneration = 0
+    @State private var copiedID: Int?
 
-    private let fourColumns = Array(
-        repeating: GridItem(.flexible(), spacing: 12),
-        count: 4
-    )
+    private let panelWidth: CGFloat = 420
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-                HStack(alignment: .top) {
-                    pageHeader(L("dashboard.title"), subtitle: L("dashboard.subtitle"))
-                    Spacer()
-                    Button {
-                        load()
-                    } label: {
-                        Label(L("dashboard.refresh"), systemImage: "arrow.clockwise")
-                    }
-
-                }
-
-                voiceEntry
+            VStack(alignment: .leading, spacing: 0) {
+                metaLine
+                hero.padding(.top, 16)
+                captureRow.padding(.top, 34)
 
                 if let error {
-                    Text(error).foregroundStyle(.red).textSelection(.enabled)
+                    Text(error)
+                        .font(Theme.Fonts.callout)
+                        .foregroundStyle(Theme.Colors.err)
+                        .textSelection(.enabled)
+                        .padding(.top, 24)
                 }
 
                 if let stats {
-                    todaySection(stats)
-                    recentSection(stats)
-                    servicesSection(stats)
+                    metrics(stats).padding(.top, 44)
+                    recent(stats).padding(.top, 40)
                 } else if error == nil {
-                    ProgressView().padding(.top, 40)
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(.top, 60)
                 }
-                Spacer()
             }
             .pageLayout()
+            .padding(.bottom, 48)
         }
         .task { load() }
         .onReceive(NotificationCenter.default.publisher(for: .talkWtfCoreEvent)) { note in
             guard let raw = note.object as? String, raw.contains("history-update-payload") else { return }
             load()
         }
-    }
-
-    private var voiceEntry: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("从想法到行动，\n只需开口。")
-                        .font(.system(size: 34, weight: .medium, design: .rounded))
-                        .tracking(-0.8).fixedSize(horizontal: false, vertical: true)
-                    Text("写下此刻的想法，或直接交给你的 Agent。")
-                        .font(Theme.Fonts.body).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "waveform")
-                    .font(.system(size: 52, weight: .ultraLight))
-                    .foregroundStyle(Color.accentColor.opacity(0.65))
-                    .padding(.top, 12)
-            }
-            HStack(spacing: 12) {
-                Label(dictationShortcut, systemImage: "keyboard")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                Text("按热键开始听写").font(Theme.Fonts.callout).foregroundStyle(.secondary)
-                Spacer()
-                Button(action: onOpenAgents) {
-                    Label("添加语音 Agent", systemImage: "arrow.up.forward")
-                }.buttonStyle(.borderedProminent).controlSize(.large)
+        .onReceive(NotificationCenter.default.publisher(for: .talkWtfMicLevel)) { note in
+            guard let incoming = note.object as? [CGFloat] else { return }
+            levels = incoming
+            levelGeneration += 1
+            let generation = levelGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if generation == levelGeneration { levels = [] }
             }
         }
-        .padding(28)
-        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 22))
     }
 
-    private var dictationShortcut: String {
-        let bindings = store.settings["bindings"] as? [String: [String: Any]] ?? [:]
-        return bindings["transcribe"]?["current_binding"] as? String ?? "未设置热键"
-    }
+    // MARK: - header
 
-    // MARK: - sections
-
-    private func todaySection(_ stats: Core.Dashboard) -> some View {
-        DashboardSection(title: L("dashboard.today.title")) {
-            LazyVGrid(columns: fourColumns, spacing: 12) {
-                StatCard(
-                    symbol: "mic",
-                    title: L("dashboard.today.recordings"),
-                    value: "\(stats.today.recordings)"
-                )
-                StatCard(
-                    symbol: "character.cursor.ibeam",
-                    title: L("dashboard.today.chars"),
-                    value: "\(stats.today.chars)"
-                )
-                StatCard(
-                    symbol: "character.book.closed",
-                    title: L("dashboard.today.translations"),
-                    value: "\(stats.today.translations)"
-                )
-                StatCard(
-                    symbol: "clock",
-                    title: L("dashboard.today.dictationTime"),
-                    value: duration(stats.today.dictationMs)
-                )
-            }
-            .padding(.vertical, 4)
+    private var metaLine: some View {
+        HStack(spacing: 6) {
+            Text(metaText)
+                .font(Theme.Fonts.mono(11))
+                .foregroundStyle(Theme.Colors.inkTertiary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
         }
     }
 
-    private func servicesSection(_ stats: Core.Dashboard) -> some View {
-        DashboardSection(title: L("dashboard.services.title")) {
-            VStack(alignment: .leading, spacing: 8) {
-                ServiceRow(
-                    title: L("dashboard.services.asr"),
-                    value: stats.services.asrModel,
-                    ok: stats.services.asrReady
-                )
-                ServiceRow(
-                    title: L("dashboard.services.llm"),
-                    value: stats.services.llmProvider.isEmpty
-                        ? L("dashboard.services.none")
-                        : stats.services.llmProvider,
-                    ok: stats.services.polishReady
-                )
+    private var metaText: String {
+        var parts: [String] = []
+        if let services = stats?.services, !services.asrModel.isEmpty {
+            parts.append(services.asrModel)
+        }
+        if let services = stats?.services, !services.llmProvider.isEmpty {
+            parts.append(services.llmProvider)
+        }
+        let count = agents.targets.count
+        if count > 0 { parts.append("\(count) Agent") }
+        return parts.joined(separator: "  /  ")
+    }
+
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L("dashboard.hero.title"))
+                .studioDisplay(44)
+                .foregroundStyle(Theme.Colors.ink)
+                .frame(maxWidth: 640, alignment: .leading)
+            Text(L("dashboard.hero.subtitle"))
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.Colors.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - capture
+
+    private var captureRow: some View {
+        HStack(alignment: .top, spacing: 28) {
+            VStack(alignment: .leading, spacing: 22) {
+                captureStrip
+                actions
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
+
+            signalPanel
+                .frame(width: panelWidth)
         }
     }
 
-    private func recentSection(_ stats: Core.Dashboard) -> some View {
-        DashboardSection(title: L("dashboard.recent.title")) {
-            if stats.recent.isEmpty {
-                Text(L("dashboard.recent.empty"))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(stats.recent) { entry in
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Image(systemName: entry.workflow == "translate"
-                                ? "character.book.closed" : "mic")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 16)
-                            Text(entry.preview).lineLimit(1)
-                            Spacer()
-                            Text(L("dashboard.recent.chars", ["count": entry.charCount]))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(Date(timeIntervalSince1970: TimeInterval(entry.timestamp)), style: .relative)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
+    private var captureStrip: some View {
+        VStack(spacing: 0) {
+            Hairline()
+            AcousticCanvas(levels: levels, active: !levels.isEmpty)
+                .padding(.horizontal, 2)
+            Hairline()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            DictationController.shared.toggle(mode: "dictation")
+        }
+        .help(L("dashboard.captureHint"))
+    }
+
+    private var actions: some View {
+        HStack(spacing: 10) {
+            StudioButton(
+                title: L("dashboard.startDictation"),
+                systemImage: "mic.fill",
+                kind: .accent,
+                height: 44,
+                expands: true
+            ) {
+                DictationController.shared.toggle(mode: "dictation")
+            }
+
+            StudioButton(
+                title: L("dashboard.startAutoAgent"),
+                systemImage: "arrow.triangle.branch",
+                kind: .ghost,
+                height: 44,
+                expands: true
+            ) {
+                DictationController.shared.toggle(mode: AgentHub.routerBindingID)
+            }
+
+            StudioButton(
+                title: L("dashboard.startTranslate"),
+                systemImage: "character.book.closed",
+                kind: .ghost,
+                height: 44,
+                expands: true
+            ) {
+                DictationController.shared.toggle(mode: "translate")
             }
         }
     }
 
-    // MARK: - helpers
+    private var signalPanel: some View {
+        ZStack(alignment: .bottomLeading) {
+            Group {
+                if let image = StudioAssets.microphone {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    LinearGradient(
+                        colors: [Theme.Colors.well, Theme.Colors.surface],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
+            }
+            .frame(width: panelWidth, height: 336)
+            .clipped()
+
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.94), location: 0),
+                    .init(color: .black.opacity(0.62), location: 0.42),
+                    .init(color: .black.opacity(0.02), location: 1)
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            .frame(width: panelWidth, height: 336)
+            .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                signalRow(
+                    label: L("dashboard.services.asr"),
+                    value: stats?.services.asrModel ?? L("dashboard.services.none"),
+                    detail: (stats?.services.asrReady ?? false) ? "LOCAL_READY" : "LOCAL_OFFLINE",
+                    action: { onOpenSettings(.models) }
+                )
+                signalRow(
+                    label: L("dashboard.services.llm"),
+                    value: stats?.services.llmProvider.isEmpty == false
+                        ? (stats?.services.llmProvider ?? "")
+                        : L("dashboard.services.none"),
+                    detail: (stats?.services.polishReady ?? false) ? "POLISH_READY" : "POLISH_OFF",
+                    action: { onOpenSettings(.models) }
+                )
+                signalRow(
+                    label: L("dashboard.services.routing"),
+                    value: agents.targets.isEmpty
+                        ? L("dashboard.services.noAgents")
+                        : L("dashboard.services.agentCount", ["count": agents.targets.count]),
+                    detail: nil,
+                    action: onOpenAgents
+                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 6)
+        }
+        .frame(width: panelWidth, height: 336)
+        .clipped()
+        .overlay(alignment: .topTrailing) {
+            Text("Live signal")
+                .font(Theme.Fonts.mono(9.5, weight: .medium))
+                .tracking(0.8)
+                .foregroundStyle(Color.white.opacity(0.35))
+                .padding(14)
+        }
+    }
+
+    private func signalRow(
+        label: String,
+        value: String,
+        detail: String?,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 0) {
+            Hairline(color: Color.white.opacity(0.14))
+            SignalRow(label: label, value: value, detail: detail, action: action)
+        }
+    }
+
+    // MARK: - metrics
+
+    private func metrics(_ stats: Core.Dashboard) -> some View {
+        VStack(spacing: 0) {
+            Hairline()
+            HStack(spacing: 0) {
+                metricCell(
+                    L("dashboard.today.recordings"),
+                    value: "\(stats.today.recordings)",
+                    unit: L("dashboard.units.times")
+                )
+                Hairline(vertical: true)
+                metricCell(
+                    L("dashboard.today.chars"),
+                    value: "\(stats.today.chars)",
+                    unit: L("dashboard.units.chars")
+                )
+                Hairline(vertical: true)
+                metricCell(
+                    L("dashboard.today.translations"),
+                    value: "\(stats.today.translations)",
+                    unit: L("dashboard.units.times")
+                )
+                Hairline(vertical: true)
+                metricCell(
+                    L("dashboard.today.dictationTime"),
+                    value: duration(stats.today.dictationMs),
+                    unit: L("dashboard.units.voice")
+                )
+            }
+            .frame(height: 96)
+            Hairline()
+        }
+    }
+
+    private func metricCell(_ title: String, value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Theme.Colors.inkSecondary)
+                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(value)
+                    .font(.system(size: 34, weight: .semibold))
+                    .tracking(-1.1)
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.Colors.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(Theme.Fonts.mono(11))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - recent
+
+    private func recent(_ stats: Core.Dashboard) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(
+                text: L("dashboard.recent.title"),
+                trailing: nil,
+                action: onOpenLibrary,
+                actionTitle: L("dashboard.recent.viewAll")
+            )
+            .padding(.bottom, 10)
+
+            Hairline()
+
+            if stats.recent.isEmpty {
+                Text(L("dashboard.recent.empty"))
+                    .font(Theme.Fonts.callout)
+                    .foregroundStyle(Theme.Colors.inkSecondary)
+                    .padding(.vertical, 18)
+            } else {
+                ForEach(stats.recent) { entry in
+                    recentRow(entry)
+                    Hairline()
+                }
+            }
+        }
+    }
+
+    private func recentRow(_ entry: Core.Dashboard.Recent) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(entry.preview)
+                    .font(.system(size: 14.5))
+                    .foregroundStyle(Theme.Colors.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text(entry.workflow == "translate"
+                        ? L("dashboard.recent.translate")
+                        : L("dashboard.recent.dictate"))
+                    Text("·")
+                    Text(L("dashboard.recent.chars", ["count": entry.charCount]))
+                    Text("·")
+                    Text(Date(timeIntervalSince1970: TimeInterval(entry.timestamp)), style: .relative)
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.Colors.inkTertiary)
+            }
+            Spacer(minLength: 12)
+            HStack(spacing: 2) {
+                StudioIconButton(
+                    systemImage: copiedID == entry.id ? "checkmark" : "doc.on.doc",
+                    help: L("dashboard.actions.copy")
+                ) {
+                    copy(entry)
+                }
+                StudioIconButton(systemImage: "arrow.up.right", help: L("dashboard.actions.open")) {
+                    onOpenLibrary()
+                }
+            }
+            .padding(.top, 2)
+        }
+        .padding(.vertical, 16)
+        .contentShape(Rectangle())
+    }
+
+    private func copy(_ entry: Core.Dashboard.Recent) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(entry.preview, forType: .string)
+        copiedID = entry.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            if copiedID == entry.id { copiedID = nil }
+        }
+    }
+
+    // MARK: - data
 
     private func load() {
         do {
@@ -185,57 +394,8 @@ struct DashboardView: View {
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
         let seconds = totalSeconds % 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        if minutes > 0 { return "\(minutes)m \(seconds)s" }
+        if hours > 0 { return "\(hours)h\(minutes)m" }
+        if minutes > 0 { return "\(minutes)m\(seconds)s" }
         return "\(seconds)s"
-    }
-}
-
-private struct StatCard: View {
-    let symbol: String
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: symbol)
-                .font(Theme.Fonts.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Text(value)
-                .font(Theme.Fonts.metric)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
-    }
-}
-
-private struct ServiceRow: View {
-    let title: String
-    let value: String
-    let ok: Bool
-
-    var body: some View {
-        HStack {
-            Text(title).font(Theme.Fonts.body)
-            Spacer()
-            Text(value).font(Theme.Fonts.body).foregroundStyle(.secondary)
-            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .foregroundStyle(ok ? .green : .orange)
-        }
-        .frame(height: 28)
-    }
-}
-
-private struct DashboardSection<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: Content
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(title).font(Theme.Fonts.sectionHeader).foregroundStyle(.secondary)
-            content
-        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -13,6 +13,8 @@
 		1A000000000000000000006A /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007A /* AppIcon.icns */; };
 		1A000000000000000000006B /* KeyboardDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007B /* KeyboardDiagnostic.swift */; };
 		1A000000000000000000006C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007C /* Theme.swift */; };
+		1A00000000000000000000A1 /* StudioUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000A2 /* StudioUI.swift */; };
+		1A00000000000000000000A3 /* AgentRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000A4 /* AgentRouter.swift */; };
 		1A000000000000000000006D /* SecureInputFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007D /* SecureInputFallback.swift */; };
 		1A000000000000000000006E /* BusyAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007E /* BusyAlert.swift */; };
 		1A000000000000000000006F /* ShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007F /* ShortcutRecorder.swift */; };
@@ -45,6 +47,8 @@
 		1A000000000000000000007A /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		1A000000000000000000007B /* KeyboardDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDiagnostic.swift; sourceTree = "<group>"; };
 		1A000000000000000000007C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		1A00000000000000000000A2 /* StudioUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioUI.swift; sourceTree = "<group>"; };
+		1A00000000000000000000A4 /* AgentRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRouter.swift; sourceTree = "<group>"; };
 		1A000000000000000000007D /* SecureInputFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureInputFallback.swift; sourceTree = "<group>"; };
 		1A000000000000000000007E /* BusyAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusyAlert.swift; sourceTree = "<group>"; };
 		1A000000000000000000007F /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
@@ -117,6 +121,8 @@
 				1A000000000000000000007A /* AppIcon.icns */,
 				1A000000000000000000007B /* KeyboardDiagnostic.swift */,
 				1A000000000000000000007C /* Theme.swift */,
+				1A00000000000000000000A2 /* StudioUI.swift */,
+				1A00000000000000000000A4 /* AgentRouter.swift */,
 				1A000000000000000000007D /* SecureInputFallback.swift */,
 				1A000000000000000000007E /* BusyAlert.swift */,
 				1A000000000000000000007F /* ShortcutRecorder.swift */,
@@ -251,6 +257,8 @@
 			files = (
 				1A000000000000000000006B /* KeyboardDiagnostic.swift in Sources */,
 				1A000000000000000000006C /* Theme.swift in Sources */,
+				1A00000000000000000000A1 /* StudioUI.swift in Sources */,
+				1A00000000000000000000A3 /* AgentRouter.swift in Sources */,
 				1A000000000000000000006D /* SecureInputFallback.swift in Sources */,
 				1A000000000000000000006E /* BusyAlert.swift in Sources */,
 				1A000000000000000000006F /* ShortcutRecorder.swift in Sources */,
@@ -348,7 +356,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release",
 				);
-				MARKETING_VERSION = 0.9.6;
+				MARKETING_VERSION = 0.10.0;
 				OTHER_LDFLAGS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release/libtalkwtf_ffi.a",
 					"-framework",
@@ -415,7 +423,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release",
 				);
-				MARKETING_VERSION = 0.9.6;
+				MARKETING_VERSION = 0.10.0;
 				OTHER_LDFLAGS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release/libtalkwtf_ffi.a",
 					"-framework",
