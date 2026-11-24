@@ -234,14 +234,14 @@ struct AppShell: View {
             }
 
             StudioButton(
-                title: L("sidebar.startTranslate"),
-                systemImage: "character.book.closed",
-                trailing: shortcut("translate"),
+                title: L("dashboard.startAutoAgent"),
+                systemImage: "arrow.triangle.branch",
+                trailing: shortcut(AgentHub.routerBindingID),
                 kind: .ghost,
                 height: 40,
                 expands: true
             ) {
-                DictationController.shared.toggle(mode: "translate")
+                DictationController.shared.toggle(mode: AgentHub.routerBindingID)
             }
         }
     }

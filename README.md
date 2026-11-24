@@ -22,6 +22,15 @@
   <a href="#voice-to-agent">Voice to Agent</a> · <a href="#get-started">Get started</a> · <a href="#connection-support">Connection support</a> · <a href="BUILD.md">Build guide</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/app-dashboard.png" alt="TalkWTF dashboard: a spoken capture, the signal chain, and today's numbers" width="49%" />
+  <img src="docs/assets/app-agents.png" alt="Voice to Agent: paired agents and smart routing" width="49%" />
+</p>
+
+<p align="center">
+  <sub>The app as it ships now: flat editorial shell, smart routing, and a library that keeps failed recordings.</sub>
+</p>
+
 ---
 
 Keep your editor, browser, or canvas in front while you speak an instruction to a paired Agent conversation. **TalkWTF turns voice into a way to work with your agents**, with local speech recognition, a shortcut for each destination, and background delivery.
@@ -95,6 +104,8 @@ For the connection protocol and implementation scope, see [the pairing specifica
 | **AI polishing** | Choose a writing style and scenario; use your own key to connect directly to a supported provider. Polishing failure falls back to the transcript. |
 | **Voice translation** | Use a separate translation shortcut and manage up to three target languages. |
 | **Personal vocabulary** | Maintain words and correction rules, import or export them, and undo learned corrections. |
+| **Smart routing** | Speak once and let TalkWTF pick the closest Agent. It dispatches only when the match is clear, and asks instead of guessing. |
+| **Recording black box** | A failed transcription keeps its audio. Re-transcribe it from the library, export it, or delete it. |
 | **History** | Search, copy, and manage transcripts and recording retention. |
 | **Native macOS controls** | Use the menu bar, floating recording panel, light/dark appearance, and hold, toggle, or combined shortcut behavior. |
 

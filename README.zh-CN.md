@@ -22,6 +22,15 @@
   <a href="#voice-to-agent">Voice to Agent</a> · <a href="#开始使用">开始使用</a> · <a href="#连接支持">连接支持</a> · <a href="BUILD.md">构建指南</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/app-dashboard.png" alt="TalkWTF 概览：开口录制、信号链和今日数据" width="49%" />
+  <img src="docs/assets/app-agents.png" alt="Voice to Agent：已配对的 Agent 与智能路由" width="49%" />
+</p>
+
+<p align="center">
+  <sub>现在发布的样子：扁平编辑器风格、智能路由，以及会保留失败录音的资料库。</sub>
+</p>
+
 ---
 
 你可以继续看着编辑器、浏览器或画布，直接说出要交给 Agent 的下一条指令。**TalkWTF 让你用语音与 Agent 协作**：在 Mac 上识别语音，为不同会话设置快捷键，并在后台把文字送到已配对的目标。
@@ -95,6 +104,8 @@ xcodebuild -project macos/TalkWTF.xcodeproj -target TalkWTF -configuration Debug
 | **AI 润色** | 选择写作风格和使用场景，用自己的 key 直连支持的服务商；润色失败时回退到转写文本。 |
 | **语音翻译** | 使用独立翻译快捷键，管理最多三种目标语言。 |
 | **个人词汇** | 维护词汇和纠正规则，导入导出，并撤销自动学到的纠错。 |
+| **智能路由** | 说一句，让 TalkWTF 挑最像的那个 Agent。有把握才投递，没把握就停下来问，不瞎猜。 |
+| **录音黑匣子** | 转写失败的录音不会丢。在资料库的「待恢复」里重新转录、导出或删除。 |
 | **历史记录** | 搜索、复制和管理转写内容，设置录音留存方式。 |
 | **原生 macOS 交互** | 使用菜单栏、录音悬浮窗、浅深主题，以及按住、切换或组合式快捷键行为。 |
 
