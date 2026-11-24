@@ -14,16 +14,18 @@ struct PersonalizationView: View {
     @State private var error: String?
 
     var body: some View {
-        Form {
+        VStack(alignment: .leading, spacing: 30) {
             if let error {
-                Text(error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
+                Text(error)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.Colors.err)
+                    .textSelection(.enabled)
             }
             polishSection
             styleSection
             sceneSection
             translationSection
         }
-        .formStyle(.grouped)
         .task { load() }
         .onChange(of: apiKeyFocused) { _, focused in
             // Persist on blur, like the provider fields did in the Tauri app.
@@ -39,42 +41,46 @@ struct PersonalizationView: View {
     // MARK: - polish
 
     private var polishSection: some View {
-        Section(header: Text(L("sidebar.postProcessing")).font(Theme.Fonts.sectionHeader)) {
-            Picker(
-                L("settings.postProcessing.api.provider.title"),
-                selection: store.binding("post_process_provider_id", default: "")
-            ) {
-                Text(L("settings.postProcessing.scene.none")).tag("")
-                ForEach(providers.indices, id: \.self) { index in
-                    if let id = providers[index]["id"] as? String,
-                       let label = providers[index]["label"] as? String {
-                        Text(label).tag(id)
+        SettingsGroup(title: L("sidebar.postProcessing")) {
+            SettingsRow(title: L("settings.postProcessing.api.provider.title")) {
+                Picker("", selection: store.binding("post_process_provider_id", default: "")) {
+                    Text(L("settings.postProcessing.scene.none")).tag("")
+                    ForEach(providers.indices, id: \.self) { index in
+                        if let id = providers[index]["id"] as? String,
+                           let label = providers[index]["label"] as? String {
+                            Text(label).tag(id)
+                        }
                     }
                 }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
+                .tint(Theme.Colors.ink)
             }
-            .pickerStyle(.menu)
             .onChange(of: store.string("post_process_provider_id")) { _, _ in
                 apiKey = currentApiKey()
             }
 
             if !currentProviderId.isEmpty {
-                LabeledContent(L("settings.postProcessing.api.baseUrl.title")) {
-                    TextField(
-                        "",
+                SettingsRow(title: L("settings.postProcessing.api.baseUrl.title")) {
+                    SettingsField(
                         text: Binding(
                             get: { currentProvider()["base_url"] as? String ?? "" },
                             set: { setProviderBaseURL($0) }
                         )
                     )
+                    .frame(width: 248)
                     .disabled(!(currentProvider()["allow_base_url_edit"] as? Bool ?? false))
                 }
-                LabeledContent(L("settings.postProcessing.api.apiKey.title")) {
-                    SecureField("", text: $apiKey)
-                    .focused($apiKeyFocused)
+
+                SettingsRow(title: L("settings.postProcessing.api.apiKey.title")) {
+                    SettingsField(text: $apiKey, secure: true)
+                        .focused($apiKeyFocused)
+                        .frame(width: 248)
                 }
-                LabeledContent(L("settings.postProcessing.api.model.title")) {
-                    TextField(
-                        "",
+
+                SettingsRow(title: L("settings.postProcessing.api.model.title")) {
+                    SettingsField(
                         text: Binding(
                             get: { currentModels()[currentProviderId] as? String ?? "" },
                             set: { model in
@@ -84,11 +90,15 @@ struct PersonalizationView: View {
                             }
                         )
                     )
+                    .frame(width: 248)
                 }
-                Toggle(
-                    L("settings.postProcessing.thinking.title"),
-                    isOn: store.boolBinding("post_process_thinking")
-                )
+
+                SettingsRow(title: L("settings.postProcessing.thinking.title")) {
+                    Toggle("", isOn: store.boolBinding("post_process_thinking"))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .controlSize(.small)
+                }
             }
         }
     }
@@ -96,26 +106,31 @@ struct PersonalizationView: View {
     // MARK: - styles
 
     private var styleSection: some View {
-        Section(header: Text(L("settings.postProcessing.style.title")).font(Theme.Fonts.sectionHeader)) {
-            Picker(
-                L("settings.postProcessing.style.title"),
-                selection: Binding(
-                    get: { store.string("polish_style", "default") },
-                    set: { style in
-                        try? Core.invoke("change_polish_style", ["style": style])
-                        store.load()
-                    }
-                )
+        SettingsGroup(title: "") {
+            SettingsRow(
+                title: L("settings.postProcessing.style.title"),
+                detail: activeStyleDescription
             ) {
-                ForEach(styles.indices, id: \.self) { index in
-                    if let value = styles[index]["value"] as? String {
-                        Text(styles[index]["label"] as? String ?? value).tag(value)
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { store.string("polish_style", "default") },
+                        set: { style in
+                            try? Core.invoke("change_polish_style", ["style": style])
+                            store.load()
+                        }
+                    )
+                ) {
+                    ForEach(styles.indices, id: \.self) { index in
+                        if let value = styles[index]["value"] as? String {
+                            Text(styles[index]["label"] as? String ?? value).tag(value)
+                        }
                     }
                 }
-            }
-            .pickerStyle(.menu)
-            if let description = activeStyleDescription {
-                Text(description).font(.caption).foregroundStyle(.secondary)
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
+                .tint(Theme.Colors.ink)
             }
         }
     }
@@ -123,52 +138,70 @@ struct PersonalizationView: View {
     // MARK: - scenes
 
     private var sceneSection: some View {
-        Section(header: Text(L("settings.postProcessing.scene.title")).font(Theme.Fonts.sectionHeader)) {
+        SettingsGroup(title: L("settings.postProcessing.scene.title")) {
             ForEach(scenes.indices, id: \.self) { index in
                 let scene = scenes[index]
                 if let id = scene["id"] as? String {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Image(systemName: store.string("active_scene_id") == id
-                              ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(.tint)
-                            .onTapGesture {
-                                try? Core.invoke("set_active_scene", ["id": id])
-                                store.load()
-                            }
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(scene["name"] as? String ?? id).font(.headline)
+                    let active = store.string("active_scene_id") == id
+                    HStack(spacing: 12) {
+                        Button {
+                            try? Core.invoke("set_active_scene", ["id": id])
+                            store.load()
+                        } label: {
+                            Image(systemName: active ? "largecircle.fill.circle" : "circle")
+                                .font(.system(size: 13))
+                                .foregroundStyle(active ? Theme.Colors.accent : Theme.Colors.inkTertiary)
+                                .frame(width: 18, height: 18)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(scene["name"] as? String ?? id)
+                                .font(.system(size: 13.5))
+                                .foregroundStyle(Theme.Colors.ink)
                             if let description = scene["description"] as? String,
                                !description.isEmpty {
-                                Text(description).font(.caption).foregroundStyle(.secondary)
+                                Text(description)
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(Theme.Colors.inkTertiary)
+                                    .lineLimit(2)
                             }
                         }
-                        Spacer()
-                        Button(L("settings.postProcessing.scene.edit")) {
+
+                        Spacer(minLength: 12)
+
+                        plainAction(L("settings.postProcessing.scene.edit"), tint: Theme.Colors.inkSecondary) {
                             editing = SceneDraft(scene)
                         }
-                        .buttonStyle(.link)
-                        Button(L("common.delete")) {
+                        plainAction(L("common.delete"), tint: Theme.Colors.inkTertiary) {
                             try? Core.invoke("delete_scene", ["id": id])
                             load()
                         }
-                        .buttonStyle(.link)
                     }
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 44)
+                    .overlay(alignment: .bottom) { Hairline() }
                 }
             }
-            HStack {
-                Button(L("settings.postProcessing.prompts.createNew")) {
-                    editing = SceneDraft(id: nil, name: "", description: "", prompt: "")
-                }
-                Button(L("settings.postProcessing.scene.restoreBuiltIn")) {
-                    _ = try? Core.invoke("restore_built_in_scenes")
-                    load()
-                }
-                if store.string("active_scene_id") != "" {
-                    Button(L("settings.postProcessing.scene.none")) {
-                        try? Core.invoke("set_active_scene", ["id": NSNull()])
-                        store.load()
+
+            SettingsRow(title: L("settings.postProcessing.prompts.createNew")) {
+                HStack(spacing: 14) {
+                    StudioButton(title: L("settings.postProcessing.prompts.createNew"), kind: .ghost, height: 28) {
+                        editing = SceneDraft(id: nil, name: "", description: "", prompt: "")
+                    }
+                    StudioButton(title: L("settings.postProcessing.scene.restoreBuiltIn"), kind: .quiet, height: 28) {
+                        _ = try? Core.invoke("restore_built_in_scenes")
+                        load()
+                    }
+                    if store.string("active_scene_id") != "" {
+                        StudioButton(title: L("settings.postProcessing.scene.none"), kind: .quiet, height: 28) {
+                            try? Core.invoke("set_active_scene", ["id": NSNull()])
+                            store.load()
+                        }
                     }
                 }
+                .fixedSize()
             }
         }
     }
@@ -176,35 +209,64 @@ struct PersonalizationView: View {
     // MARK: - translation
 
     private var translationSection: some View {
-        Section(header: Text(L("settings.translation.title")).font(Theme.Fonts.sectionHeader)) {
+        SettingsGroup(title: L("settings.translation.title")) {
             ForEach(store.stringArray("translation_targets"), id: \.self) { code in
-                HStack {
-                    Image(systemName: store.string("translation_active_target") == code
-                          ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(.tint)
-                        .onTapGesture {
-                            try? Core.invoke("set_active_translation_target", ["code": code])
-                            store.load()
-                        }
+                let active = store.string("translation_active_target") == code
+                HStack(spacing: 12) {
+                    Button {
+                        try? Core.invoke("set_active_translation_target", ["code": code])
+                        store.load()
+                    } label: {
+                        Image(systemName: active ? "largecircle.fill.circle" : "circle")
+                            .font(.system(size: 13))
+                            .foregroundStyle(active ? Theme.Colors.accent : Theme.Colors.inkTertiary)
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
                     Text(languageLabel(code))
-                    Spacer()
-                    Button(L("settings.translation.targets.remove")) {
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(Theme.Colors.ink)
+
+                    Spacer(minLength: 12)
+
+                    plainAction(L("settings.translation.targets.remove"), tint: Theme.Colors.inkTertiary) {
                         _ = try? Core.invoke("remove_translation_target", ["code": code])
                         store.load()
                     }
-                    .buttonStyle(.link)
                 }
+                .padding(.vertical, 10)
+                .frame(minHeight: 44)
+                .overlay(alignment: .bottom) { Hairline() }
             }
-            Menu(L("settings.translation.targets.addPlaceholder")) {
-                ForEach(availableLanguages, id: \.self) { code in
-                    Button(languageLabel(code)) {
-                        _ = try? Core.invoke("add_translation_target", ["code": code])
-                        store.load()
+
+            SettingsRow(title: L("settings.translation.targets.addPlaceholder")) {
+                Menu(L("settings.translation.targets.addPlaceholder")) {
+                    ForEach(availableLanguages, id: \.self) { code in
+                        Button(languageLabel(code)) {
+                            _ = try? Core.invoke("add_translation_target", ["code": code])
+                            store.load()
+                        }
                     }
                 }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .tint(Theme.Colors.ink)
             }
-            .frame(width: 220)
         }
+    }
+
+    private func plainAction(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
     }
 
     // MARK: - data

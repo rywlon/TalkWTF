@@ -13,58 +13,84 @@ struct ModelsView: View {
     @State private var error: String?
 
     var body: some View {
-        Form {
+        VStack(alignment: .leading, spacing: 30) {
             if let error {
-                Text(error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
+                Text(error)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.Colors.err)
+                    .textSelection(.enabled)
             }
-            Section(header: Text(L("settings.models.title")).font(Theme.Fonts.sectionHeader)) {
+
+            SettingsGroup(title: L("settings.models.title"), trailing: "\(models.count)") {
                 ForEach(models.indices, id: \.self) { index in
                     modelRow(models[index])
                 }
-                Button(L("settings.models.rescan.label")) {
-                    _ = try? Core.invoke("rescan_local_models")
-                    load()
+
+                SettingsRow(title: L("settings.models.rescan.label")) {
+                    StudioButton(title: L("settings.models.rescan.label"), kind: .ghost, height: 28) {
+                        _ = try? Core.invoke("rescan_local_models")
+                        load()
+                    }
+                    .fixedSize()
                 }
             }
-            Section(header: Text(L("settings.advanced.groups.app")).font(Theme.Fonts.sectionHeader)) {
-                Picker(L("settings.advanced.acceleration.transcribe.title"), selection: transcribeSelection) {
-                    ForEach(transcribeOptions, id: \.value) { option in
-                        Text(option.label).tag(option.value)
+
+            SettingsGroup(title: L("settings.advanced.groups.app")) {
+                SettingsRow(
+                    title: L("settings.advanced.acceleration.transcribe.title"),
+                    detail: L("settings.advanced.acceleration.transcribe.description")
+                ) {
+                    Picker("", selection: transcribeSelection) {
+                        ForEach(transcribeOptions, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
+                    .tint(Theme.Colors.ink)
                 }
-                .pickerStyle(.menu)
-                Text(L("settings.advanced.acceleration.transcribe.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
-                Picker(L("settings.advanced.acceleration.ort.title"), selection: store.binding("ort_accelerator", default: "auto")) {
-                    ForEach(ortOptions, id: \.value) { option in
-                        Text(option.label).tag(option.value)
+                SettingsRow(
+                    title: L("settings.advanced.acceleration.ort.title"),
+                    detail: L("settings.advanced.acceleration.ort.description")
+                ) {
+                    Picker("", selection: store.binding("ort_accelerator", default: "auto")) {
+                        ForEach(ortOptions, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
+                    .tint(Theme.Colors.ink)
                 }
-                .pickerStyle(.menu)
-                Text(L("settings.advanced.acceleration.ort.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
-                Picker(L("settings.advanced.modelUnload.title"), selection: store.binding("model_unload_timeout", default: "min5")) {
-                    Text(L("settings.advanced.modelUnload.options.immediately")).tag("immediately")
-                    Text(L("settings.advanced.modelUnload.options.sec15")).tag("sec15")
-                    Text(L("settings.advanced.modelUnload.options.min2")).tag("min2")
-                    Text(L("settings.advanced.modelUnload.options.min5")).tag("min5")
-                    Text(L("settings.advanced.modelUnload.options.min10")).tag("min10")
-                    Text(L("settings.advanced.modelUnload.options.min15")).tag("min15")
-                    Text(L("settings.advanced.modelUnload.options.hour1")).tag("hour1")
-                    Text(L("settings.advanced.modelUnload.options.never")).tag("never")
+                SettingsRow(title: L("settings.advanced.modelUnload.title")) {
+                    Picker("", selection: store.binding("model_unload_timeout", default: "min5")) {
+                        Text(L("settings.advanced.modelUnload.options.immediately")).tag("immediately")
+                        Text(L("settings.advanced.modelUnload.options.sec15")).tag("sec15")
+                        Text(L("settings.advanced.modelUnload.options.min2")).tag("min2")
+                        Text(L("settings.advanced.modelUnload.options.min5")).tag("min5")
+                        Text(L("settings.advanced.modelUnload.options.min10")).tag("min10")
+                        Text(L("settings.advanced.modelUnload.options.min15")).tag("min15")
+                        Text(L("settings.advanced.modelUnload.options.hour1")).tag("hour1")
+                        Text(L("settings.advanced.modelUnload.options.never")).tag("never")
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
+                    .tint(Theme.Colors.ink)
                 }
-                .pickerStyle(.menu)
 
-                Button(L("tray.unloadModel")) {
-                    try? Core.invoke("unload_model")
+                SettingsRow(title: L("tray.unloadModel")) {
+                    StudioButton(title: L("tray.unloadModel"), kind: .ghost, height: 28) {
+                        try? Core.invoke("unload_model")
+                    }
+                    .fixedSize()
                 }
             }
         }
-        .formStyle(.grouped)
         .task { load() }
     }
 
@@ -73,43 +99,73 @@ struct ModelsView: View {
         let name = model["name"] as? String ?? id
         let sizeMB = (model["size_mb"] as? NSNumber)?.doubleValue ?? 0
         let isDownloaded = downloaded.contains(id) || (model["is_downloaded"] as? Bool ?? false)
-        return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: current == id ? "largecircle.fill.circle" : "circle")
-                .foregroundStyle(.tint)
-                .onTapGesture {
-                    do {
-                        try Core.invoke("set_active_model", ["modelId": id])
-                        store.load()
-                        load()
-                    } catch {
-                        if !BusyAlert.shared.handle(error) {
-                            self.error = error.localizedDescription
-                        }
+        let isCurrent = current == id
+
+        return HStack(spacing: 12) {
+            Button {
+                do {
+                    try Core.invoke("set_active_model", ["modelId": id])
+                    store.load()
+                    load()
+                } catch {
+                    if !BusyAlert.shared.handle(error) {
+                        self.error = error.localizedDescription
                     }
                 }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(name).font(.headline)
-                Text(Self.sizeLabel(sizeMB)).font(.caption).foregroundStyle(.secondary)
+            } label: {
+                Image(systemName: isCurrent ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(isCurrent ? Theme.Colors.accent : Theme.Colors.inkTertiary)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
             }
-            Spacer()
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Theme.Colors.ink)
+                Text(Self.sizeLabel(sizeMB))
+                    .font(Theme.Fonts.mono(10.5))
+                    .foregroundStyle(Theme.Colors.inkTertiary)
+            }
+
+            Spacer(minLength: 12)
+
             if let value = progress[id] {
-                ProgressView(value: value).frame(width: 120)
-                Button(L("modelSelector.cancel")) {
+                ProgressView(value: value)
+                    .progressViewStyle(.linear)
+                    .frame(width: 110)
+                actionButton(L("modelSelector.cancel"), tint: Theme.Colors.inkSecondary) {
                     _ = try? Core.invoke("cancel_download", ["modelId": id])
                     progress[id] = nil
                 }
-                .buttonStyle(.link)
             } else if isDownloaded {
-                Button(L("common.delete")) {
+                actionButton(L("common.delete"), tint: Theme.Colors.inkSecondary) {
                     try? Core.invoke("delete_model", ["modelId": id])
                     load()
                 }
-                .buttonStyle(.link)
             } else {
-                Button(L("settings.models.availableModels")) { download(id) }
-                    .buttonStyle(.link)
+                actionButton(L("settings.models.availableModels"), tint: Theme.Colors.accent) {
+                    download(id)
+                }
             }
         }
+        .padding(.vertical, 10)
+        .frame(minHeight: 44)
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    private func actionButton(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
     }
 
     private func download(_ id: String) {

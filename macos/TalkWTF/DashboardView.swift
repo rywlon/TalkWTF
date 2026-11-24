@@ -163,34 +163,16 @@ struct DashboardView: View {
     }
 
     private var signalPanel: some View {
-        ZStack(alignment: .bottomLeading) {
-            Group {
-                if let image = StudioAssets.microphone {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    LinearGradient(
-                        colors: [Theme.Colors.well, Theme.Colors.surface],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                SectionLabel(text: "LIVE SIGNAL")
+                Spacer(minLength: 8)
+                Text(stats?.services.pasteEnabled == true ? "PASTE ON" : "PASTE OFF")
+                    .font(Theme.Fonts.mono(9.5, weight: .medium))
+                    .tracking(0.8)
+                    .foregroundStyle(Theme.Colors.inkTertiary)
             }
-            .frame(width: panelWidth, height: 336)
-            .clipped()
-
-            LinearGradient(
-                stops: [
-                    .init(color: .black.opacity(0.94), location: 0),
-                    .init(color: .black.opacity(0.62), location: 0.42),
-                    .init(color: .black.opacity(0.02), location: 1)
-                ],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(width: panelWidth, height: 336)
-            .allowsHitTesting(false)
+            .padding(.bottom, 10)
 
             VStack(spacing: 0) {
                 signalRow(
@@ -216,18 +198,9 @@ struct DashboardView: View {
                     action: onOpenAgents
                 )
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 6)
+            Spacer(minLength: 0)
         }
-        .frame(width: panelWidth, height: 336)
-        .clipped()
-        .overlay(alignment: .topTrailing) {
-            Text("Live signal")
-                .font(Theme.Fonts.mono(9.5, weight: .medium))
-                .tracking(0.8)
-                .foregroundStyle(Color.white.opacity(0.35))
-                .padding(14)
-        }
+        .frame(width: panelWidth, alignment: .leading)
     }
 
     private func signalRow(
@@ -237,7 +210,7 @@ struct DashboardView: View {
         action: @escaping () -> Void
     ) -> some View {
         VStack(spacing: 0) {
-            Hairline(color: Color.white.opacity(0.14))
+            Hairline()
             SignalRow(label: label, value: value, detail: detail, action: action)
         }
     }

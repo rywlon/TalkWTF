@@ -16,7 +16,7 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 30) {
                 if let error {
                     Text(error).foregroundStyle(.red).textSelection(.enabled)
                 }
@@ -32,9 +32,8 @@ struct SettingsView: View {
                 }
                 Spacer()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: 760, alignment: .leading)
             .pageLayout()
-            .studioForm()
         }
         .task { load() }
         .onReceive(
@@ -49,55 +48,48 @@ struct SettingsView: View {
     // MARK: - general
 
     private var generalPane: some View {
-        Form {
-            Section(header: Text(L("settings.general.title")).font(Theme.Fonts.sectionHeader)) {
-                Picker(L("appLanguage.title"), selection: store.binding("app_language", default: "en")) {
-                    ForEach(Languages.all) { language in
-                        Text(language.nativeName).tag(language.code)
-                    }
+        VStack(alignment: .leading, spacing: 30) {
+            SettingsGroup(title: L("settings.general.title")) {
+                SettingsRow(title: L("appLanguage.title")) {
+                    picker("app_language", default: "en", options: Languages.all.map { ($0.nativeName, $0.code) })
                 }
-                .pickerStyle(.menu)
                 .onChange(of: store.string("app_language")) { _, language in
                     Localization.shared.load(language: language)
                 }
 
-                Picker(L("settings.general.language.title"), selection: store.binding("selected_language", default: "auto")) {
-                    ForEach(recognitionOptions, id: \.value) { option in
-                        Text(option.label).tag(option.value)
-                    }
+                SettingsRow(
+                    title: L("settings.general.language.title"),
+                    detail: L("settings.general.language.description")
+                ) {
+                    picker("selected_language", default: "auto", options: recognitionOptions.map { ($0.label, $0.value) })
                 }
-                .pickerStyle(.menu)
-                Text(L("settings.general.language.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
-                Picker(L("theme.title"), selection: store.binding("theme", default: "system")) {
-                    Text(L("theme.options.system")).tag("system")
-                    Text(L("theme.options.light")).tag("light")
-                    Text(L("theme.options.dark")).tag("dark")
+                SettingsRow(title: L("theme.title")) {
+                    picker("theme", default: "system", options: [
+                        (L("theme.options.system"), "system"),
+                        (L("theme.options.light"), "light"),
+                        (L("theme.options.dark"), "dark"),
+                    ])
                 }
-                .pickerStyle(.menu)
                 .onChange(of: store.string("theme", "system")) { _, theme in
                     ThemeController.apply(theme)
                 }
             }
 
-            Section(header: Text(L("settings.general.shortcutsGroup")).font(Theme.Fonts.sectionHeader)) {
-                Picker(
-                    L("settings.general.shortcutActivation.title"),
-                    selection: store.binding("shortcut_activation", default: "hold_or_toggle")
-                ) {
-                    Text(L("settings.general.shortcutActivation.options.holdOrToggle")).tag("hold_or_toggle")
-                    Text(L("settings.general.shortcutActivation.options.pushToTalk")).tag("push_to_talk")
-                    Text(L("settings.general.shortcutActivation.options.toggle")).tag("toggle")
+            SettingsGroup(title: L("settings.general.shortcutsGroup")) {
+                SettingsRow(title: L("settings.general.shortcutActivation.title")) {
+                    picker("shortcut_activation", default: "hold_or_toggle", options: [
+                        (L("settings.general.shortcutActivation.options.holdOrToggle"), "hold_or_toggle"),
+                        (L("settings.general.shortcutActivation.options.pushToTalk"), "push_to_talk"),
+                        (L("settings.general.shortcutActivation.options.toggle"), "toggle"),
+                    ])
                 }
-                .pickerStyle(.menu)
 
                 if store.string("shortcut_activation", "hold_or_toggle") == "hold_or_toggle" {
-                    sliderField(
+                    sliderRow(
                         "hold_threshold_ms",
                         "settings.debug.holdThreshold.title",
-                        description: "settings.debug.holdThreshold.description",
+                        detail: "settings.debug.holdThreshold.description",
                         range: 100...1000,
                         step: 50,
                         format: { "\(Int($0)) ms" }
@@ -109,422 +101,488 @@ struct SettingsView: View {
                 }
             }
 
-            Section(header: Text(L("settings.general.behaviorGroup")).font(Theme.Fonts.sectionHeader)) {
-                Toggle(L("settings.advanced.startHidden.label"), isOn: store.boolBinding("start_hidden"))
-                Toggle(L("settings.advanced.autostart.label"), isOn: store.boolBinding("autostart_enabled"))
+            SettingsGroup(title: L("settings.general.behaviorGroup")) {
+                toggleRow("settings.advanced.startHidden.label", key: "start_hidden")
+
+                toggleRow("settings.advanced.autostart.label", key: "autostart_enabled")
                     .onChange(of: store.bool("autostart_enabled")) { _, enabled in
                         Autostart.apply(enabled)
                     }
-                Picker(L("settings.advanced.overlay.style.title"), selection: store.binding("overlay_style", default: "minimal")) {
-                    Text(L("settings.advanced.overlay.style.options.none")).tag("none")
-                    Text(L("settings.advanced.overlay.style.options.minimal")).tag("minimal")
-                    Text(L("settings.advanced.overlay.style.options.live")).tag("live")
+
+                SettingsRow(title: L("settings.advanced.overlay.style.title")) {
+                    picker("overlay_style", default: "minimal", options: [
+                        (L("settings.advanced.overlay.style.options.none"), "none"),
+                        (L("settings.advanced.overlay.style.options.minimal"), "minimal"),
+                        (L("settings.advanced.overlay.style.options.live"), "live"),
+                    ])
                 }
-                .pickerStyle(.menu)
-                Picker(L("settings.advanced.overlay.position.title"), selection: store.binding("overlay_position", default: "bottom")) {
-                    Text(L("settings.advanced.overlay.position.options.top")).tag("top")
-                    Text(L("settings.advanced.overlay.position.options.bottom")).tag("bottom")
+
+                SettingsRow(title: L("settings.advanced.overlay.position.title")) {
+                    picker("overlay_position", default: "bottom", options: [
+                        (L("settings.advanced.overlay.position.options.top"), "top"),
+                        (L("settings.advanced.overlay.position.options.bottom"), "bottom"),
+                    ])
                 }
-                .pickerStyle(.menu)
             }
         }
-        .formStyle(.grouped)
     }
 
     // MARK: - audio
 
     private var audioPane: some View {
-        Form {
-            Section(header: Text(L("settings.sound.microphone.title")).font(Theme.Fonts.sectionHeader)) {
-                Picker(L("settings.sound.microphone.title"), selection: store.binding("selected_microphone", default: "")) {
-                    Text(L("settings.sound.microphone.placeholder")).tag("")
-                    ForEach(inputDevices.indices, id: \.self) { index in
-                        if let name = inputDevices[index]["name"] as? String {
-                            Text(name).tag(name)
-                        }
+        VStack(alignment: .leading, spacing: 30) {
+            SettingsGroup(title: "") {
+                SettingsRow(title: L("settings.sound.microphone.title")) {
+                    picker("selected_microphone", default: "", options: microphoneOptions)
+                }
+
+                SettingsRow(title: L("settings.sound.channel.title")) {
+                    Picker("", selection: store.intBinding("selected_channel", default: 0)) {
+                        Text(L("settings.sound.channel.average")).tag(0)
+                        Text(L("settings.sound.channel.channel", ["n": 1])).tag(1)
+                        Text(L("settings.sound.channel.channel", ["n": 2])).tag(2)
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                .pickerStyle(.menu)
 
-                Picker(L("settings.sound.channel.title"), selection: store.intBinding("selected_channel", default: 0)) {
-                    Text(L("settings.sound.channel.average")).tag(0)
-                    Text(L("settings.sound.channel.channel", ["n": 1])).tag(1)
-                    Text(L("settings.sound.channel.channel", ["n": 2])).tag(2)
-                }
-                .pickerStyle(.menu)
-
-                Toggle(L("settings.debug.alwaysOnMicrophone.label"), isOn: store.boolBinding("always_on_microphone"))
-                Toggle(L("settings.debug.muteWhileRecording.label"), isOn: store.boolBinding("mute_while_recording"))
+                toggleRow("settings.debug.alwaysOnMicrophone.label", key: "always_on_microphone")
+                toggleRow("settings.debug.muteWhileRecording.label", key: "mute_while_recording")
             }
-            Section(header: Text(L("settings.sound.outputDevice.title")).font(Theme.Fonts.sectionHeader)) {
-                Picker(L("settings.sound.outputDevice.title"), selection: store.binding("selected_output_device", default: "")) {
-                    Text(L("settings.sound.outputDevice.placeholder")).tag("")
-                    ForEach(outputDevices.indices, id: \.self) { index in
-                        if let name = outputDevices[index]["name"] as? String {
-                            Text(name).tag(name)
-                        }
-                    }
-                }
-                .pickerStyle(.menu)
 
-                Toggle(L("settings.sound.audioFeedback.label"), isOn: store.boolBinding("audio_feedback"))
-                Picker(L("settings.debug.soundTheme.label"), selection: store.binding("sound_theme", default: "marimba")) {
-                    Text("Marimba").tag("marimba")
-                    Text("Pop").tag("pop")
-                    Text(L("modelSelector.custom")).tag("custom")
+            SettingsGroup(title: "") {
+                SettingsRow(title: L("settings.sound.outputDevice.title")) {
+                    picker("selected_output_device", default: "", options: outputOptions)
                 }
-                .pickerStyle(.menu)
+
+                toggleRow("settings.sound.audioFeedback.label", key: "audio_feedback")
+
+                SettingsRow(title: L("settings.debug.soundTheme.label")) {
+                    picker("sound_theme", default: "marimba", options: [
+                        ("Marimba", "marimba"),
+                        ("Pop", "pop"),
+                        (L("modelSelector.custom"), "custom"),
+                    ])
+                }
                 .onChange(of: store.string("sound_theme", "marimba")) { _, _ in
                     SoundPlayer.playPreview(.start)
                 }
-                LabeledContent(L("settings.sound.volume.title")) {
-                    Slider(
-                        value: Binding(
-                            get: { store.double("audio_feedback_volume", 1.0) },
-                            set: { store.patch(["audio_feedback_volume": $0]) }
-                        ),
-                        in: 0...1
-                    )
+
+                SettingsStack(title: L("settings.sound.volume.title")) {
+                    HStack(spacing: 12) {
+                        Slider(
+                            value: Binding(
+                                get: { store.double("audio_feedback_volume", 1.0) },
+                                set: { store.patch(["audio_feedback_volume": $0]) }
+                            ),
+                            in: 0...1
+                        )
+                        Text("\(Int(store.double("audio_feedback_volume", 1.0) * 100))%")
+                            .font(Theme.Fonts.mono(11))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
+                            .frame(width: 42, alignment: .trailing)
+                    }
                 }
             }
         }
-        .formStyle(.grouped)
     }
 
     // MARK: - advanced
 
     private var advancedPane: some View {
-        Form {
-            Section(header: Text(L("settings.advanced.groups.output")).font(Theme.Fonts.sectionHeader)) {
-                Picker(L("settings.advanced.pasteMethod.title"), selection: store.binding("paste_method", default: "ctrl_v")) {
-                    Text(L("settings.advanced.pasteMethod.options.clipboard", ["modifier": "⌘"])).tag("ctrl_v")
-                    Text(L("settings.advanced.pasteMethod.options.clipboardShiftInsert", ["modifier": "⇧"])).tag("shift_insert")
-                    Text(L("settings.advanced.pasteMethod.options.clipboardCtrlShiftV", ["modifier": "⌘⇧"])).tag("ctrl_shift_v")
-                    Text(L("settings.advanced.pasteMethod.options.direct")).tag("direct")
-                    Text(L("settings.advanced.pasteMethod.options.none")).tag("none")
+        VStack(alignment: .leading, spacing: 30) {
+            SettingsGroup(title: L("settings.advanced.groups.output")) {
+                SettingsRow(title: L("settings.advanced.pasteMethod.title")) {
+                    picker("paste_method", default: "ctrl_v", options: [
+                        (L("settings.advanced.pasteMethod.options.clipboard", ["modifier": "\u{2318}"]), "ctrl_v"),
+                        (L("settings.advanced.pasteMethod.options.clipboardShiftInsert", ["modifier": "\u{21e7}"]), "shift_insert"),
+                        (L("settings.advanced.pasteMethod.options.clipboardCtrlShiftV", ["modifier": "\u{2318}\u{21e7}"]), "ctrl_shift_v"),
+                        (L("settings.advanced.pasteMethod.options.direct"), "direct"),
+                        (L("settings.advanced.pasteMethod.options.none"), "none"),
+                    ])
                 }
-                .pickerStyle(.menu)
 
-                delayField("paste_delay_ms", "settings.debug.pasteDelay.title", description: "settings.debug.pasteDelay.description")
-                delayField("paste_delay_after_ms", "settings.debug.pasteDelayAfter.title", description: "settings.debug.pasteDelayAfter.description")
-                Toggle(L("settings.debug.reliablePaste.title"), isOn: store.boolBinding("reliable_paste"))
+                numberRow("paste_delay_ms", "settings.debug.pasteDelay.title", detail: "settings.debug.pasteDelay.description")
+                numberRow("paste_delay_after_ms", "settings.debug.pasteDelayAfter.title", detail: "settings.debug.pasteDelayAfter.description")
 
-                Picker(L("settings.advanced.clipboardHandling.title"), selection: store.binding("clipboard_handling", default: "dont_modify")) {
-                    Text(L("settings.advanced.clipboardHandling.options.dontModify")).tag("dont_modify")
-                    Text(L("settings.advanced.clipboardHandling.options.copyToClipboard")).tag("copy_to_clipboard")
+                toggleRow("settings.debug.reliablePaste.title", key: "reliable_paste")
+
+                SettingsRow(title: L("settings.advanced.clipboardHandling.title")) {
+                    picker("clipboard_handling", default: "dont_modify", options: [
+                        (L("settings.advanced.clipboardHandling.options.dontModify"), "dont_modify"),
+                        (L("settings.advanced.clipboardHandling.options.copyToClipboard"), "copy_to_clipboard"),
+                    ])
                 }
-                .pickerStyle(.menu)
 
-                Picker(L("settings.advanced.autoSubmit.title"), selection: store.binding("auto_submit_key", default: "off")) {
-                    Text(L("settings.advanced.autoSubmit.options.off")).tag("off")
-                    Text(L("settings.advanced.autoSubmit.options.enter")).tag("enter")
-                    Text(L("settings.advanced.autoSubmit.options.ctrlEnter")).tag("ctrl_enter")
-                    Text(L("settings.advanced.autoSubmit.options.cmdEnter")).tag("cmd_enter")
+                SettingsRow(title: L("settings.advanced.autoSubmit.title")) {
+                    picker("auto_submit_key", default: "off", options: [
+                        (L("settings.advanced.autoSubmit.options.off"), "off"),
+                        (L("settings.advanced.autoSubmit.options.enter"), "enter"),
+                        (L("settings.advanced.autoSubmit.options.ctrlEnter"), "ctrl_enter"),
+                        (L("settings.advanced.autoSubmit.options.cmdEnter"), "cmd_enter"),
+                    ])
                 }
-                .pickerStyle(.menu)
 
-                Toggle(L("settings.debug.appendTrailingSpace.label"), isOn: store.boolBinding("append_trailing_space"))
+                toggleRow("settings.debug.appendTrailingSpace.label", key: "append_trailing_space")
             }
-            Section(header: Text(L("settings.advanced.groups.transcription")).font(Theme.Fonts.sectionHeader)) {
-                Toggle(L("settings.advanced.voiceActivityDetection.title"), isOn: store.boolBinding("vad_enabled"))
-                Picker(L("settings.advanced.vadBackend.title"), selection: store.binding("vad_backend", default: "silero")) {
-                    Text(L("settings.advanced.vadBackend.options.silero")).tag("silero")
-                    Text(L("settings.advanced.vadBackend.options.earshot")).tag("earshot")
+
+            SettingsGroup(title: L("settings.advanced.groups.transcription")) {
+                toggleRow("settings.advanced.voiceActivityDetection.title", key: "vad_enabled")
+
+                SettingsRow(title: L("settings.advanced.vadBackend.title")) {
+                    picker("vad_backend", default: "silero", options: [
+                        (L("settings.advanced.vadBackend.options.silero"), "silero"),
+                        (L("settings.advanced.vadBackend.options.earshot"), "earshot"),
+                    ])
                 }
-                .pickerStyle(.menu)
-                Toggle(L("settings.advanced.fillerWordRemoval.title"), isOn: store.boolBinding("filler_word_removal_enabled"))
-                Toggle(L("settings.dictionary.learn.title"), isOn: store.boolBinding("learn_from_edits"))
-                Toggle(L("settings.advanced.translateToEnglish.label"), isOn: store.boolBinding("translate_to_english"))
-                sliderField(
+
+                toggleRow("settings.advanced.fillerWordRemoval.title", key: "filler_word_removal_enabled")
+                toggleRow("settings.dictionary.learn.title", key: "learn_from_edits")
+                toggleRow("settings.advanced.translateToEnglish.label", key: "translate_to_english")
+
+                sliderRow(
                     "word_correction_threshold",
                     "settings.debug.wordCorrectionThreshold.title",
-                    description: "settings.debug.wordCorrectionThreshold.description",
+                    detail: "settings.debug.wordCorrectionThreshold.description",
                     range: 0.01...1.0,
                     step: 0.01,
                     format: { "\(Int(($0 * 100).rounded()))%" }
                 )
-                Picker(L("settings.advanced.modelUnload.title"), selection: store.binding("model_unload_timeout", default: "min5")) {
-                    Text(L("settings.advanced.modelUnload.options.immediately")).tag("immediately")
-                    Text(L("settings.advanced.modelUnload.options.sec15")).tag("sec15")
-                    Text(L("settings.advanced.modelUnload.options.min2")).tag("min2")
-                    Text(L("settings.advanced.modelUnload.options.min5")).tag("min5")
-                    Text(L("settings.advanced.modelUnload.options.min10")).tag("min10")
-                    Text(L("settings.advanced.modelUnload.options.min15")).tag("min15")
-                    Text(L("settings.advanced.modelUnload.options.hour1")).tag("hour1")
-                    Text(L("settings.advanced.modelUnload.options.never")).tag("never")
+
+                SettingsRow(title: L("settings.advanced.modelUnload.title")) {
+                    picker("model_unload_timeout", default: "min5", options: [
+                        (L("settings.advanced.modelUnload.options.immediately"), "immediately"),
+                        (L("settings.advanced.modelUnload.options.sec15"), "sec15"),
+                        (L("settings.advanced.modelUnload.options.min2"), "min2"),
+                        (L("settings.advanced.modelUnload.options.min5"), "min5"),
+                        (L("settings.advanced.modelUnload.options.min10"), "min10"),
+                        (L("settings.advanced.modelUnload.options.min15"), "min15"),
+                        (L("settings.advanced.modelUnload.options.hour1"), "hour1"),
+                        (L("settings.advanced.modelUnload.options.never"), "never"),
+                    ])
                 }
-                .pickerStyle(.menu)
             }
-            Section(header: Text(L("settings.advanced.groups.history")).font(Theme.Fonts.sectionHeader)) {
-                LabeledContent(L("settings.debug.historyLimit.title")) {
-                    Stepper(
-                        value: store.intBinding("history_limit", default: 5),
-                        in: 0...1000
-                    ) {
+
+            SettingsGroup(title: L("settings.advanced.groups.history")) {
+                SettingsRow(title: L("settings.debug.historyLimit.title")) {
+                    HStack(spacing: 10) {
                         Text("\(store.int("history_limit", 5)) \(L("settings.debug.historyLimit.entries"))")
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
+                            .font(Theme.Fonts.mono(11))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
+                        Stepper(
+                            "",
+                            value: store.intBinding("history_limit", default: 5),
+                            in: 0...1000
+                        )
+                        .labelsHidden()
                     }
                 }
-                Picker(L("settings.debug.recordingRetention.title"), selection: store.binding("recording_retention_period", default: "preserve_limit")) {
-                    Text(L("settings.debug.recordingRetention.preserveLimit")).tag("preserve_limit")
-                    Text(L("settings.debug.recordingRetention.never")).tag("never")
-                    Text(L("settings.debug.recordingRetention.days3")).tag("days3")
-                    Text(L("settings.debug.recordingRetention.month1")).tag("month1")
-                    Text(L("settings.debug.recordingRetention.weeks2")).tag("weeks2")
-                    Text(L("settings.debug.recordingRetention.months3")).tag("months3")
+
+                SettingsRow(title: L("settings.debug.recordingRetention.title")) {
+                    picker("recording_retention_period", default: "preserve_limit", options: [
+                        (L("settings.debug.recordingRetention.preserveLimit"), "preserve_limit"),
+                        (L("settings.debug.recordingRetention.never"), "never"),
+                        (L("settings.debug.recordingRetention.days3"), "days3"),
+                        (L("settings.debug.recordingRetention.month1"), "month1"),
+                        (L("settings.debug.recordingRetention.weeks2"), "weeks2"),
+                        (L("settings.debug.recordingRetention.months3"), "months3"),
+                    ])
                 }
-                .pickerStyle(.menu)
             }
-            Section(header: Text(L("settings.advanced.groups.experimental")).font(Theme.Fonts.sectionHeader)) {
-                Toggle(L("settings.advanced.experimentalToggle.label"), isOn: store.boolBinding("experimental_enabled"))
-                Text(L("settings.advanced.experimentalToggle.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle(L("settings.advanced.lazyStreamClose.label"), isOn: store.boolBinding("lazy_stream_close"))
+
+            SettingsGroup(title: L("settings.advanced.groups.experimental")) {
+                toggleRow(
+                    "settings.advanced.experimentalToggle.label",
+                    key: "experimental_enabled",
+                    detail: "settings.advanced.experimentalToggle.description"
+                )
+                toggleRow("settings.advanced.lazyStreamClose.label", key: "lazy_stream_close")
             }
-            Section(header: Text(L("settings.advanced.groups.app")).font(Theme.Fonts.sectionHeader)) {
-                Picker(L("settings.advanced.acceleration.transcribe.title"), selection: store.binding("transcription_accelerator", default: "auto")) {
-                    Text(L("settings.advanced.acceleration.gpuDevice.auto")).tag("auto")
-                    ForEach(acceleratorOptions, id: \.self) { option in
-                        Text(option).tag(option)
-                    }
+
+            SettingsGroup(title: L("settings.advanced.groups.app")) {
+                SettingsRow(
+                    title: L("settings.advanced.acceleration.transcribe.title"),
+                    detail: L("settings.advanced.acceleration.transcribe.description")
+                ) {
+                    picker("transcription_accelerator", default: "auto", options:
+                        [(L("settings.advanced.acceleration.gpuDevice.auto"), "auto")]
+                        + acceleratorOptions.map { ($0, $0) }
+                    )
                 }
-                .pickerStyle(.menu)
-                Text(L("settings.advanced.acceleration.transcribe.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 
     // MARK: - debug
 
     private var debugPane: some View {
-        Form {
-            Section(header: Text(L("settings.debug.logLevel.title")).font(Theme.Fonts.sectionHeader)) {
-                Picker(L("settings.debug.logLevel.title"), selection: store.binding("log_level", default: "debug")) {
-                    Text("Trace").tag("trace")
-                    Text("Debug").tag("debug")
-                    Text("Info").tag("info")
-                    Text("Warn").tag("warn")
-                    Text("Error").tag("error")
+        VStack(alignment: .leading, spacing: 30) {
+            SettingsGroup(title: "") {
+                SettingsRow(title: L("settings.debug.logLevel.title")) {
+                    picker("log_level", default: "debug", options: [
+                        ("Trace", "trace"),
+                        ("Debug", "debug"),
+                        ("Info", "info"),
+                        ("Warn", "warn"),
+                        ("Error", "error"),
+                    ])
                 }
-                .pickerStyle(.menu)
-                Toggle(L("settings.dictionary.diagnose.title"), isOn: store.boolBinding("debug_mode"))
-                LabeledContent(L("settings.debug.logDirectory.title")) {
-                    Button(L("common.open")) { NSWorkspace.shared.open(AppPaths.logDirectory) }
+
+                toggleRow("settings.dictionary.diagnose.title", key: "debug_mode")
+
+                SettingsRow(title: L("settings.debug.logDirectory.title")) {
+                    StudioButton(title: L("common.open"), kind: .ghost, height: 28) {
+                        NSWorkspace.shared.open(AppPaths.logDirectory)
+                    }
+                    .fixedSize()
                 }
             }
-            Section(header: Text(L("settings.advanced.groups.app")).font(Theme.Fonts.sectionHeader)) {
-                delayField(
+
+            SettingsGroup(title: L("settings.advanced.groups.app")) {
+                numberRow(
                     "extra_recording_buffer_ms",
                     "settings.debug.recordingBuffer.title",
-                    description: "settings.debug.recordingBuffer.description"
+                    detail: "settings.debug.recordingBuffer.description"
                 )
-                Toggle(L("settings.debug.updateChecks.label"), isOn: store.boolBinding("update_checks_enabled"))
-                Picker(L("settings.debug.keyboardImplementation.title"), selection: store.binding("keyboard_implementation", default: "handy_keys")) {
-                    Text("handy-keys").tag("handy_keys")
-                    Text("Tauri").tag("tauri")
-                }
-                .pickerStyle(.menu)
-            }
-            Section(header: Text(L("settings.debug.overlayPreview.title")).font(Theme.Fonts.sectionHeader)) {
-                Text(L("settings.debug.overlayPreview.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack {
-                    previewButton(.recording, "settings.debug.overlayPreview.recording")
-                    previewButton(.streaming, "settings.debug.overlayPreview.streaming")
-                    previewButton(.transcribing, "settings.debug.overlayPreview.transcribing")
-                }
-                HStack {
-                    previewButton(.processing(label: nil), "settings.debug.overlayPreview.processing")
-                    previewButton(.translating(label: "English (English)"), "settings.debug.overlayPreview.translating")
-                }
-                HStack {
-                    previewButton(
-                        .learned(pattern: "浏览起", replacement: "浏览器", count: 1),
-                        "settings.debug.overlayPreview.learned"
-                    )
-                    previewButton(
-                        .translationFailed(label: "English (English)"),
-                        "settings.debug.overlayPreview.translationFailed"
-                    )
-                    previewButton(.notice(kind: "no_target"), "settings.debug.overlayPreview.notice")
+
+                toggleRow("settings.debug.updateChecks.label", key: "update_checks_enabled")
+
+                SettingsRow(title: L("settings.debug.keyboardImplementation.title")) {
+                    picker("keyboard_implementation", default: "handy_keys", options: [
+                        ("handy-keys", "handy_keys"),
+                        ("Tauri", "tauri"),
+                    ])
                 }
             }
-            Section(header: Text(L("settings.dictionary.diagnose.title")).font(Theme.Fonts.sectionHeader)) {
-                LabeledContent(
+
+            SettingsGroup(title: "") {
+                SettingsStack(
+                    title: L("settings.debug.overlayPreview.title"),
+                    detail: L("settings.debug.overlayPreview.description")
+                ) {
+                    FlowRow(spacing: 8) {
+                        previewButton(.recording, "settings.debug.overlayPreview.recording")
+                        previewButton(.streaming, "settings.debug.overlayPreview.streaming")
+                        previewButton(.transcribing, "settings.debug.overlayPreview.transcribing")
+                        previewButton(.processing(label: nil), "settings.debug.overlayPreview.processing")
+                        previewButton(.translating(label: "English (English)"), "settings.debug.overlayPreview.translating")
+                        previewButton(
+                            .learned(pattern: "浏览起", replacement: "浏览器", count: 1),
+                            "settings.debug.overlayPreview.learned"
+                        )
+                        previewButton(
+                            .translationFailed(label: "English (English)"),
+                            "settings.debug.overlayPreview.translationFailed"
+                        )
+                        previewButton(.notice(kind: "no_target"), "settings.debug.overlayPreview.notice")
+                    }
+                }
+            }
+
+            SettingsGroup(title: "") {
+                valueRow(
                     L("onboarding.permissions.accessibility.title"),
-                    value: Permissions.accessibilityGranted ? L("dashboard.services.enabled") : L("dashboard.services.disabled")
+                    value: Permissions.accessibilityGranted ? L("dashboard.services.enabled") : L("dashboard.services.disabled"),
+                    ok: Permissions.accessibilityGranted
                 )
-                LabeledContent(
+                valueRow(
                     L("onboarding.permissions.microphone.title"),
-                    value: Permissions.microphoneGranted ? L("dashboard.services.enabled") : L("dashboard.services.disabled")
+                    value: Permissions.microphoneGranted ? L("dashboard.services.enabled") : L("dashboard.services.disabled"),
+                    ok: Permissions.microphoneGranted
                 )
-                Button(L("settings.dictionary.diagnose.action")) {
-                    Permissions.requestAccessibility()
+                SettingsRow(title: L("settings.dictionary.diagnose.action")) {
+                    StudioButton(title: L("settings.dictionary.diagnose.action"), kind: .ghost, height: 28) {
+                        Permissions.requestAccessibility()
+                    }
+                    .fixedSize()
                 }
             }
-            Section(header: Text(L("settings.debug.secureInput.title")).font(Theme.Fonts.sectionHeader)) {
-                Text(L("settings.debug.secureInput.hint"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                LabeledContent(
-                    L("settings.debug.keyboardDiagnostic.secureInputLabel"),
-                    value: (secureInput["enabled"] as? Bool ?? false)
-                        ? L("settings.debug.keyboardDiagnostic.enabled")
-                        : L("settings.debug.keyboardDiagnostic.disabled")
-                )
-                if secureInput["sustained"] as? Bool ?? false {
-                    if let culprit = secureInput["culprit"] as? [String: Any] {
-                        LabeledContent(
-                            L("settings.debug.keyboardDiagnostic.holder", [
-                                "name": culprit["name"] as? String ?? "?",
-                                "pid": culprit["pid"] as? NSNumber ?? 0,
-                            ]),
-                            value: ""
-                        )
-                    } else {
-                        LabeledContent(
-                            L("settings.debug.keyboardDiagnostic.holderUnknown"),
-                            value: ""
-                        )
-                    }
-                }
-                if !coveredBindings.isEmpty {
-                    Text(L("settings.debug.secureInput.covered", [
-                        "bindings": coveredBindings.joined(separator: ", "),
-                    ]))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                }
-                if !uncoveredBindings.isEmpty {
-                    Text(L("settings.debug.secureInput.uncovered", [
-                        "bindings": uncoveredBindings.joined(separator: ", "),
-                    ]))
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-                }
-                Button(L("dashboard.refresh")) { refreshSecureInput() }
-            }
-            Section(header: Text(L("settings.debug.keyboardDiagnostic.title")).font(Theme.Fonts.sectionHeader)) {
-                Text(L("settings.debug.keyboardDiagnostic.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
-                HStack {
-                    Button(keyboard.running
-                        ? L("settings.debug.keyboardDiagnostic.running")
-                        : L("settings.debug.keyboardDiagnostic.run")) {
-                        keyboard.running ? keyboard.stop() : keyboard.run()
-                    }
-                    .disabled(keyboard.running && keyboard.liveCount < 0)
-                    if keyboard.running {
-                        ProgressView().controlSize(.small)
-                        Text("\(keyboard.liveCount)").monospacedDigit().foregroundStyle(.secondary)
-                    }
-                }
-
-                if let report = keyboard.report {
-                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 6) {
-                        GridRow {
-                            Text(L("settings.debug.keyboardDiagnostic.keyDown"))
-                            Text("\(report.keyDown)").monospacedDigit()
-                        }
-                        GridRow {
-                            Text(L("settings.debug.keyboardDiagnostic.keyUp"))
-                            Text("\(report.keyUp)").monospacedDigit()
-                        }
-                        GridRow {
-                            Text(L("settings.debug.keyboardDiagnostic.flagsChanged"))
-                            Text("\(report.flagsChanged)").monospacedDigit()
-                        }
-                        GridRow {
-                            Text(L("settings.debug.keyboardDiagnostic.mouse"))
-                            Text("\(report.mouse)").monospacedDigit()
-                        }
-                        GridRow {
-                            Text(L("settings.debug.keyboardDiagnostic.secureInputLabel"))
-                            Text(report.secureInputEnabled
+            SettingsGroup(title: "") {
+                SettingsStack(title: L("settings.debug.secureInput.title"), detail: L("settings.debug.secureInput.hint")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        valueRow(
+                            L("settings.debug.keyboardDiagnostic.secureInputLabel"),
+                            value: (secureInput["enabled"] as? Bool ?? false)
                                 ? L("settings.debug.keyboardDiagnostic.enabled")
-                                : L("settings.debug.keyboardDiagnostic.disabled"))
+                                : L("settings.debug.keyboardDiagnostic.disabled"),
+                            ok: !(secureInput["enabled"] as? Bool ?? false)
+                        )
+                        if secureInput["sustained"] as? Bool ?? false {
+                            if let culprit = secureInput["culprit"] as? [String: Any] {
+                                valueRow(
+                                    L("settings.debug.keyboardDiagnostic.holder", [
+                                        "name": culprit["name"] as? String ?? "?",
+                                        "pid": culprit["pid"] as? NSNumber ?? 0,
+                                    ]),
+                                    value: ""
+                                )
+                            } else {
+                                valueRow(L("settings.debug.keyboardDiagnostic.holderUnknown"), value: "")
+                            }
                         }
+                        if !coveredBindings.isEmpty {
+                            Text(L("settings.debug.secureInput.covered", [
+                                "bindings": coveredBindings.joined(separator: ", "),
+                            ]))
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
+                        }
+                        if !uncoveredBindings.isEmpty {
+                            Text(L("settings.debug.secureInput.uncovered", [
+                                "bindings": uncoveredBindings.joined(separator: ", "),
+                            ]))
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Theme.Colors.warn)
+                        }
+                        StudioButton(title: L("dashboard.refresh"), kind: .ghost, height: 28) {
+                            refreshSecureInput()
+                        }
+                        .fixedSize()
                     }
-                    .font(.callout)
-                }
-
-                if let verdict = keyboard.verdict() {
-                    Text(verdict).font(.callout).foregroundStyle(.secondary)
-                }
-                if let error = keyboard.error {
-                    Text(error).font(.callout).foregroundStyle(.red)
                 }
             }
-            Section(header: Text(L("settings.debug.learningAttempts.title")).font(Theme.Fonts.sectionHeader)) {
+
+            SettingsGroup(title: "") {
+                SettingsStack(
+                    title: L("settings.debug.keyboardDiagnostic.title"),
+                    detail: L("settings.debug.keyboardDiagnostic.description")
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            StudioButton(
+                                title: keyboard.running
+                                    ? L("settings.debug.keyboardDiagnostic.running")
+                                    : L("settings.debug.keyboardDiagnostic.run"),
+                                kind: keyboard.running ? .ghost : .accent,
+                                height: 28
+                            ) {
+                                keyboard.running ? keyboard.stop() : keyboard.run()
+                            }
+                            .fixedSize()
+                            .disabled(keyboard.running && keyboard.liveCount < 0)
+                            if keyboard.running {
+                                ProgressView().controlSize(.mini)
+                                Text("\(keyboard.liveCount)")
+                                    .font(Theme.Fonts.mono(11))
+                                    .foregroundStyle(Theme.Colors.inkTertiary)
+                            }
+                        }
+
+                        if let report = keyboard.report {
+                            VStack(alignment: .leading, spacing: 0) {
+                                diagnosticRow(L("settings.debug.keyboardDiagnostic.keyDown"), "\(report.keyDown)")
+                                diagnosticRow(L("settings.debug.keyboardDiagnostic.keyUp"), "\(report.keyUp)")
+                                diagnosticRow(L("settings.debug.keyboardDiagnostic.flagsChanged"), "\(report.flagsChanged)")
+                                diagnosticRow(L("settings.debug.keyboardDiagnostic.mouse"), "\(report.mouse)")
+                                diagnosticRow(
+                                    L("settings.debug.keyboardDiagnostic.secureInputLabel"),
+                                    report.secureInputEnabled
+                                        ? L("settings.debug.keyboardDiagnostic.enabled")
+                                        : L("settings.debug.keyboardDiagnostic.disabled")
+                                )
+                            }
+                        }
+
+                        if let verdict = keyboard.verdict() {
+                            Text(verdict)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(Theme.Colors.inkTertiary)
+                        }
+                        if let error = keyboard.error {
+                            Text(error)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(Theme.Colors.err)
+                        }
+                    }
+                }
+            }
+
+            SettingsGroup(title: L("settings.debug.learningAttempts.title")) {
                 if learningAttempts.isEmpty {
-                    Text(L("settings.debug.learningAttempts.empty"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    SettingsRow(title: L("settings.debug.learningAttempts.empty")) {
+                        EmptyView()
+                    }
                 } else {
                     ForEach(learningAttempts) { attempt in
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text("\(attempt.pasted) → \(attempt.finalText)")
-                                .font(.callout)
+                                .font(.system(size: 12.5))
                                 .lineLimit(2)
                                 .textSelection(.enabled)
-                            HStack(spacing: 6) {
+                            HStack(spacing: 8) {
                                 Text(attempt.outcome)
-                                    .font(.caption2)
-                                    .foregroundStyle(attempt.outcome == "learned" ? Color.green : Color.secondary)
+                                    .font(Theme.Fonts.mono(10))
+                                    .foregroundStyle(attempt.outcome == "learned" ? Theme.Colors.ok : Theme.Colors.inkTertiary)
                                 Text(attempt.source)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .font(Theme.Fonts.mono(10))
+                                    .foregroundStyle(Theme.Colors.inkTertiary)
                                 Text(Self.attemptTime(attempt.createdAt))
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                                    .font(Theme.Fonts.mono(10))
+                                    .foregroundStyle(Theme.Colors.inkTertiary)
                             }
                             Text(attempt.reason)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.Colors.inkSecondary)
                             if let strategy = attempt.strategy {
                                 Text(strategy)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.Colors.inkTertiary)
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 10)
+                        .overlay(alignment: .bottom) { Hairline() }
                     }
-                    Button(L("settings.debug.learningAttempts.clear")) {
-                        do {
-                            try Core.clearLearningAttempts()
-                            learningAttempts = []
-                        } catch {
-                            self.error = error.localizedDescription
+
+                    SettingsRow(title: L("settings.debug.learningAttempts.clear")) {
+                        StudioButton(title: L("settings.debug.learningAttempts.clear"), kind: .ghost, height: 28) {
+                            do {
+                                try Core.clearLearningAttempts()
+                                learningAttempts = []
+                            } catch {
+                                self.error = error.localizedDescription
+                            }
                         }
+                        .fixedSize()
                     }
                 }
             }
         }
-        .formStyle(.grouped)
     }
 
     // MARK: - about
 
     private var aboutPane: some View {
-        Form {
-            Section(header: Text(L("settings.about.title")).font(Theme.Fonts.sectionHeader)) {
-                LabeledContent(L("settings.about.version.title"), value: Core.version)
-                LabeledContent("talkwtf-core", value: "Rust · FFI · 无 Tauri")
-                LabeledContent(L("settings.about.appDataDirectory.title"), value: AppPaths.dataDirectory.path)
-                Button(L("common.open")) { NSWorkspace.shared.open(AppPaths.dataDirectory) }
-                Button(L("settings.debug.logDirectory.title")) {
-                    NSWorkspace.shared.open(AppPaths.logDirectory)
+        VStack(alignment: .leading, spacing: 30) {
+            SettingsGroup(title: L("settings.about.title")) {
+                valueRow(L("settings.about.version.title"), value: Core.version)
+                valueRow("talkwtf-core", value: "Rust · FFI · 无 Tauri")
+                SettingsRow(title: L("settings.about.appDataDirectory.title")) {
+                    HStack(spacing: 10) {
+                        Text(abbreviatedPath(AppPaths.dataDirectory.path))
+                            .font(Theme.Fonts.mono(10.5))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
+                        StudioButton(title: L("common.open"), kind: .ghost, height: 28) {
+                            NSWorkspace.shared.open(AppPaths.dataDirectory)
+                        }
+                        .fixedSize()
+                    }
+                }
+                SettingsRow(title: L("settings.debug.logDirectory.title")) {
+                    HStack(spacing: 10) {
+                        Text(abbreviatedPath(AppPaths.logDirectory.path))
+                            .font(Theme.Fonts.mono(10.5))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
+                        StudioButton(title: L("common.open"), kind: .ghost, height: 28) {
+                            NSWorkspace.shared.open(AppPaths.logDirectory)
+                        }
+                        .fixedSize()
+                    }
                 }
             }
         }
-        .formStyle(.grouped)
     }
 
     // MARK: - helpers
@@ -570,19 +628,43 @@ struct SettingsView: View {
         return available.isEmpty ? ["cpu", "metal"] : available
     }
 
-    /// A labelled slider with the value shown on the right, matching the
-    /// alignment of the surrounding rows.
-    private func sliderField(
+    // MARK: - row helpers
+
+    /// A menu picker sized to its longest option, so rows keep a single line.
+    private func picker(_ key: String, default fallback: String, options: [(String, String)]) -> some View {
+        Picker("", selection: store.binding(key, default: fallback)) {
+            ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                Text(option.0).tag(option.1)
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .fixedSize()
+        .tint(Theme.Colors.ink)
+    }
+
+    private func toggleRow(_ titleKey: String, key: String, detail detailKey: String? = nil) -> some View {
+        SettingsRow(
+            title: L(titleKey),
+            detail: detailKey.map { L($0) }
+        ) {
+            Toggle("", isOn: store.boolBinding(key))
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .controlSize(.small)
+        }
+    }
+
+    private func sliderRow(
         _ key: String,
         _ titleKey: String,
-        description descriptionKey: String,
+        detail detailKey: String? = nil,
         range: ClosedRange<Double>,
         step: Double,
         format: @escaping (Double) -> String
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: Theme.Spacing.row) {
-                Text(L(titleKey))
+        SettingsStack(title: L(titleKey), detail: detailKey.map { L($0) }) {
+            HStack(spacing: 12) {
                 Slider(
                     value: Binding(
                         get: { store.double(key, range.lowerBound) },
@@ -592,34 +674,72 @@ struct SettingsView: View {
                     step: step
                 )
                 Text(format(store.double(key, range.lowerBound)))
-                    .font(.callout)
+                    .font(Theme.Fonts.mono(11))
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 64, alignment: .trailing)
+                    .foregroundStyle(Theme.Colors.inkTertiary)
+                    .frame(width: 52, alignment: .trailing)
             }
-            Text(L(descriptionKey))
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
-    /// A labelled millisecond number field, with its description underneath.
-    private func delayField(
-        _ key: String,
-        _ titleKey: String,
-        description descriptionKey: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(L(titleKey))
+    private func numberRow(_ key: String, _ titleKey: String, detail detailKey: String? = nil) -> some View {
+        SettingsRow(title: L(titleKey), detail: detailKey.map { L($0) }) {
+            HStack(spacing: 6) {
                 TextField("", value: store.intBinding(key, default: 0), format: .number)
-                    .frame(width: 80)
-                Text("ms").foregroundStyle(.secondary)
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .font(Theme.Fonts.mono(11.5))
+                    .frame(width: 64)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Theme.Colors.well)
+                    .overlay(Rectangle().strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+                Text("ms")
+                    .font(Theme.Fonts.mono(10.5))
+                    .foregroundStyle(Theme.Colors.inkTertiary)
             }
-            Text(L(descriptionKey))
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+    }
+
+    /// A read-only label/value row; `ok` tints the value green when true.
+    private func valueRow(_ title: String, value: String, ok: Bool? = nil) -> some View {
+        SettingsRow(title: title) {
+            Text(value)
+                .font(Theme.Fonts.mono(11))
+                .foregroundStyle(ok == true ? Theme.Colors.ok : Theme.Colors.inkTertiary)
+                .textSelection(.enabled)
+                .lineLimit(1)
+        }
+    }
+
+    private func diagnosticRow(_ title: String, _ value: String) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.Colors.inkSecondary)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(Theme.Fonts.mono(11))
+                .foregroundStyle(Theme.Colors.inkTertiary)
+        }
+        .padding(.vertical, 6)
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    private var microphoneOptions: [(String, String)] {
+        [(L("settings.sound.microphone.placeholder"), "")]
+            + inputDevices.compactMap { $0["name"] as? String }.map { ($0, $0) }
+    }
+
+    private var outputOptions: [(String, String)] {
+        [(L("settings.sound.outputDevice.placeholder"), "")]
+            + outputDevices.compactMap { $0["name"] as? String }.map { ($0, $0) }
+    }
+
+    /// `~/Library/...` instead of the full home path, to keep rows short.
+    private func abbreviatedPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 
     /// The transcription-language picker entries, filtered to what the loaded
@@ -666,46 +786,46 @@ struct SettingsView: View {
     /// One editable shortcut: click to capture, or reset to the shipped default.
     private func shortcutRow(_ id: String) -> some View {
         let isRecording = recorder.recording == id
-        return HStack(spacing: Theme.Spacing.row) {
-            Text(L("settings.general.shortcut.bindings.\(id).name"))
-            Spacer()
-            Button {
-                isRecording ? recorder.cancel() : recorder.begin(id)
-            } label: {
-                Text(isRecording ? recorder.preview : bindingText(id))
-                    .font(.callout)
-                    .monospaced()
-                    .foregroundStyle(isRecording ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                    .padding(.horizontal, 8)
-                    .frame(minWidth: 120, minHeight: 22)
-                    .background(
-                        isRecording ? AnyShapeStyle(.tint.opacity(0.12)) : AnyShapeStyle(.quaternary.opacity(0.5)),
-                        in: RoundedRectangle(cornerRadius: Theme.Radius.control)
+        return SettingsRow(title: L("settings.general.shortcut.bindings.\(id).name")) {
+            HStack(spacing: 8) {
+                Button {
+                    isRecording ? recorder.cancel() : recorder.begin(id)
+                } label: {
+                    ShortcutLabel(
+                        combo: isRecording ? recorder.preview : bindingText(id),
+                        tint: isRecording ? Theme.Colors.accent : Theme.Colors.inkSecondary
                     )
-            }
-            .buttonStyle(.plain)
-            .help(L("settings.general.shortcut.pressKeys"))
-
-            Button {
-                do {
-                    try Core.invoke("reset_binding", ["id": id])
-                    store.load()
-                } catch {
-                    self.error = error.localizedDescription
+                    .frame(minWidth: 96, minHeight: 24, alignment: .leading)
+                    .padding(.horizontal, 9)
+                        .background(isRecording ? Theme.Colors.accentSoft : Theme.Colors.well)
+                        .overlay(
+                            Rectangle().strokeBorder(
+                                isRecording ? Theme.Colors.accent : Theme.Colors.hairline,
+                                lineWidth: 1
+                            )
+                        )
                 }
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
+                .buttonStyle(.plain)
+                .help(L("settings.general.shortcut.pressKeys"))
+
+                StudioIconButton(systemImage: "arrow.counterclockwise") {
+                    do {
+                        try Core.invoke("reset_binding", ["id": id])
+                        store.load()
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+                .disabled(isRecording)
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .help(L("settings.postProcessing.prompts.restoreDefault"))
-            .accessibilityLabel(L("settings.postProcessing.prompts.restoreDefault"))
-            .disabled(isRecording)
         }
     }
 
     private func previewButton(_ state: OverlayState, _ titleKey: String) -> some View {
-        Button(L(titleKey)) { OverlayController.shared.show(state) }
+        StudioButton(title: L(titleKey), kind: .ghost, height: 28) {
+            OverlayController.shared.show(state)
+        }
+        .fixedSize()
     }
 
     private func bindingText(_ id: String) -> String {

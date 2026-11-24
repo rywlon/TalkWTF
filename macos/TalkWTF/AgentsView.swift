@@ -276,58 +276,38 @@ struct AgentsView: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
                 Text("VOICE → AGENT")
                     .font(Theme.Fonts.mono(11, weight: .semibold))
                     .tracking(2.6)
-                    .foregroundStyle(.white.opacity(0.55))
-                Text(L("agents.hero.title"))
-                    .font(.system(size: 31, weight: .bold))
-                    .tracking(-0.8)
-                    .foregroundStyle(.white)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(L("agents.hero.subtitle"))
-                    .font(.system(size: 14.5))
-                    .foregroundStyle(.white.opacity(0.74))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 470, alignment: .leading)
+                    .foregroundStyle(Theme.Colors.inkTertiary)
+                Spacer(minLength: 12)
+                Text(String(format: L("agents.count"), hub.targets.count))
+                    .font(Theme.Fonts.mono(11))
+                    .tracking(1.4)
+                    .foregroundStyle(Theme.Colors.inkTertiary)
             }
+
+            Text(L("agents.hero.title"))
+                .font(.system(size: 34, weight: .bold))
+                .tracking(-0.9)
+                .foregroundStyle(Theme.Colors.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(L("agents.hero.subtitle"))
+                .font(.system(size: 14.5))
+                .foregroundStyle(Theme.Colors.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 520, alignment: .leading)
+
             HStack(spacing: 10) {
                 StudioButton(title: L("agents.connect"), systemImage: "plus", kind: .accent) {
                     editing = AgentTarget(name: "")
                 }
             }
+            .padding(.top, 2)
         }
-        .padding(.horizontal, 30)
-        .padding(.vertical, 26)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(heroBackground)
-        .frame(height: 268)
-        .clipped()
-        .overlay(alignment: .topTrailing) {
-            Text(String(format: L("agents.count"), hub.targets.count))
-                .font(Theme.Fonts.mono(11))
-                .tracking(1.4)
-                .foregroundStyle(.white.opacity(0.6))
-                .padding(.top, 24)
-                .padding(.trailing, 26)
-        }
-    }
-
-    private var heroBackground: some View {
-        ZStack {
-            Color.black
-            if let image = StudioAssets.waveguide {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-            }
-            LinearGradient(
-                colors: [Color.black.opacity(0.72), Color.black.opacity(0.35), Color.black.opacity(0.86)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        }
     }
 
     // MARK: Status

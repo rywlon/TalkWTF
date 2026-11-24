@@ -356,7 +356,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release",
 				);
-				MARKETING_VERSION = 0.10.3;
+				MARKETING_VERSION = 0.10.4;
 				OTHER_LDFLAGS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release/libtalkwtf_ffi.a",
 					"-framework",
@@ -423,7 +423,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release",
 				);
-				MARKETING_VERSION = 0.10.3;
+				MARKETING_VERSION = 0.10.4;
 				OTHER_LDFLAGS = (
 					"$(SRCROOT)/../core/ffi/target/aarch64-apple-darwin/release/libtalkwtf_ffi.a",
 					"-framework",

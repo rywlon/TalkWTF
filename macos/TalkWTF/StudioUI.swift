@@ -365,22 +365,22 @@ struct SignalRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(label)
                         .font(.system(size: 11.5))
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
                     Text(value)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.Colors.ink)
                         .lineLimit(1)
                     if let detail {
                         Text(detail)
                             .font(Theme.Fonts.mono(11))
-                            .foregroundStyle(Color.white.opacity(0.45))
+                            .foregroundStyle(Theme.Colors.inkTertiary)
                             .lineLimit(1)
                     }
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(hovered ? 0.95 : 0.45))
+                    .foregroundStyle(hovered ? Theme.Colors.accent : Theme.Colors.inkTertiary)
                     .offset(x: hovered ? 2 : 0)
             }
             .padding(.vertical, 11)
@@ -392,22 +392,156 @@ struct SignalRow: View {
     }
 }
 
-// MARK: - Bundled imagery
+/// A settings group: a small caps label, a hairline, then rows that carry their
+/// own bottom hairline.
+struct SettingsGroup<Content: View>: View {
+    let title: String
+    var trailing: String? = nil
+    @ViewBuilder var content: Content
 
-/// Photos shipped in `resources/images`. Loaded lazily; a missing file just
-/// means the view falls back to its gradient.
-enum StudioAssets {
-    static let microphone: NSImage? = load("studio-mic")
-    static let waveguide: NSImage? = load("agent-waveguide")
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !title.isEmpty {
+                SectionLabel(text: title, trailing: trailing)
+                    .padding(.bottom, 9)
+            }
+            Hairline()
+            content
+        }
+    }
+}
 
-    static func image(_ name: String) -> NSImage? { load(name) }
+/// One settings row: the label (with an optional explanation) on the left, the
+/// control on the right, a hairline underneath.
+struct SettingsRow<Control: View>: View {
+    let title: String
+    var detail: String? = nil
+    var controlWidth: CGFloat? = nil
+    @ViewBuilder var control: Control
 
-    private static func load(_ name: String) -> NSImage? {
-        guard let base = Bundle.main.resourceURL else { return nil }
-        let url = base
-            .appendingPathComponent("resources/images", isDirectory: true)
-            .appendingPathComponent("\(name).jpg")
-        guard let image = NSImage(contentsOf: url) else { return nil }
-        return image
+    var body: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Theme.Colors.ink)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            control
+                .frame(width: controlWidth, alignment: .trailing)
+        }
+        .padding(.vertical, 11)
+        .frame(minHeight: 44)
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+}
+
+/// A row whose content spans the full width under the label (sliders, logs).
+struct SettingsStack<Content: View>: View {
+    let title: String
+    var detail: String? = nil
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13.5))
+                .foregroundStyle(Theme.Colors.ink)
+            if let detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.Colors.inkTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            content
+        }
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+}
+
+/// Wraps its children onto as many lines as the width allows.
+struct FlowRow: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var lineWidth: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var widest: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let needed = lineWidth == 0 ? size.width : lineWidth + spacing + size.width
+            if needed > maxWidth && lineWidth > 0 {
+                totalHeight += lineHeight + spacing
+                widest = max(widest, lineWidth)
+                lineWidth = size.width
+                lineHeight = size.height
+            } else {
+                lineWidth = needed
+                lineHeight = max(lineHeight, size.height)
+            }
+        }
+        totalHeight += lineHeight
+        widest = max(widest, lineWidth)
+        return CGSize(width: maxWidth.isFinite ? maxWidth : widest, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                x = bounds.minX
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
+}
+
+// MARK: - Settings field
+
+/// A flat text input for settings rows: no bezel, a filled well, and a hairline
+/// edge. Used where the row's control is free text (URL, key, model name).
+struct SettingsField: View {
+    @Binding var text: String
+    var secure: Bool = false
+    var placeholder: String = ""
+
+    var body: some View {
+        Group {
+            if secure {
+                SecureField(placeholder, text: $text)
+            } else {
+                TextField(placeholder, text: $text)
+            }
+        }
+        .textFieldStyle(.plain)
+        .font(.system(size: 12.5))
+        .foregroundStyle(Theme.Colors.ink)
+        .padding(.horizontal, 8)
+        .frame(height: 28)
+        .background(Theme.Colors.well)
+        .overlay(
+            Rectangle()
+                .strokeBorder(Theme.Colors.hairlineStrong, lineWidth: 1)
+        )
     }
 }
