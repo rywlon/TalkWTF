@@ -392,7 +392,7 @@ struct SettingsView: View {
                     ok: Permissions.microphoneGranted
                 )
                 SettingsRow(title: L("settings.dictionary.diagnose.action")) {
-                    StudioButton(title: L("settings.dictionary.diagnose.action"), kind: .ghost, height: 28) {
+                    StudioButton(title: L("onboarding.permissions.grant"), kind: .ghost, height: 28) {
                         Permissions.requestAccessibility()
                     }
                     .fixedSize()
