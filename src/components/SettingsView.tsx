@@ -125,6 +125,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane }) => {
       showOverlay({ type: 'translation_failed', label: 'English' });
     } else if (kind === 'notice') {
       showOverlay({ type: 'notice', kind: 'no_target' });
+    } else if (kind === 'audio_rescued') {
+      showOverlay({
+        type: 'audio_rescued',
+        vaultId: 'preview',
+        reason:
+          settings.app_language === 'zh'
+            ? '检测到断网，18 秒原始录音已安全写入黑匣子'
+            : 'Network dropped — 18s audio safely rescued to Vault',
+        durationMs: 18000,
+      });
     }
   };
 
@@ -241,7 +251,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane }) => {
                 </div>
               )}
 
-              {(['transcribe', 'transcribe_with_post_process', 'translate', 'cancel'] as const).map(
+              {(
+                [
+                  'transcribe',
+                  'agent_auto_route',
+                  'transcribe_with_post_process',
+                  'translate',
+                  'cancel',
+                ] as const
+              ).map(
                 (id) => {
                   const b = settings.bindings[id];
                   const isCapturing = capturingId === id;
@@ -616,6 +634,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane }) => {
                   ['translating', 'Translating'],
                   ['learned', 'Learned (Undo)'],
                   ['translation_failed', 'Translation Failed'],
+                  ['audio_rescued', 'Audio Rescued'],
                   ['notice', 'No Target Notice'],
                 ].map(([key, label]) => (
                   <button

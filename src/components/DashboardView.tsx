@@ -9,6 +9,7 @@ import {
   Languages,
   Mic,
   RefreshCw,
+  ShieldAlert,
 } from 'lucide-react';
 import { POLISH_STYLES } from '../data/defaults';
 import { formatDuration, formatRelativeTime } from '../lib/pipeline';
@@ -21,17 +22,21 @@ const STUDIO_MIC_IMG = '/src/assets/images/studio_acoustic_mic_1795522819279.jpg
 interface DashboardViewProps {
   onOpenAgents: () => void;
   onOpenLibrary: () => void;
+  onOpenRecoveryVault: () => void;
   onOpenSettingsPane: (pane: SettingsPane) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenAgents,
   onOpenLibrary,
+  onOpenRecoveryVault,
   onOpenSettingsPane,
 }) => {
   const {
     settings,
     history,
+    recoveryVault,
+    isOnline,
     models,
     agents,
     levels,
@@ -43,6 +48,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const pendingRecovered = useMemo(
+    () => recoveryVault.filter((r) => r.status !== 'recording_draft'),
+    [recoveryVault],
+  );
 
   const stats = useMemo(() => {
     const startOfToday = new Date();
@@ -74,10 +84,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       polishModeLabel: activeScene
         ? activeScene.name
         : activeStyle?.label ?? settings.polish_style,
-      primaryAgent: agents[0] ?? null,
     };
   }, [
-    agents,
     history,
     models,
     settings.active_scene_id,
@@ -91,6 +99,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const isLiveRecording = overlay.type === 'recording' || overlay.type === 'streaming';
   const dictationShortcut = settings.bindings.transcribe?.current_binding || 'Alt+Space';
+  const autoAgentShortcut = settings.bindings.agent_auto_route?.current_binding || 'Alt+A';
   const translateShortcut = settings.bindings.translate?.current_binding || 'Alt+Shift+Space';
 
   const handleCopy = async (id: number, text: string) => {
@@ -105,8 +114,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-[1160px] mx-auto px-6 lg:px-10 py-8 lg:py-10 space-y-12">
-        {/* Open-Canvas Asymmetric Editorial Stage (No Heavy Rounded Cards) */}
+      <div className="max-w-[1160px] mx-auto px-6 lg:px-10 py-8 lg:py-10 space-y-11">
+        {/* Sharp Hairline Black-Box Recovery Alert Strip (only shown when rescued recordings exist) */}
+        {pendingRecovered.length > 0 && (
+          <div
+            className="border-y py-3.5 flex flex-wrap items-center justify-between gap-4"
+            style={{
+              borderColor: 'var(--accent)',
+              backgroundColor: 'var(--accent-soft)',
+            }}
+          >
+            <div className="flex items-center gap-3 px-3 min-w-0">
+              <ShieldAlert className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+              <div className="text-[13.5px] min-w-0">
+                <span className="font-semibold">
+                  {settings.app_language === 'zh'
+                    ? `录音黑匣子已抢救 ${pendingRecovered.length} 段待恢复录音`
+                    : `${pendingRecovered.length} recording(s) safely preserved in Audio Vault`}
+                </span>
+                <span className="ml-2 text-[12.5px]" style={{ color: 'var(--ink-secondary)' }}>
+                  {isOnline
+                    ? settings.app_language === 'zh'
+                      ? '网络正常，可立即播放音频或重新识别'
+                      : 'Online — ready to replay or re-transcribe'
+                    : settings.app_language === 'zh'
+                      ? '当前离线，已安全存于本地 IndexedDB，待联网后重试'
+                      : 'Offline — stored in local IndexedDB until network returns'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenRecoveryVault}
+              className="btn-accent h-8 px-3.5 mr-3 text-[12.5px] flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>{settings.app_language === 'zh' ? '立即查看与恢复' : 'Recover Now'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Open-Canvas Asymmetric Editorial Stage */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
           {/* Left 7 Cols: Direct-on-Canvas Typography + Hairline-Ruled Acoustic Strip */}
           <div className="lg:col-span-7 flex flex-col justify-between gap-7 py-1">
@@ -121,8 +169,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span aria-hidden="true">/</span>
                 <span>
                   {settings.app_language === 'zh'
-                    ? `${agents.length} Agent`
-                    : `${agents.length} Agents`}
+                    ? `${agents.length} Agent 自动路由`
+                    : `${agents.length} Agents Auto-Route`}
                 </span>
               </div>
 
@@ -134,7 +182,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </h1>
 
               <p
-                className="text-[15px] leading-relaxed max-w-[52ch]"
+                className="text-[15px] leading-relaxed max-w-[54ch]"
                 style={{ color: 'var(--ink-secondary)' }}
               >
                 {t('dashboard.heroSubtitle')}
@@ -160,18 +208,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span style={{ color: 'var(--ink-secondary)' }}>
                   {isLiveRecording
                     ? settings.app_language === 'zh'
-                      ? '正在聆听麦克风信号'
-                      : 'Capturing microphone signal'
+                      ? '正在聆听麦克风 · 每秒自动写入本地黑匣子'
+                      : 'Capturing mic · Checkpointing audio to local Vault every 1s'
                     : settings.app_language === 'zh'
-                      ? '点击声波或按快捷键立即开始听写'
-                      : 'Click waveform or press shortcut to dictate'}
+                      ? '点击声波或按快捷键立即开始 · 全程断网/中断音频保护'
+                      : 'Click waveform or press shortcut · Protected by local Audio Vault'}
                 </span>
                 <KeycapCombo combo={dictationShortcut} muted />
               </div>
               <AcousticCanvas levels={levels} active={isLiveRecording} height={62} barCount={48} />
             </div>
 
-            {/* Primary CTA + Crisp Secondary Actions */}
+            {/* Primary CTA + Auto-Route Agent + Voice Translate */}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -184,35 +232,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <button
                 type="button"
+                onClick={() =>
+                  agents.length > 0 ? openDictation('agent_auto') : onOpenAgents()
+                }
+                className="btn-ghost h-11 px-4 text-[13.5px] flex items-center gap-2 cursor-pointer"
+              >
+                <ArrowUpRight className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+                <span>
+                  {agents.length > 0 ? t('dashboard.startAutoAgent') : t('dashboard.addAgent')}
+                </span>
+                {agents.length > 0 && (
+                  <span className="hidden sm:inline-flex ml-1">
+                    <KeycapCombo combo={autoAgentShortcut} muted />
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => openDictation('translate')}
                 className="btn-ghost h-11 px-4 text-[13.5px] flex items-center gap-2 cursor-pointer"
               >
                 <Languages className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-secondary)' }} />
                 <span>{t('dashboard.startTranslate')}</span>
-                <span className="hidden sm:inline-flex ml-1">
+                <span className="hidden xl:inline-flex ml-1">
                   <KeycapCombo combo={translateShortcut} muted />
                 </span>
               </button>
-
-              {stats.primaryAgent ? (
-                <button
-                  type="button"
-                  onClick={() => openDictation('agent', stats.primaryAgent)}
-                  className="btn-ghost h-11 px-4 text-[13.5px] flex items-center gap-2 cursor-pointer"
-                >
-                  <ArrowUpRight className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
-                  <span className="truncate max-w-[150px]">{stats.primaryAgent.name}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onOpenAgents}
-                  className="btn-ghost h-11 px-4 text-[13.5px] flex items-center gap-2 cursor-pointer"
-                >
-                  <ArrowUpRight className="w-4 h-4 shrink-0" />
-                  <span>{t('dashboard.addAgent')}</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -241,13 +287,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {settings.app_language === 'zh' ? '当前语音链路' : 'Active Signal Chain'}
                 </span>
                 <span className="font-mono-tabular text-[11px] text-white/55">
-                  {stats.asrReady
-                    ? settings.app_language === 'zh'
-                      ? 'LOCAL READY'
-                      : 'LOCAL READY'
-                    : settings.app_language === 'zh'
-                      ? 'PENDING'
-                      : 'PENDING'}
+                  {stats.asrReady ? 'LOCAL READY' : 'PENDING'}
                 </span>
               </div>
 
@@ -286,10 +326,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className="w-full pt-3 pb-1 flex items-center justify-between gap-3 text-left group cursor-pointer"
                 >
                   <div className="min-w-0">
-                    <div className="text-[11.5px] text-white/55">Voice to Agent</div>
+                    <div className="text-[11.5px] text-white/55">
+                      {settings.app_language === 'zh'
+                        ? 'Voice to Agent 微型路由'
+                        : 'Voice to Agent Harness'}
+                    </div>
                     <div className="text-[14px] font-medium truncate text-white">
-                      {stats.primaryAgent
-                        ? stats.primaryAgent.name
+                      {agents.length > 0
+                        ? settings.app_language === 'zh'
+                          ? `智能路由已就绪 · ${agents.length} 个本地 Agent`
+                          : `Auto-Route Ready · ${agents.length} Local Agents`
                         : settings.app_language === 'zh'
                           ? '点击配对你的本地 Agent'
                           : 'Pair a local Agent'}
@@ -302,10 +348,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </section>
 
-        {/* Open Swiss Hairline-Ruled 4-Column Metric Strip (Zero Outer Box) */}
+        {/* Open Swiss Hairline-Ruled 4-Column Metric Strip */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-[12.5px] font-semibold tracking-wide" style={{ color: 'var(--ink-secondary)' }}>
+            <h2
+              className="text-[12.5px] font-semibold tracking-wide"
+              style={{ color: 'var(--ink-secondary)' }}
+            >
               {t('dashboard.today.title')}
             </h2>
             <span className="text-[12px] font-mono-tabular" style={{ color: 'var(--ink-tertiary)' }}>
@@ -371,7 +420,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Open Editorial Recent Activity Ledger */}
         <section className="space-y-3 pb-8">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-[12.5px] font-semibold tracking-wide" style={{ color: 'var(--ink-secondary)' }}>
+            <h2
+              className="text-[12.5px] font-semibold tracking-wide"
+              style={{ color: 'var(--ink-secondary)' }}
+            >
               {t('dashboard.recent.title')}
             </h2>
             <button

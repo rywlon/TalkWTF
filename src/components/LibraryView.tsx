@@ -1,25 +1,48 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
   Copy,
   Download,
+  HardDrive,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   Upload,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
+import { formatBytes } from '../lib/audioVault';
 import { formatDuration, formatRelativeTime } from '../lib/pipeline';
 import { useAppStore } from '../store/AppStore';
-import type { CorrectionRule, DictionaryWord } from '../types';
+import type {
+  AgentTarget,
+  CorrectionRule,
+  DictionaryWord,
+  LibraryTab,
+  RecoveredRecording,
+} from '../types';
 import { TactileSwitch } from './ui/Controls';
 
-export const LibraryView: React.FC = () => {
+interface LibraryViewProps {
+  activeTab?: LibraryTab;
+  onTabChange?: (tab: LibraryTab) => void;
+}
+
+export const LibraryView: React.FC<LibraryViewProps> = ({ activeTab, onTabChange }) => {
   const {
     settings,
+    isOnline,
     history,
     deleteHistoryEntry,
     retranscribeHistoryEntry,
+    recoveryVault,
+    updateRecoveredTranscript,
+    recoverRecordingItem,
+    deleteRecoveredRecording,
+    getRecoveredAudioBlob,
+    agents,
     words,
     rules,
     rejections,
@@ -37,7 +60,13 @@ export const LibraryView: React.FC = () => {
     t,
   } = useAppStore();
 
-  const [tab, setTab] = useState<'history' | 'dictionary'>('history');
+  const [localTab, setLocalTab] = useState<LibraryTab>(activeTab ?? 'history');
+  const tab = activeTab ?? localTab;
+  const setTab = (next: LibraryTab) => {
+    setLocalTab(next);
+    onTabChange?.(next);
+  };
+
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -50,6 +79,11 @@ export const LibraryView: React.FC = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const pendingVault = useMemo(
+    () => recoveryVault.filter((r) => r.status !== 'recording_draft'),
+    [recoveryVault],
+  );
 
   const filteredEntries = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -109,10 +143,38 @@ export const LibraryView: React.FC = () => {
     }
   };
 
+  const handleRetryAllVault = () => {
+    let recovered = 0;
+    let skipped = 0;
+    for (const item of pendingVault) {
+      if (item.partialTranscript.trim()) {
+        const res = recoverRecordingItem(item.id, item.partialTranscript);
+        if (res.ok) recovered++;
+        else skipped++;
+      } else {
+        skipped++;
+      }
+    }
+    if (recovered > 0) {
+      setNotice(
+        settings.app_language === 'zh'
+          ? `已重新识别并恢复 ${recovered} 条录音${skipped > 0 ? `，另有 ${skipped} 条需先回放补充文字` : ''}。`
+          : `Recovered ${recovered} recording(s)${skipped > 0 ? `; ${skipped} need transcript text first` : ''}.`,
+      );
+      setError(null);
+    } else if (skipped > 0) {
+      setError(
+        settings.app_language === 'zh'
+          ? '待恢复录音暂无识别草稿，请先回放音频并补充文字后再恢复。'
+          : 'No transcript draft on pending items yet — listen back and add text before recovering.',
+      );
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-[1160px] mx-auto px-6 lg:px-10 py-8 lg:py-10 space-y-8">
-        {/* Header + Crisp Underline Tabs (Zero Rounded Pill Switcher) */}
+        {/* Header + Crisp Underline Tabs */}
         <div
           className="flex flex-wrap items-end justify-between gap-4 border-b pb-4"
           style={{ borderColor: 'var(--border-hairline)' }}
@@ -127,9 +189,14 @@ export const LibraryView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-6 -mb-[17px]">
-            {(['history', 'dictionary'] as const).map((item) => {
+            {(['history', 'recovery', 'dictionary'] as const).map((item) => {
               const active = tab === item;
-              const count = item === 'history' ? history.length : words.length + rules.length;
+              const count =
+                item === 'history'
+                  ? history.length
+                  : item === 'recovery'
+                    ? pendingVault.length
+                    : words.length + rules.length;
               return (
                 <button
                   key={item}
@@ -141,9 +208,24 @@ export const LibraryView: React.FC = () => {
                   }}
                 >
                   <span>
-                    {item === 'history' ? t('sidebar.history') : t('sidebar.dictionary')}
+                    {item === 'history'
+                      ? t('sidebar.history')
+                      : item === 'recovery'
+                        ? t('sidebar.recovery')
+                        : t('sidebar.dictionary')}
                   </span>
-                  <span className="font-mono-tabular text-[12px] opacity-60">{count}</span>
+                  <span
+                    className="font-mono-tabular text-[12px]"
+                    style={{
+                      color:
+                        item === 'recovery' && count > 0
+                          ? 'var(--accent)'
+                          : 'var(--ink-tertiary)',
+                      fontWeight: item === 'recovery' && count > 0 ? 600 : 400,
+                    }}
+                  >
+                    {count}
+                  </span>
                   {active && (
                     <span
                       className="absolute left-0 right-0 bottom-0 h-[2px]"
@@ -169,7 +251,7 @@ export const LibraryView: React.FC = () => {
 
         {tab === 'history' ? (
           <div className="space-y-6 pb-8">
-            {/* Architectural Underline Search (Flex-based: zero icon overlap, zero rounded box) */}
+            {/* Architectural Underline Search */}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div
                 className="flex items-center gap-2.5 flex-1 min-w-[220px] max-w-[380px] border-b transition-colors focus-within:border-[var(--accent)]"
@@ -308,13 +390,123 @@ export const LibraryView: React.FC = () => {
               </div>
             )}
           </div>
+        ) : tab === 'recovery' ? (
+          <div className="space-y-6 pb-10">
+            {/* Black-Box Vault Status Header Strip */}
+            <div
+              className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
+              <div className="space-y-1 max-w-2xl">
+                <div className="flex items-center gap-2.5 text-[12.5px] font-mono-tabular">
+                  {isOnline ? (
+                    <span
+                      className="inline-flex items-center gap-1.5"
+                      style={{ color: 'var(--status-ok)' }}
+                    >
+                      <Wifi className="w-3.5 h-3.5" />
+                      <span>
+                        {settings.app_language === 'zh'
+                          ? '在线 · 可重新识别'
+                          : 'ONLINE · READY TO RECOVER'}
+                      </span>
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1.5"
+                      style={{ color: 'var(--status-warn)' }}
+                    >
+                      <WifiOff className="w-3.5 h-3.5" />
+                      <span>
+                        {settings.app_language === 'zh'
+                          ? '离线 · 音频已安全写入 IndexedDB'
+                          : 'OFFLINE · AUDIO SAFELY STORED IN INDEXEDDB'}
+                      </span>
+                    </span>
+                  )}
+                  <span style={{ color: 'var(--ink-tertiary)' }}>·</span>
+                  <span style={{ color: 'var(--ink-secondary)' }}>
+                    {settings.app_language === 'zh'
+                      ? `${pendingVault.length} 段待恢复`
+                      : `${pendingVault.length} pending`}
+                  </span>
+                </div>
+                <p className="text-[13.5px]" style={{ color: 'var(--ink-secondary)' }}>
+                  {t('recovery.subtitle')}
+                </p>
+              </div>
+
+              {pendingVault.length > 0 && (
+                <button
+                  type="button"
+                  disabled={!isOnline}
+                  onClick={handleRetryAllVault}
+                  className="btn-accent h-9 px-4 text-[13px] flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{t('recovery.retryAll')}</span>
+                </button>
+              )}
+            </div>
+
+            {pendingVault.length === 0 ? (
+              <div className="py-16 text-center space-y-2.5">
+                <HardDrive
+                  className="w-6 h-6 mx-auto"
+                  style={{ color: 'var(--ink-tertiary)' }}
+                />
+                <p className="text-[14px]" style={{ color: 'var(--ink-secondary)' }}>
+                  {t('recovery.empty')}
+                </p>
+              </div>
+            ) : (
+              <div
+                className="border-y divide-y"
+                style={{ borderColor: 'var(--border-hairline)' }}
+              >
+                {pendingVault.map((item) => (
+                  <RecoveryVaultRow
+                    key={item.id}
+                    item={item}
+                    agents={agents}
+                    isOnline={isOnline}
+                    locale={settings.app_language}
+                    t={t}
+                    getAudioBlob={getRecoveredAudioBlob}
+                    onTranscriptChange={(val) => updateRecoveredTranscript(item.id, val)}
+                    onRecover={(text, agent) => {
+                      const res = recoverRecordingItem(item.id, text, agent);
+                      if (res.ok) {
+                        setNotice(
+                          settings.app_language === 'zh'
+                            ? '录音已成功恢复并写入历史记录。'
+                            : 'Recording recovered and saved to history.',
+                        );
+                        setError(null);
+                      } else {
+                        setError(
+                          settings.app_language === 'zh'
+                            ? '请先回放音频并在输入框中补充文字，再执行恢复。'
+                            : 'Listen back and enter transcript text before recovering.',
+                        );
+                      }
+                    }}
+                    onDelete={() => deleteRecoveredRecording(item.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 pb-8">
-            {/* Left 5 Cols: Custom Vocabulary + Rejections (Open Hairline Columns) */}
+            {/* Left 5 Cols: Custom Vocabulary + Rejections */}
             <div className="lg:col-span-5 space-y-10">
               <section className="space-y-4">
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-[13px] font-semibold tracking-wide" style={{ color: 'var(--ink-secondary)' }}>
+                  <h2
+                    className="text-[13px] font-semibold tracking-wide"
+                    style={{ color: 'var(--ink-secondary)' }}
+                  >
                     {t('library.wordsTitle')}
                   </h2>
                   <div className="flex items-center gap-2">
@@ -370,7 +562,10 @@ export const LibraryView: React.FC = () => {
                   </button>
                 </form>
 
-                <div className="border-t divide-y" style={{ borderColor: 'var(--border-hairline)' }}>
+                <div
+                  className="border-t divide-y"
+                  style={{ borderColor: 'var(--border-hairline)' }}
+                >
                   {words.map((item) => (
                     <div
                       key={item.id}
@@ -407,7 +602,10 @@ export const LibraryView: React.FC = () => {
                 style={{ borderColor: 'var(--border-hairline)' }}
               >
                 <div className="space-y-1">
-                  <h2 className="text-[13px] font-semibold tracking-wide" style={{ color: 'var(--ink-secondary)' }}>
+                  <h2
+                    className="text-[13px] font-semibold tracking-wide"
+                    style={{ color: 'var(--ink-secondary)' }}
+                  >
                     {t('library.rejectedTitle')}
                   </h2>
                   <p className="text-[12.5px]" style={{ color: 'var(--ink-secondary)' }}>
@@ -458,10 +656,16 @@ export const LibraryView: React.FC = () => {
               style={{ borderColor: 'var(--border-hairline)' }}
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-[13px] font-semibold tracking-wide" style={{ color: 'var(--ink-secondary)' }}>
+                <h2
+                  className="text-[13px] font-semibold tracking-wide"
+                  style={{ color: 'var(--ink-secondary)' }}
+                >
                   {t('library.rulesTitle')}
                 </h2>
-                <span className="font-mono-tabular text-[12px]" style={{ color: 'var(--ink-tertiary)' }}>
+                <span
+                  className="font-mono-tabular text-[12px]"
+                  style={{ color: 'var(--ink-tertiary)' }}
+                >
                   {rules.filter((r) => r.enabled).length} / {rules.length}
                 </span>
               </div>
@@ -483,7 +687,10 @@ export const LibraryView: React.FC = () => {
                   placeholder={t('library.patternPlaceholder')}
                   className="studio-input flex-1 min-w-[140px]"
                 />
-                <ArrowRight className="w-4 h-4 shrink-0 mb-2" style={{ color: 'var(--ink-tertiary)' }} />
+                <ArrowRight
+                  className="w-4 h-4 shrink-0 mb-2"
+                  style={{ color: 'var(--ink-tertiary)' }}
+                />
                 <input
                   type="text"
                   value={newReplacement}
@@ -584,6 +791,201 @@ export const LibraryView: React.FC = () => {
           }}
         />
       )}
+    </div>
+  );
+};
+
+const RecoveryVaultRow: React.FC<{
+  item: RecoveredRecording;
+  agents: AgentTarget[];
+  isOnline: boolean;
+  locale: 'zh' | 'en';
+  t: (key: string, params?: Record<string, string | number>) => string;
+  getAudioBlob: (id: string) => Promise<Blob | null>;
+  onTranscriptChange: (val: string) => void;
+  onRecover: (transcript: string, overrideAgent?: AgentTarget | null) => void;
+  onDelete: () => void;
+}> = ({
+  item,
+  agents,
+  isOnline,
+  locale,
+  t,
+  getAudioBlob,
+  onTranscriptChange,
+  onRecover,
+  onDelete,
+}) => {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(item.targetAgentId ?? '');
+
+  useEffect(() => {
+    let active = true;
+    let createdUrl: string | null = null;
+    if (item.hasAudioBlob) {
+      void getAudioBlob(item.id).then((blob) => {
+        if (!active || !blob) return;
+        setAudioBlob(blob);
+        createdUrl = URL.createObjectURL(blob);
+        setAudioUrl(createdUrl);
+      });
+    }
+    return () => {
+      active = false;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [getAudioBlob, item.hasAudioBlob, item.id]);
+
+  const handleDownloadAudio = () => {
+    if (!audioBlob) return;
+    const ext = item.mimeType.includes('wav')
+      ? 'wav'
+      : item.mimeType.includes('mp4')
+        ? 'm4a'
+        : item.mimeType.includes('ogg')
+          ? 'ogg'
+          : 'webm';
+    const url = URL.createObjectURL(audioBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `talkwtf-rescued-${item.id}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const isAgentFlow = item.workflow === 'agent' || item.workflow === 'agent_auto';
+  const overrideAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
+
+  return (
+    <div className="py-6 space-y-4" style={{ borderColor: 'var(--border-hairline)' }}>
+      {/* Meta Line */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+          <span
+            className="font-semibold"
+            style={{
+              color:
+                item.status === 'offline_pending' ? 'var(--status-warn)' : 'var(--accent)',
+            }}
+          >
+            {t(`recovery.status.${item.status}`)}
+          </span>
+          <span style={{ color: 'var(--ink-tertiary)' }}>·</span>
+          <span style={{ color: 'var(--ink-secondary)' }}>
+            {t(`dashboard.workflow.${item.workflow}`)}
+            {item.targetName ? ` (${item.targetName})` : ''}
+          </span>
+          <span style={{ color: 'var(--ink-tertiary)' }}>·</span>
+          <span className="font-mono-tabular" style={{ color: 'var(--ink-secondary)' }}>
+            {formatDuration(item.durationMs)}
+          </span>
+          {item.sizeBytes > 0 && (
+            <>
+              <span style={{ color: 'var(--ink-tertiary)' }}>·</span>
+              <span className="font-mono-tabular" style={{ color: 'var(--ink-tertiary)' }}>
+                {formatBytes(item.sizeBytes)}
+              </span>
+            </>
+          )}
+          <span style={{ color: 'var(--ink-tertiary)' }}>·</span>
+          <span style={{ color: 'var(--ink-tertiary)' }}>
+            {formatRelativeTime(Math.floor(item.createdAt / 1000), locale)}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={onDelete}
+          className="text-[12px] flex items-center gap-1 hover:underline cursor-pointer"
+          style={{ color: 'var(--status-err)' }}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>{t('common.delete')}</span>
+        </button>
+      </div>
+
+      {item.failureReason && (
+        <p className="text-[12.5px]" style={{ color: 'var(--ink-secondary)' }}>
+          {item.failureReason}
+        </p>
+      )}
+
+      {/* Real Rescued Audio Playback */}
+      {audioUrl && (
+        <div className="max-w-[520px]">
+          <audio controls src={audioUrl} className="w-full h-9" />
+        </div>
+      )}
+
+      {/* Editable Rescued Transcript */}
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium" style={{ color: 'var(--ink-secondary)' }}>
+          {locale === 'zh'
+            ? '保留的口语草稿（可边听回放边补充/修正，然后一键恢复）'
+            : 'Saved Transcript Draft (listen back to refine before recovery)'}
+        </label>
+        <textarea
+          value={item.partialTranscript}
+          onChange={(e) => onTranscriptChange(e.target.value)}
+          rows={2}
+          placeholder={
+            locale === 'zh'
+              ? '原录音未产生识别文字，请回放音频后在此补充内容…'
+              : 'No text captured yet — play the rescued audio and enter text here…'
+          }
+          className="studio-textarea w-full resize-none leading-relaxed"
+        />
+      </div>
+
+      {/* Recovery Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {isAgentFlow && agents.length > 0 && (
+            <select
+              value={selectedAgentId}
+              onChange={(e) => setSelectedAgentId(e.target.value)}
+              className="studio-select"
+            >
+              <option value="">
+                {locale === 'zh' ? '自动路由给最合适的 Agent' : 'Auto-Route to Best Agent'}
+              </option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {audioBlob && (
+            <button
+              type="button"
+              onClick={handleDownloadAudio}
+              className="btn-ghost h-9 px-3 text-[12.5px] flex items-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{t('recovery.download')}</span>
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          disabled={!item.partialTranscript.trim() || !isOnline}
+          onClick={() => onRecover(item.partialTranscript, overrideAgent)}
+          className="btn-accent h-9 px-4 text-[13px] flex items-center gap-1.5 cursor-pointer"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>
+            {isAgentFlow
+              ? locale === 'zh'
+                ? '恢复并发送给 Agent'
+                : 'Recover & Dispatch to Agent'
+              : t('recovery.retryOne')}
+          </span>
+        </button>
+      </div>
     </div>
   );
 };

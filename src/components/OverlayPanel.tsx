@@ -7,18 +7,22 @@ import {
   Info,
   Loader2,
   Mic,
+  ShieldAlert,
   X,
 } from 'lucide-react';
+import { formatDuration } from '../lib/pipeline';
 import { useAppStore } from '../store/AppStore';
 
 interface OverlayPanelProps {
   onFinishRecording?: () => void;
   onDiscardRecording?: () => void;
+  onOpenRecoveryVault?: () => void;
 }
 
 export const OverlayPanel: React.FC<OverlayPanelProps> = ({
   onFinishRecording,
   onDiscardRecording,
+  onOpenRecoveryVault,
 }) => {
   const { overlay, levels, settings, t, hideOverlay, retryLastTranslation, undoLearnedRule } =
     useAppStore();
@@ -44,11 +48,12 @@ export const OverlayPanel: React.FC<OverlayPanelProps> = ({
           minHeight:
             overlay.type === 'translation_failed' ||
             overlay.type === 'notice' ||
-            overlay.type === 'agent_message'
+            overlay.type === 'agent_message' ||
+            overlay.type === 'audio_rescued'
               ? 54
               : 46,
-          minWidth: isRecording ? 328 : 288,
-          maxWidth: 480,
+          minWidth: isRecording ? 328 : 296,
+          maxWidth: 500,
         }}
       >
         {isRecording && (
@@ -59,8 +64,9 @@ export const OverlayPanel: React.FC<OverlayPanelProps> = ({
                 hovering ? 'opacity-0 pointer-events-none' : 'opacity-100'
               }`}
             >
-              <div className="flex items-center gap-1.5 text-[13px] font-medium truncate max-w-[120px]">
-                {overlay.type === 'recording' && overlay.workflow === 'agent' ? (
+              <div className="flex items-center gap-1.5 text-[13px] font-medium truncate max-w-[130px]">
+                {overlay.type === 'recording' &&
+                (overlay.workflow === 'agent' || overlay.workflow === 'agent_auto') ? (
                   <ArrowUpRight className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
                 ) : (
                   <Mic className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
@@ -173,6 +179,68 @@ export const OverlayPanel: React.FC<OverlayPanelProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+        )}
+
+        {overlay.type === 'audio_rescued' && (
+          <div className="flex items-center justify-between gap-3 py-2.5 w-full">
+            <div className="flex items-center gap-2 text-[13px] min-w-0">
+              <ShieldAlert className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+              <div className="min-w-0">
+                <div className="truncate font-medium">{overlay.reason}</div>
+                <div
+                  className="text-[11px] font-mono-tabular"
+                  style={{ color: 'var(--ink-secondary)' }}
+                >
+                  {formatDuration(overlay.durationMs)} · IndexedDB Audio Vault
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenRecoveryVault && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hideOverlay();
+                    onOpenRecoveryVault();
+                  }}
+                  className="btn-accent text-[12px] h-7 px-2.5 cursor-pointer"
+                >
+                  {settings.app_language === 'zh' ? '查看黑匣子' : 'Open Vault'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={hideOverlay}
+                className="p-1 hover:bg-[var(--bg-hover)] cursor-pointer"
+                style={{ color: 'var(--ink-secondary)' }}
+                aria-label="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {overlay.type === 'routing_confirm' && (
+          <div className="flex items-center justify-between gap-3 py-2.5 w-full">
+            <div className="flex items-center gap-2 text-[13px] min-w-0">
+              <ArrowUpRight className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+              <span className="truncate">
+                {overlay.decision.target
+                  ? `→ ${overlay.decision.target.name} · ${overlay.decision.reason}`
+                  : overlay.decision.reason}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={hideOverlay}
+              className="p-1 hover:bg-[var(--bg-hover)] cursor-pointer"
+              style={{ color: 'var(--ink-secondary)' }}
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 

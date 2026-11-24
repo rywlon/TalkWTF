@@ -1,5 +1,7 @@
 export type AppSection = 'dashboard' | 'agents' | 'library' | 'settings';
 
+export type LibraryTab = 'history' | 'recovery' | 'dictionary';
+
 export type SettingsPane =
   | 'general'
   | 'personalization'
@@ -35,6 +37,8 @@ export type RecordingRetentionPeriod =
   | 'month1'
   | 'months3';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+
+export type DictationWorkflow = 'dictation' | 'translate' | 'agent' | 'agent_auto';
 
 export interface ShortcutBinding {
   id: string;
@@ -83,6 +87,50 @@ export interface AgentTarget {
   conversation: string;
   workingDirectory?: string;
   bindingID: string;
+  /** Wake aliases for 0ms deterministic routing (e.g. ["后端", "codex", "api"]) */
+  aliases?: string[];
+  /** Short capability manifest describing what tasks belong to this Agent */
+  scope?: string;
+  /** Last dispatched unix ms timestamp for sticky session continuity */
+  lastUsedAt?: number;
+}
+
+export interface AgentRouteCandidate {
+  agent: AgentTarget;
+  score: number;
+  reason: string;
+}
+
+export interface AgentRouteDecision {
+  target: AgentTarget | null;
+  confidence: number;
+  tier: 'rule' | 'sticky' | 'semantic' | 'ambiguous' | 'none';
+  reason: string;
+  rewrittenPrompt: string;
+  candidates: AgentRouteCandidate[];
+  autoDispatch: boolean;
+}
+
+export type RecoveryStatus =
+  | 'recording_draft'
+  | 'interrupted'
+  | 'offline_pending'
+  | 'transcribe_failed';
+
+export interface RecoveredRecording {
+  id: string;
+  createdAt: number; // unix ms
+  updatedAt: number; // unix ms
+  durationMs: number;
+  sizeBytes: number;
+  mimeType: string;
+  hasAudioBlob: boolean;
+  workflow: DictationWorkflow;
+  targetAgentId?: string;
+  targetName?: string;
+  partialTranscript: string;
+  status: RecoveryStatus;
+  failureReason: string;
 }
 
 export interface HistoryEntry {
@@ -137,7 +185,7 @@ export interface AsrModelInfo {
 
 export type OverlayState =
   | { type: 'hidden' }
-  | { type: 'recording'; targetName: string; workflow: 'dictation' | 'translate' | 'agent' }
+  | { type: 'recording'; targetName: string; workflow: DictationWorkflow }
   | { type: 'streaming'; targetName: string; liveText?: string }
   | { type: 'transcribing' }
   | { type: 'processing'; label?: string }
@@ -145,7 +193,9 @@ export type OverlayState =
   | { type: 'translation_failed'; label: string; rawText?: string }
   | { type: 'notice'; kind: 'no_target' | 'error'; message?: string }
   | { type: 'learned'; pattern: string; replacement: string; count: number; ruleId?: number }
-  | { type: 'agent_message'; text: string; failed: boolean };
+  | { type: 'agent_message'; text: string; failed: boolean }
+  | { type: 'audio_rescued'; vaultId: string; reason: string; durationMs: number }
+  | { type: 'routing_confirm'; decision: AgentRouteDecision };
 
 export interface AppSettings {
   app_language: 'zh' | 'en';

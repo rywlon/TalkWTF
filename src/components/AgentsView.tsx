@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
+  ArrowUpRight,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { AGENT_CHOICES } from '../data/defaults';
+import { formatRelativeTime } from '../lib/pipeline';
 import { useAppStore } from '../store/AppStore';
 import type { AgentChoice, AgentTarget } from '../types';
 import { KeycapCombo, ResilientImage } from './ui/Controls';
@@ -37,8 +39,11 @@ export const AgentsView: React.FC = () => {
   } = useAppStore();
 
   const [pairingTarget, setPairingTarget] = useState<AgentTarget | null>(null);
+  const [editingManifest, setEditingManifest] = useState<AgentTarget | null>(null);
   const [capturingBinding, setCapturingBinding] = useState<string | null>(null);
   const [copiedFailed, setCopiedFailed] = useState(false);
+
+  const autoRouteShortcut = settings.bindings.agent_auto_route?.current_binding || 'Alt+A';
 
   useEffect(() => {
     if (!capturingBinding) return;
@@ -77,6 +82,8 @@ export const AgentsView: React.FC = () => {
       address: '',
       conversation: '',
       bindingID: `agent_${Date.now()}`,
+      aliases: [],
+      scope: '',
     });
   };
 
@@ -96,7 +103,7 @@ export const AgentsView: React.FC = () => {
       <div className="max-w-[1160px] mx-auto px-6 lg:px-10 py-8 lg:py-10 space-y-10">
         {/* Sharp-Edged Editorial Hero with Architectural Waveguide Photography */}
         <section
-          className="relative overflow-hidden border min-h-[216px] flex items-end"
+          className="relative overflow-hidden border min-h-[224px] flex items-end"
           style={{ borderColor: 'var(--border-hairline)', backgroundColor: '#111214' }}
         >
           <ResilientImage
@@ -109,20 +116,20 @@ export const AgentsView: React.FC = () => {
             className="absolute inset-0"
             style={{
               background:
-                'linear-gradient(95deg, rgba(11,12,14,0.94) 0%, rgba(11,12,14,0.72) 56%, rgba(11,12,14,0.36) 100%)',
+                'linear-gradient(95deg, rgba(11,12,14,0.95) 0%, rgba(11,12,14,0.74) 56%, rgba(11,12,14,0.38) 100%)',
             }}
           />
 
           <div className="relative z-10 w-full p-7 lg:p-9 flex flex-wrap items-end justify-between gap-6 text-[#f2f3f5]">
-            <div className="space-y-2.5 max-w-[56ch]">
+            <div className="space-y-2.5 max-w-[58ch]">
               <div className="text-[12px] font-mono-tabular text-white/60">
                 {settings.app_language === 'zh'
-                  ? '后台直达 / 固定会话目标 / 失败可恢复'
-                  : 'BACKGROUND DELIVERY / FIXED TARGET / RECOVERABLE'}
+                  ? '微型 ROUTER HARNESS / 唤醒词规则 + 粘性会话 + 语义分派'
+                  : 'TINY ROUTER HARNESS / RULES + STICKY SESSION + SEMANTIC GATE'}
               </div>
               <h1
                 className="font-display headline-balance font-semibold tracking-[-0.03em] leading-[1.1]"
-                style={{ fontSize: 'clamp(1.85rem, 3vw, 2.6rem)' }}
+                style={{ fontSize: 'clamp(1.85rem, 3vw, 2.55rem)' }}
               >
                 {t('agents.bannerTitle')}
               </h1>
@@ -131,14 +138,29 @@ export const AgentsView: React.FC = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={openNewPairing}
-              className="btn-accent h-11 px-5 text-[13.5px] flex items-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('agents.connect')}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {agents.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => openDictation('agent_auto')}
+                  className="btn-accent h-11 px-5 text-[13.5px] flex items-center gap-2 cursor-pointer"
+                >
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span>{t('agents.autoRouteCta')}</span>
+                  <span className="font-mono-tabular text-[11px] opacity-85 ml-0.5">
+                    {autoRouteShortcut}
+                  </span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={openNewPairing}
+                className="h-11 px-4 rounded-[2px] border border-white/25 text-[13.5px] font-medium text-white hover:bg-white/10 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t('agents.connect')}</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -165,6 +187,11 @@ export const AgentsView: React.FC = () => {
                   <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--status-ok)' }} />
                 )}
                 <span>{agentDelivery.status}</span>
+                {agentDelivery.lastRouteReason && (
+                  <span className="text-[12px] font-normal" style={{ color: 'var(--ink-tertiary)' }}>
+                    · {agentDelivery.lastRouteReason}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -224,11 +251,16 @@ export const AgentsView: React.FC = () => {
           </section>
         )}
 
-        {/* Open Hairline-Ruled Paired Conversations Directory */}
+        {/* Open Hairline-Ruled Paired Conversations & Capability Registry */}
         <section className="space-y-3 pb-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[12.5px] font-semibold tracking-wide" style={{ color: 'var(--ink-secondary)' }}>
-              {settings.app_language === 'zh' ? '已配对会话' : 'Paired Conversations'}
+          <div className="flex items-center justify-between gap-4">
+            <h2
+              className="text-[12.5px] font-semibold tracking-wide"
+              style={{ color: 'var(--ink-secondary)' }}
+            >
+              {settings.app_language === 'zh'
+                ? '已配对本地 Agent 与能力名片'
+                : 'Paired Local Agents & Capability Manifests'}
             </h2>
             <span className="font-mono-tabular text-[12px]" style={{ color: 'var(--ink-tertiary)' }}>
               {agents.length}
@@ -236,7 +268,10 @@ export const AgentsView: React.FC = () => {
           </div>
 
           {agents.length === 0 ? (
-            <div className="border-t py-10 space-y-4" style={{ borderColor: 'var(--border-hairline)' }}>
+            <div
+              className="border-t py-10 space-y-4"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
               <h3 className="font-display text-[22px] font-semibold">{t('agents.emptyTitle')}</h3>
               <p className="text-[14px] max-w-[54ch]" style={{ color: 'var(--ink-secondary)' }}>
                 {t('agents.emptySub')}
@@ -257,49 +292,99 @@ export const AgentsView: React.FC = () => {
               {agents.map((target) => {
                 const combo = shortcutFor(target);
                 const isCapturing = capturingBinding === target.bindingID;
+                const aliasesText = (target.aliases ?? []).join(' / ');
                 return (
                   <div
                     key={target.id}
-                    className="py-5 px-2 -mx-2 flex flex-wrap items-center gap-4 transition-colors hover:bg-[var(--bg-hover)]"
+                    className="py-5 px-2 -mx-2 flex flex-wrap items-start justify-between gap-4 transition-colors hover:bg-[var(--bg-hover)]"
                     style={{ borderColor: 'var(--border-hairline)' }}
                   >
-                    <div
-                      className="w-10 h-10 flex items-center justify-center shrink-0 border"
-                      style={{
-                        borderColor: 'var(--border-hairline)',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {target.kind === 'http' ? (
-                        <Globe className="w-4 h-4" />
-                      ) : (
-                        <Terminal className="w-4 h-4" />
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="text-[15px] font-semibold truncate">{target.name}</div>
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
                       <div
-                        className="flex flex-wrap items-center gap-2 text-[12.5px]"
-                        style={{ color: 'var(--ink-secondary)' }}
+                        className="w-10 h-10 mt-0.5 flex items-center justify-center shrink-0 border"
+                        style={{
+                          borderColor: 'var(--border-hairline)',
+                          color: 'var(--accent)',
+                        }}
                       >
-                        <span>{target.provider}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{t('agents.paired')}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono-tabular" style={{ color: 'var(--ink-tertiary)' }}>
-                          {target.conversation.slice(0, 14)}
-                        </span>
+                        {target.kind === 'http' ? (
+                          <Globe className="w-4 h-4" />
+                        ) : (
+                          <Terminal className="w-4 h-4" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="text-[15px] font-semibold">{target.name}</span>
+                          <span
+                            className="text-[12px] font-mono-tabular"
+                            style={{ color: 'var(--ink-tertiary)' }}
+                          >
+                            {target.provider}
+                          </span>
+                          {target.lastUsedAt && (
+                            <span
+                              className="text-[11.5px]"
+                              style={{ color: 'var(--status-ok)' }}
+                            >
+                              ·{' '}
+                              {settings.app_language === 'zh' ? '最近活跃 ' : 'Active '}
+                              {formatRelativeTime(
+                                Math.floor(target.lastUsedAt / 1000),
+                                settings.app_language,
+                              )}
+                            </span>
+                          )}
+                        </div>
+
+                        {target.scope && (
+                          <p
+                            className="text-[13px] leading-relaxed"
+                            style={{ color: 'var(--ink-secondary)' }}
+                          >
+                            {target.scope}
+                          </p>
+                        )}
+
+                        <div
+                          className="flex flex-wrap items-center gap-2 text-[12px]"
+                          style={{ color: 'var(--ink-tertiary)' }}
+                        >
+                          {aliasesText && (
+                            <>
+                              <span>
+                                {settings.app_language === 'zh' ? '唤醒词: ' : 'Aliases: '}
+                                <span
+                                  className="font-mono-tabular"
+                                  style={{ color: 'var(--ink-secondary)' }}
+                                >
+                                  {aliasesText}
+                                </span>
+                              </span>
+                              <span aria-hidden="true">·</span>
+                            </>
+                          )}
+                          {target.workingDirectory && (
+                            <>
+                              <span className="font-mono-tabular">{target.workingDirectory}</span>
+                              <span aria-hidden="true">·</span>
+                            </>
+                          )}
+                          <span className="font-mono-tabular">
+                            {target.conversation.slice(0, 12)}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={() => openDictation('agent', target)}
-                        className="btn-accent h-9 px-3.5 text-[13px] flex items-center gap-1.5 cursor-pointer"
+                        className="btn-ghost h-9 px-3.5 text-[12.5px] flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Mic className="w-3.5 h-3.5" />
+                        <Mic className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
                         <span>{t('agents.speakTo')}</span>
                       </button>
 
@@ -326,7 +411,7 @@ export const AgentsView: React.FC = () => {
 
                       <button
                         type="button"
-                        onClick={() => setPairingTarget(target)}
+                        onClick={() => setEditingManifest(target)}
                         className="btn-ghost h-9 w-9 flex items-center justify-center cursor-pointer"
                         style={{ color: 'var(--ink-secondary)' }}
                         title={t('agents.edit')}
@@ -358,6 +443,22 @@ export const AgentsView: React.FC = () => {
         </section>
       </div>
 
+      {editingManifest && (
+        <AgentManifestModal
+          target={editingManifest}
+          onClose={() => setEditingManifest(null)}
+          onSave={(updated) => {
+            saveAgent(updated);
+            setEditingManifest(null);
+          }}
+          onRepair={() => {
+            const tRef = editingManifest;
+            setEditingManifest(null);
+            setPairingTarget(tRef);
+          }}
+        />
+      )}
+
       {pairingTarget && (
         <AgentPairingModal
           initialTarget={pairingTarget}
@@ -369,6 +470,154 @@ export const AgentsView: React.FC = () => {
           }}
         />
       )}
+    </div>
+  );
+};
+
+/**
+ * Capability Manifest Editor for Tiny Auto-Route Harness
+ */
+const AgentManifestModal: React.FC<{
+  target: AgentTarget;
+  onClose: () => void;
+  onSave: (updated: AgentTarget) => void;
+  onRepair: () => void;
+}> = ({ target, onClose, onSave, onRepair }) => {
+  const { settings, t } = useAppStore();
+  const [name, setName] = useState(target.name);
+  const [workingDirectory, setWorkingDirectory] = useState(target.workingDirectory ?? '');
+  const [aliasesRaw, setAliasesRaw] = useState((target.aliases ?? []).join(', '));
+  const [scope, setScope] = useState(target.scope ?? '');
+
+  const handleSave = () => {
+    const aliases = aliasesRaw
+      .split(/[,，/\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    onSave({
+      ...target,
+      name: name.trim() || target.name,
+      workingDirectory: workingDirectory.trim() || undefined,
+      aliases,
+      scope: scope.trim(),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[3px] p-4">
+      <div
+        className="w-full max-w-[520px] studio-panel p-6 lg:p-7 shadow-2xl space-y-5"
+        style={{ borderColor: 'var(--border-strong)' }}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="font-display text-[20px] font-semibold">
+              {settings.app_language === 'zh' ? '编辑 Agent 能力名片' : 'Edit Agent Manifest'}
+            </h3>
+            <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--ink-secondary)' }}>
+              {settings.app_language === 'zh'
+                ? '微型路由 Harness 根据唤醒词与职责范围自动决定把语音交给谁。'
+                : 'The tiny router uses wake aliases and scope keywords to dispatch voice automatically.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 hover:bg-[var(--bg-hover)] cursor-pointer"
+            style={{ color: 'var(--ink-secondary)' }}
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[12px]" style={{ color: 'var(--ink-secondary)' }}>
+              {settings.app_language === 'zh' ? '显示名称' : 'Display Name'}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="studio-input w-full"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[12px]" style={{ color: 'var(--ink-secondary)' }}>
+              {settings.app_language === 'zh'
+                ? '唤醒词 / 别名（逗号分隔，0ms 确定性命中）'
+                : 'Wake Aliases (comma separated, 0ms rule match)'}
+            </label>
+            <input
+              type="text"
+              value={aliasesRaw}
+              onChange={(e) => setAliasesRaw(e.target.value)}
+              placeholder="codex, 后端, api, rust"
+              className="studio-input w-full font-mono-tabular text-[13px]"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[12px]" style={{ color: 'var(--ink-secondary)' }}>
+              {settings.app_language === 'zh' ? '工作目录' : 'Working Directory'}
+            </label>
+            <input
+              type="text"
+              value={workingDirectory}
+              onChange={(e) => setWorkingDirectory(e.target.value)}
+              placeholder="~/workspace/project"
+              className="studio-input w-full font-mono-tabular text-[13px]"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[12px]" style={{ color: 'var(--ink-secondary)' }}>
+              {settings.app_language === 'zh' ? '职责与擅长范围' : 'Scope & Responsibilities'}
+            </label>
+            <textarea
+              value={scope}
+              onChange={(e) => setScope(e.target.value)}
+              rows={3}
+              placeholder={
+                settings.app_language === 'zh'
+                  ? '例如：负责 React 前端组件、CSS 样式排版与交互细节'
+                  : 'e.g. React frontend components, CSS layout, and UI polish'
+              }
+              className="studio-textarea w-full resize-none leading-relaxed"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <button
+            type="button"
+            onClick={onRepair}
+            className="text-[12.5px] hover:underline cursor-pointer"
+            style={{ color: 'var(--ink-secondary)' }}
+          >
+            {settings.app_language === 'zh' ? '重新配对本地会话…' : 'Re-pair local session…'}
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-ghost h-9 px-3.5 text-[13px] cursor-pointer"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              type="button"
+              disabled={!name.trim()}
+              onClick={handleSave}
+              className="btn-accent h-9 px-4 text-[13px] cursor-pointer"
+            >
+              {t('common.save')}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -423,6 +672,11 @@ const AgentPairingModal: React.FC<AgentPairingModalProps> = ({
       conversation: convUuid,
       workingDirectory: '~/workspace/project',
       bindingID: initialTarget.bindingID,
+      aliases:
+        initialTarget.aliases && initialTarget.aliases.length > 0
+          ? initialTarget.aliases
+          : [choice.toLowerCase()],
+      scope: initialTarget.scope || `${choice} 本地开发与任务执行会话`,
     };
     onPaired(target);
     setConnectedTarget(target);
@@ -435,7 +689,6 @@ const AgentPairingModal: React.FC<AgentPairingModalProps> = ({
         className="w-full max-w-[540px] studio-panel p-7 shadow-2xl space-y-6"
         style={{ borderColor: 'var(--border-strong)' }}
       >
-        {/* Step Progress Bar */}
         <div className="flex items-center justify-between gap-4">
           <div
             className="flex items-center gap-2 text-[12px] font-mono-tabular"
@@ -615,7 +868,7 @@ const AgentPairingModal: React.FC<AgentPairingModalProps> = ({
                 已连接 {connectedTarget.name}
               </h3>
               <p className="text-[13.5px]" style={{ color: 'var(--ink-secondary)' }}>
-                最后，给这个会话设置一个快捷键。以后按键说话，就能直接发给它。
+                已自动纳入智能路由名录。你也可以额外为它绑定专属快捷键，或稍后编辑唤醒词与职责范围。
               </p>
             </div>
             <div className="flex justify-end gap-2">
@@ -624,14 +877,14 @@ const AgentPairingModal: React.FC<AgentPairingModalProps> = ({
                 onClick={onClose}
                 className="btn-ghost h-10 px-4 text-[13px] cursor-pointer"
               >
-                稍后设置
+                完成
               </button>
               <button
                 type="button"
                 onClick={() => onRequestShortcut(connectedTarget.bindingID)}
                 className="btn-accent h-10 px-5 text-[13px] cursor-pointer"
               >
-                设置快捷键
+                设置专属热键
               </button>
             </div>
           </>
