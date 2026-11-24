@@ -1,0 +1,5 @@
+{
+  "name": "TalkWTF",
+  "description": "A voice interface for your Agent conversations, with dictation, AI polishing, voice translation, and a personal dictionary.",
+  "requestFramePermissions": ["microphone"]
+}
