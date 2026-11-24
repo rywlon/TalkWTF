@@ -1,0 +1,23 @@
+TalkWTF — macOS 安装说明
+
+系统要求：macOS 14 或更新，Apple Silicon（M 系列）芯片。
+
+本 app 未经过 Apple 公证（个人项目，不交 Apple 开发者年费）。macOS 默认会
+阻止打开。首次打开请二选一：
+
+方法 A（图形界面，推荐）
+  1. 把 TalkWTF.app 拖进「应用程序」文件夹
+  2. 双击它，弹出「无法打开」提示后点「完成」
+  3. 打开「系统设置」→「隐私与安全性」
+  4. 向下滚到「安全性」区域，点「仍要打开 TalkWTF」
+  5. 再次双击 TalkWTF.app，点「打开」
+
+方法 B（终端，一行命令）
+  把 TalkWTF.app 放进 /Applications 后运行：
+    xattr -dr com.apple.quarantine /Applications/TalkWTF.app
+
+首次启动会请求：
+  - 麦克风权限（录音）
+  - 辅助功能权限（粘贴、自动学词）
+
+注意：语音识别模型会在首次使用时从 Hugging Face 下载（数百 MB），需要联网。

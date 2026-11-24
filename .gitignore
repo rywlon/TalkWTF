@@ -38,3 +38,8 @@ __pycache__/
 *.key
 settings_store.json
 history.db*
+
+# Web UI (experimental, in web/) — 不参与原生构建
+web/node_modules
+web/dist
+web/.vite-cache
