@@ -93,15 +93,28 @@ struct LibraryView: View {
 
     private var filteredEntries: [Core.HistoryEntry] {
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let recovered = entries.filter { !Self.isUnrecovered($0) }
         let matches = needle.isEmpty
-            ? entries
-            : entries.filter {
+            ? recovered
+            : recovered.filter {
                 $0.transcription.lowercased().contains(needle)
                     || ($0.postProcessed ?? "").lowercased().contains(needle)
             }
         return sort == .newest
             ? matches.sorted { $0.timestamp > $1.timestamp }
             : matches.sorted { $0.timestamp < $1.timestamp }
+    }
+
+    /// A recording whose transcript came back empty: the audio is on disk, so
+    /// it can still be recognised, exported, or thrown away.
+    static func isUnrecovered(_ entry: Core.HistoryEntry) -> Bool {
+        entry.transcription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var unrecovered: [Core.HistoryEntry] {
+        entries
+            .filter { Self.isUnrecovered($0) }
+            .sorted { $0.timestamp > $1.timestamp }
     }
 
     private var historyList: some View {
@@ -136,6 +149,11 @@ struct LibraryView: View {
             }
             .padding(.bottom, 18)
 
+            if !unrecovered.isEmpty && query.isEmpty {
+                recoverySection
+                    .padding(.bottom, 8)
+            }
+
             if filteredEntries.isEmpty {
                 Text(query.isEmpty ? L("settings.history.empty") : L("settings.history.noMatches"))
                     .font(Theme.Fonts.body)
@@ -152,6 +170,65 @@ struct LibraryView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// "Black box" block: recordings kept even though transcription failed.
+    private var recoverySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: L("library.recovery.title"), trailing: "\(unrecovered.count)")
+            ForEach(unrecovered) { entry in
+                HStack(spacing: 14) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(entry.fileName)
+                            .font(Theme.Fonts.mono(11.5))
+                            .foregroundStyle(Theme.Colors.ink)
+                            .lineLimit(1)
+                        HStack(spacing: 7) {
+                            Text(Self.relative(entry.timestamp))
+                            if entry.durationMs > 0 {
+                                Text("·")
+                                Text(Self.shortDuration(entry.durationMs))
+                            }
+                            Text("·")
+                            Text(L("library.recovery.kept"))
+                        }
+                        .font(Theme.Fonts.mono(10.5))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
+                    }
+                    Spacer(minLength: 12)
+                    HStack(spacing: 4) {
+                        StudioButton(title: L("settings.history.retranscribe"), systemImage: "arrow.clockwise", kind: .ghost, height: 28) {
+                            retranscribe(entry.id)
+                        }
+                        .disabled(retrying.contains(entry.id))
+                        StudioIconButton(systemImage: "square.and.arrow.up", help: L("library.recovery.export")) {
+                            exportAudio(entry)
+                        }
+                        StudioIconButton(systemImage: "trash", help: L("common.delete")) {
+                            run("delete_history_entry", ["id": entry.id])
+                        }
+                    }
+                }
+                .padding(.vertical, 12)
+                Hairline()
+            }
+        }
+        .padding(.bottom, 10)
+    }
+
+    /// Copy the saved audio somewhere the user chooses.
+    private func exportAudio(_ entry: Core.HistoryEntry) {
+        guard let source = RecordingPlayer.audioURL(for: entry.fileName) else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = source.lastPathComponent
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        do {
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.copyItem(at: source, to: destination)
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 
@@ -458,6 +535,14 @@ struct LibraryView: View {
     private func load() {
         do {
             entries = try Core.historyEntries()
+            if ProcessInfo.processInfo.environment["TALKWTF_FAKE_UNRECOVERED"] == "1" {
+                entries.insert(Core.HistoryEntry([
+                    "id": -1, "file_name": "未识别-示例.wav",
+                    "timestamp": Int(Date().timeIntervalSince1970) - 180,
+                    "workflow": "dictation", "char_count": 0, "duration_ms": 8400,
+                    "saved": false, "transcription_text": "",
+                ]), at: 0)
+            }
             dictionary = try Core.dictionary()
             rejections = (try? Core.invoke("list_learning_rejections") as? [String]) ?? []
             error = nil

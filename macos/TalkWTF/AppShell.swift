@@ -96,7 +96,10 @@ final class AppBoot: ObservableObject {
                     let store = SettingsStore.shared
                     store.load()
                     Localization.shared.load(language: store.settings["app_language"] as? String)
-                    ThemeController.apply(store.string("theme", "system"))
+                    ThemeController.apply(
+                        ProcessInfo.processInfo.environment["TALKWTF_APPEARANCE"]
+                            ?? store.string("theme", "system")
+                    )
                     // Always present: with no Dock icon the menu bar item is the
                     // app's only entry point.
                     TrayController.shared.install()
@@ -110,7 +113,8 @@ final class AppBoot: ObservableObject {
                     }
                     SecureInputFallback.shared.start()
                     self.booted = true
-                    self.needsOnboarding = !Permissions.microphoneGranted
+                    self.needsOnboarding = ProcessInfo.processInfo.environment["TALKWTF_ONBOARDING"] == "1"
+                        || !Permissions.microphoneGranted
                 }
             } catch {
                 DispatchQueue.main.async { self.bootError = error.localizedDescription }

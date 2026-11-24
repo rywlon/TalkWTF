@@ -9,15 +9,27 @@ struct OnboardingView: View {
     @State private var timer: Timer?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-            pageHeader(
-                L("onboarding.permissions.title"),
-                subtitle: L("onboarding.permissions.description")
-            )
+        VStack(alignment: .leading, spacing: 0) {
+            Text("SETUP  ·  TALKWTF")
+                .font(Theme.Fonts.mono(10.5, weight: .semibold))
+                .tracking(2.4)
+                .foregroundStyle(Theme.Colors.inkTertiary)
 
-            stepIndicator()
+            Text(L("onboarding.permissions.title"))
+                .font(.system(size: 30, weight: .semibold))
+                .tracking(-0.7)
+                .foregroundStyle(Theme.Colors.ink)
+                .padding(.top, 12)
 
-            VStack(spacing: Theme.Spacing.row) {
+            Text(L("onboarding.permissions.description"))
+                .font(.system(size: 13.5))
+                .foregroundStyle(Theme.Colors.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+
+            stepRow.padding(.top, 26)
+
+            VStack(spacing: 10) {
                 permissionCard(
                     symbol: "mic.fill",
                     title: L("onboarding.permissions.microphone.title"),
@@ -39,20 +51,44 @@ struct OnboardingView: View {
                     }
                 )
             }
+            .padding(.top, 16)
 
-            HStack {
+            HStack(spacing: 10) {
                 if microphone && accessibility {
-                    Label(L("onboarding.permissions.allGranted"), systemImage: "checkmark.seal.fill")
-                        .font(Theme.Fonts.callout)
-                        .foregroundStyle(.green)
+                    Label(L("onboarding.permissions.allGranted"), systemImage: "checkmark")
+                        .font(Theme.Fonts.mono(11))
+                        .foregroundStyle(Theme.Colors.ok)
+                } else {
+                    Text("\(microphone ? 1 : 0) / 2")
+                        .font(Theme.Fonts.mono(11))
+                        .foregroundStyle(Theme.Colors.inkTertiary)
                 }
-                Spacer()
-                Button(microphone ? L("common.close") : "稍后设置，先看看") { onFinish() }
-                    .keyboardShortcut(.defaultAction)
+                Spacer(minLength: 16)
+                if !(microphone && accessibility) {
+                    StudioButton(title: L("onboarding.permissions.later"), kind: .ghost, height: 32) { onFinish() }
+                }
+                StudioButton(
+                    title: microphone && accessibility
+                        ? L("onboarding.permissions.start")
+                        : L("onboarding.permissions.grant"),
+                    kind: .accent,
+                    height: 32
+                ) {
+                    if microphone && accessibility {
+                        onFinish()
+                    } else if !microphone {
+                        Permissions.requestMicrophone { granted in microphone = granted }
+                    } else {
+                        Permissions.requestAccessibility()
+                        Permissions.openAccessibilitySettings()
+                    }
+                }
             }
+            .padding(.top, 26)
         }
-        .padding(40)
-        .frame(width: 560)
+        .padding(36)
+        .frame(width: 620)
+        .background(Theme.Colors.canvas)
         .onAppear {
             // The Accessibility grant happens outside the app, so poll for it.
             timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
@@ -65,47 +101,45 @@ struct OnboardingView: View {
 
     // MARK: - step indicator
 
-    private func stepIndicator() -> some View {
-        HStack(spacing: 8) {
-            stepPill(
-                number: 1,
+    private var stepRow: some View {
+        HStack(alignment: .bottom, spacing: 26) {
+            step(
+                number: "01",
                 title: L("onboarding.permissions.microphone.title"),
                 done: microphone,
                 active: !microphone
             )
-            stepPill(
-                number: 2,
+            step(
+                number: "02",
                 title: L("onboarding.permissions.accessibility.title"),
                 done: accessibility,
                 active: microphone && !accessibility
             )
+            Spacer(minLength: 0)
         }
+        .overlay(alignment: .bottom) { Hairline() }
     }
 
-    private func stepPill(number: Int, title: String, done: Bool, active: Bool) -> some View {
-        HStack(spacing: 6) {
-            Group {
+    private func step(number: String, title: String, done: Bool, active: Bool) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 7) {
+                Text(number)
+                    .font(Theme.Fonts.mono(10.5, weight: .semibold))
+                    .foregroundStyle(active || done ? Theme.Colors.accent : Theme.Colors.inkTertiary)
+                Text(title)
+                    .font(.system(size: 12.5, weight: active ? .semibold : .regular))
+                    .foregroundStyle(active || done ? Theme.Colors.ink : Theme.Colors.inkSecondary)
                 if done {
                     Image(systemName: "checkmark")
-                } else {
-                    Text("\(number)")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Theme.Colors.ok)
                 }
             }
-            .font(.system(size: 10, weight: .bold))
-            .frame(width: 14, height: 14)
-            .background(
-                Circle().fill(done || active ? Color.accentColor : Color.clear)
-            )
-            .foregroundStyle(done || active ? Color.white : Color.secondary)
-
-            Text(title).font(Theme.Fonts.caption)
+            .fixedSize()
+            Rectangle()
+                .fill(active || done ? Theme.Colors.accent : .clear)
+                .frame(height: 2)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            Capsule().fill(done || active ? Theme.Colors.selectionAccent : Theme.Colors.cardFill)
-        )
-        .foregroundStyle(done || active ? Color.accentColor : Color.secondary)
     }
 
     // MARK: - permission card
@@ -117,33 +151,43 @@ struct OnboardingView: View {
         granted: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .center, spacing: 14) {
             Image(systemName: symbol)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.tint)
-                .frame(width: 34, height: 34)
-                .background(
-                    Theme.Colors.selectionAccent,
-                    in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
-                )
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Theme.Colors.accent)
+                .frame(width: 36, height: 36)
+                .overlay(Rectangle().strokeBorder(Theme.Colors.hairline, lineWidth: 1))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(Theme.Fonts.headline)
-                Text(detail).font(Theme.Fonts.callout).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.ink)
+                Text(detail)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Theme.Colors.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer(minLength: 12)
+            Spacer(minLength: 16)
 
             if granted {
-                Label(L("onboarding.permissions.granted"), systemImage: "checkmark.circle.fill")
-                    .font(Theme.Fonts.callout)
-                    .foregroundStyle(.green)
-                    .labelStyle(.titleAndIcon)
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                    Text(L("onboarding.permissions.granted"))
+                        .font(Theme.Fonts.mono(10.5))
+                }
+                .foregroundStyle(Theme.Colors.ok)
             } else {
-                Button(L("onboarding.permissions.grant"), action: action)
+                StudioButton(title: L("onboarding.permissions.grant"), kind: .accent, height: 30) {
+                    action()
+                }
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
+        .background(Theme.Colors.surface)
+        .overlay(Rectangle().strokeBorder(Theme.Colors.hairline, lineWidth: 1))
     }
 }

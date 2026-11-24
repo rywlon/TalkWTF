@@ -124,7 +124,9 @@
       "errors": {
         "checkFailed": "Failed to check permissions. Please try again.",
         "requestFailed": "Failed to request permission. Please try again."
-      }
+      },
+      "start": "Start using TalkWTF",
+      "later": "Later"
     }
   },
   "modelSelector": {
@@ -955,7 +957,12 @@
   "library": {
     "subtitle": "History and dictionary, kept on this Mac",
     "searchPlaceholder": "Search",
-    "count": "%d entries"
+    "count": "%d entries",
+    "recovery": {
+      "title": "Not transcribed",
+      "kept": "audio kept",
+      "export": "Export audio"
+    }
   },
   "agents": {
     "hero": {

@@ -197,6 +197,16 @@ extension View {
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
     }
 
+    /// The floating panel: flat surface, hairline edge, and just enough shadow
+    /// to stay legible over a white document.
+    func overlaySurface(cornerRadius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return self
+            .background(shape.fill(Theme.Colors.surface))
+            .overlay(shape.strokeBorder(Theme.Colors.hairlineStrong, lineWidth: 1))
+            .shadow(color: .black.opacity(0.16), radius: 18, y: 6)
+    }
+
     /// A rounded surface that uses Liquid Glass on macOS 26 and falls back to a
     /// material elsewhere.
     @ViewBuilder

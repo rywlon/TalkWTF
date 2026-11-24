@@ -46,6 +46,15 @@ final class RecordingPlayer: ObservableObject {
         playingId = nil
     }
 
+    /// Where the saved audio for a history entry lives, resolved by the core.
+    static func audioURL(for fileName: String) -> URL? {
+        guard let path = try? Core.invoke("get_audio_file_path", ["fileName": fileName]) as? String,
+              !path.isEmpty
+        else { return nil }
+        let url = URL(fileURLWithPath: path)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     private func audioPath(for fileName: String) -> URL? {
         guard let path = try? Core.invoke("get_audio_file_path", ["fileName": fileName]) as? String,
               !path.isEmpty

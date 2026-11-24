@@ -104,6 +104,23 @@ final class OverlayController {
             guard let levels = note.object as? [CGFloat] else { return }
             MainActor.assumeIsolated { self?.model.setLevels(levels) }
         }
+        // Screenshot hook: TALKWTF_OVERLAY=recording|agent|processing shows one
+        // state on launch so the panel can be reviewed without recording.
+        if let demo = ProcessInfo.processInfo.environment["TALKWTF_OVERLAY"] {
+            switch demo {
+            case "recording":
+                model.levels = [0.2, 0.5, 0.9, 0.35, 0.7, 0.25, 0.6, 0.95, 0.4, 0.3,
+                                0.55, 0.85, 0.3, 0.65, 0.45, 0.8, 0.35, 0.5]
+                model.targetAppName = "Notes"
+                show(.recording)
+            case "agent":
+                show(.agentMessage(text: "内容已交给 Codex，等它回复。", failed: false))
+            case "failed":
+                show(.agentMessage(text: "发送未确认，内容已保留。打开 TalkWTF 查看或复制。", failed: true))
+            default:
+                show(.processing(label: "中文"))
+            }
+        }
         // Follow the frontmost app while recording, so the badge shows where the
         // text will actually land even if the user switches mid-dictation.
         // NSWorkspace posts its notifications on its own center, not the default
@@ -385,11 +402,11 @@ struct OverlayView: View {
 
     var body: some View {
         VStack(spacing: Theme.Overlay.hintSpacing) {
-            content.glassSurface(cornerRadius: model.state.cornerRadius)
+            content.overlaySurface(cornerRadius: model.state.cornerRadius)
             if isRecordingState {
                 Text(L("overlay.recordingHint"))
-                    .font(Theme.Fonts.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Fonts.mono(10.5))
+                    .foregroundStyle(Theme.Colors.inkTertiary)
                     .opacity(hovering ? 0 : 1)
             }
         }
@@ -408,8 +425,9 @@ struct OverlayView: View {
                         waveform
                         Spacer(minLength: 8)
                         Text("TalkWTF")
-                            .font(Theme.Fonts.caption)
-                            .foregroundStyle(.secondary)
+                            .font(Theme.Fonts.mono(10))
+                            .tracking(0.6)
+                            .foregroundStyle(Theme.Colors.inkTertiary)
                     }
                     .opacity(hovering ? 0 : 1)
 
@@ -498,9 +516,9 @@ struct OverlayView: View {
         let hasSignal = (model.levels.max() ?? 0) > 0.22
         return HStack(spacing: 3) {
             ForEach(model.levels.indices, id: \.self) { index in
-                Capsule()
-                    .fill(hasSignal ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.secondary.opacity(0.5)))
-                    .frame(width: 3, height: hasSignal ? max(4, model.levels[index] * 30) : 2)
+                Rectangle()
+                    .fill(hasSignal ? Theme.Colors.accent : Theme.Colors.inkTertiary.opacity(0.55))
+                    .frame(width: 2.5, height: hasSignal ? max(4, model.levels[index] * 30) : 2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -524,11 +542,12 @@ struct OverlayView: View {
             DictationController.shared.discard()
         } label: {
             Label(L("overlay.discard"), systemImage: "xmark")
-                .font(Theme.Fonts.callout.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .lineLimit(1)
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, minHeight: 32)
-                .background(Color.red, in: Capsule())
+                .foregroundStyle(Theme.Colors.ink)
+                .frame(maxWidth: .infinity, minHeight: 30)
+                .background(Theme.Colors.well)
+                .overlay(Rectangle().strokeBorder(Theme.Colors.hairlineStrong, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .help(L("overlay.discard"))
@@ -540,11 +559,11 @@ struct OverlayView: View {
             DictationController.shared.finish()
         } label: {
             Label(L("overlay.finish"), systemImage: "checkmark")
-                .font(Theme.Fonts.callout.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .lineLimit(1)
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, minHeight: 32)
-                .background(.tint, in: Capsule())
+                .foregroundStyle(Theme.Colors.onAccent)
+                .frame(maxWidth: .infinity, minHeight: 30)
+                .background(Theme.Colors.accent)
         }
         .buttonStyle(.plain)
         .help(L("overlay.finish"))

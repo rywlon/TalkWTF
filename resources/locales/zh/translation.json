@@ -124,7 +124,9 @@
       "errors": {
         "checkFailed": "检查权限失败。请重试。",
         "requestFailed": "请求权限失败。请重试。"
-      }
+      },
+      "start": "开始使用",
+      "later": "稍后设置"
     }
   },
   "modelSelector": {
@@ -955,7 +957,12 @@
   "library": {
     "subtitle": "历史与词典，全部保存在本机",
     "searchPlaceholder": "搜索",
-    "count": "%d 条记录"
+    "count": "%d 条记录",
+    "recovery": {
+      "title": "待恢复",
+      "kept": "录音已保留",
+      "export": "导出音频"
+    }
   },
   "agents": {
     "hero": {
