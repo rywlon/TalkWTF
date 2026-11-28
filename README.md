@@ -64,7 +64,7 @@ The default setup asks you to **choose, copy, and paste**. The receiving Agent h
 Follow the [build guide](BUILD.md) for toolchain setup, building, and packaging. A typical source build is:
 
 ```sh
-git clone https://github.com/rywlon/TalkWTF.git
+git clone https://github.com/lonzhijun/TalkWTF.git
 cd TalkWTF
 xcodebuild -project macos/TalkWTF.xcodeproj -target TalkWTF -configuration Debug build
 ```

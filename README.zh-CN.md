@@ -64,7 +64,7 @@
 工具链准备、构建和打包步骤见 [构建指南](BUILD.md)。常见的源码构建方式：
 
 ```sh
-git clone https://github.com/rywlon/TalkWTF.git
+git clone https://github.com/lonzhijun/TalkWTF.git
 cd TalkWTF
 xcodebuild -project macos/TalkWTF.xcodeproj -target TalkWTF -configuration Debug build
 ```
